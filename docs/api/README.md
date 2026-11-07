@@ -8,6 +8,7 @@ trao trả, adapter ảnh/tìm kiếm AMQP, R2 output, outbox và cleanup. Worke
 
 - [Từng API nghiệp vụ: request/response, quyền, lỗi và ví dụ](recovery.md).
 - [Từng API ảnh và tìm kiếm](media-search.md).
+- [Theo dõi tin tìm, cron và thông báo khớp](saved-searches.md).
 - [Hợp đồng AMQP, outbox, lease và cleanup](amqp.md).
 - [Phạm vi kiểm thử và cách chạy](testing.md).
 

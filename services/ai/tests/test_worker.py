@@ -1431,3 +1431,77 @@ def test_batch_union_caps_at_twenty_and_discards_weak_local_hits(with_area):
         finally:
             await worker.close()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("error,code", [
+    (ModelUnavailable("invalid_regions"), "invalid_regions"),
+    (ModelUnavailable("invalid_ocr"), "invalid_ocr"),
+    (ModelUnavailable("invalid_ocr_truncated"), "invalid_ocr_truncated"),
+    (ModelUnavailable("invalid_ocr_json"), "invalid_ocr_json"),
+    (ModelUnavailable("invalid_ocr_too_long"), "invalid_ocr_too_long"),
+    (ModelUnavailable("invalid_ocr_schema"), "invalid_ocr_schema"),
+    (ModelUnavailable("invalid_ocr_private output"), "model_unavailable"),
+    (ModelUnavailable("invalid_embedding"), "invalid_embedding"),
+    (ModelUnavailable("private model output"), "model_unavailable"),
+    (ValueError("private image data"), "processing_failed"),
+    (TimeoutError(), "deadline_expired"),
+])
+def test_image_failure_returns_only_allowlisted_diagnostics_and_discards_original(error, code):
+    async def run():
+        worker = Worker(SETTINGS)
+        raw = png()
+        message = Message("image.redact", metadata(modelId=SETTINGS.redaction_model,
+            modelRevision=SETTINGS.redaction_revision, imageId=str(uuid4()), itemId=str(uuid4()),
+            sourceVersion=1, sourceSha256=hashlib.sha256(raw).hexdigest(), processingProfile="redact-v4"), raw)
+        message.content_type = "image/png"
+        worker.execute = AsyncMock(side_effect=error)
+        worker.reply = AsyncMock()
+        try:
+            await worker.handle(message, "image")
+            assert worker.reply.await_args.args[2:] == (False, {}, code)
+            assert message.body == b"" and message.events == ["ack"]
+        finally:
+            await worker.close()
+    asyncio.run(run())
+
+
+def test_recovered_truncated_ocr_preserves_searchable_lines_and_runs_redaction_separately():
+    async def run():
+        worker = Worker(replace(SETTINGS, image_search_enabled=True))
+        worker.ollama._json = AsyncMock(side_effect=[
+            {"models": [{"name": SETTINGS.redaction_model, "digest": SETTINGS.redaction_revision}]},
+            {"model": SETTINGS.redaction_model, "done": True, "done_reason": "length",
+             "response": '{"text":"SAMPLE ID 001234\\nSAMPLE DATE 01/01/2000\\nUNFINISHED 00'},
+            {"models": [{"name": SETTINGS.redaction_model, "digest": SETTINGS.redaction_revision}]},
+        ])
+        worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
+        worker.ollama.detect_regions = AsyncMock(return_value=[{"label": "face", "bbox": [0, 0, 500, 500]}])
+        worker.store.upsert = AsyncMock()
+        worker.reply = AsyncMock()
+        raw = png()
+        identity = dict(imageId=str(uuid4()), itemId=str(uuid4()), sourceVersion=1,
+            sourceSha256=hashlib.sha256(raw).hexdigest())
+        message = Message("image.embed", metadata(**identity, dimensions=2, processingProfile="image-v1"), raw)
+        message.content_type = "image/png"
+        try:
+            await worker.handle(message, "image")
+            result = worker.reply.await_args.args
+            assert result[2] is True
+            assert result[3]["ocr"] == {"text": "SAMPLE ID 001234\nSAMPLE DATE 01/01/2000", "hasUnclearText": True,
+                "modelId": SETTINGS.redaction_model, "modelRevision": SETTINGS.redaction_revision, "processingProfile": "ocr-v1"}
+            assert result[3]["vector"] == [0, 1]
+            assert message.body == b"" and message.events == ["ack"]
+            worker.ollama.detect_regions.assert_not_awaited()
+            assert worker.ollama._json.await_count == 3
+            redaction = Message("image.redact", metadata(**identity, modelId=SETTINGS.redaction_model,
+                modelRevision=SETTINGS.redaction_revision, processingProfile="redact-v4"), raw)
+            redaction.content_type = "image/png"
+            await worker.handle(redaction, "image")
+            result = worker.reply.await_args.args
+            assert result[2] is True and result[3] != raw
+            assert result[1]["sensitiveRegions"] == [{"label": "face", "bbox": [0, 0, 500, 500]}]
+            assert redaction.body == b"" and redaction.events == ["ack"]
+            worker.store.upsert.assert_not_awaited()
+        finally:
+            await worker.close()
+    asyncio.run(run())

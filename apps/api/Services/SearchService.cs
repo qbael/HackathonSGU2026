@@ -1,13 +1,10 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Findie.Api.Contracts;
 using Findie.Api.Infrastructure;
 using Findie.Api.Models;
 using Findie.Api.Repositories;
-using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Net.Http.Headers;
 
 namespace Findie.Api.Services;
 
@@ -41,80 +38,31 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
     {
         ValidateFilters(filter.Area, filter.From, filter.Until, filter.Limit);
         var lostAt = ParseLostAt(filter.LostAt);
-        if (length > 3 * BoundedImage.MaxBytes + 65536) throw new ApiException(413, "Search upload exceeds 30 MiB plus form headers.");
-        if (!MediaTypeHeaderValue.TryParse(contentType, out var type) || type.MediaType != "multipart/form-data")
-            throw new ApiException(415, "Use multipart/form-data with one to three images.");
-        var boundary = HeaderUtilities.RemoveQuotes(type.Boundary).Value;
-        if (string.IsNullOrWhiteSpace(boundary) || boundary.Length > 128) throw new ApiException(400, "Invalid multipart boundary.");
-        var images = new List<(byte[] Bytes, string Mime)>();
-        string? text = null;
-        var hasText = false;
+        using var upload = await SearchUpload.ReadAsync(contentType, stream, length, true, ct);
+        var images = upload.Images;
+        var text = upload.Text;
+        var body = new byte[images.Sum(image => image.Bytes.Length)];
         try
         {
-            try
+            var offset = 0;
+            foreach (var image in images)
             {
-                var reader = new MultipartReader(boundary, stream) { HeadersCountLimit = 16, HeadersLengthLimit = 16384 };
-                MultipartSection? section;
-                while ((section = await reader.ReadNextSectionAsync(ct)) is not null)
-                {
-                    if (!ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var disposition)
-                        || disposition.DispositionType != "form-data") throw new ApiException(400, "Invalid multipart field.");
-                    var name = HeaderUtilities.RemoveQuotes(disposition.Name).Value;
-                    var file = disposition.FileName.HasValue || disposition.FileNameStar.HasValue;
-                    if (name == "images" && file)
-                    {
-                        if (images.Count == 3) throw new ApiException(400, "Upload at most three search images.");
-                        if (!BoundedImage.Mime(section.ContentType)) throw new ApiException(415, "Use JPEG, PNG or WebP search images.");
-                        images.Add((await BoundedImage.ReadAsync(section.Body, null, ct), section.ContentType!));
-                    }
-                    else if (name == "text" && !file && !hasText)
-                    {
-                        hasText = true;
-                        var buffer = new byte[8001];
-                        try
-                        {
-                            var used = 0;
-                            int read;
-                            while ((read = await section.Body.ReadAsync(buffer.AsMemory(used), ct)) > 0)
-                            {
-                                used += read;
-                                if (used == buffer.Length) throw new ApiException(400, "Search text exceeds 2000 characters.");
-                            }
-                            text = RecoveryWorkflow.Optional(new UTF8Encoding(false, true).GetString(buffer, 0, used));
-                            if (text?.Length > 2000) throw new ApiException(400, "Search text exceeds 2000 characters.");
-                        }
-                        finally { Array.Clear(buffer); }
-                    }
-                    else throw new ApiException(400, "Use only images and a single optional text field.");
-                }
-                if (images.Count == 0) throw new ApiException(400, "Upload one to three search images.");
+                image.Bytes.CopyTo(body, offset);
+                offset += image.Bytes.Length;
             }
-            catch (Exception error) when (error is IOException or InvalidDataException or DecoderFallbackException)
-            { throw new ApiException(400, "Invalid multipart search input."); }
-            var body = new byte[images.Sum(image => image.Bytes.Length)];
-            try
-            {
-                var offset = 0;
-                foreach (var image in images)
-                {
-                    image.Bytes.CopyTo(body, offset);
-                    offset += image.Bytes.Length;
-                }
-                var mode = text is null ? "image" : "combined";
-                var profile = text is null ? "image-fusion-v1" : "multimodal-fusion-v1";
-                var metadata = JsonSerializer.SerializeToElement(new { schemaVersion = 1,
-                    modelId = AiProtocol.Setting(configuration, "EmbeddingModelId"), modelRevision = AiProtocol.Setting(configuration, "EmbeddingRevision"),
-                    processingProfile = "multimodal-v1", searchProfileId = profile, searchProfileVersion = 1,
-                    mode, area = RecoveryWorkflow.Optional(filter.Area), from = filter.From, until = filter.Until, limit = filter.Limit,
-                    candidateLimit = CandidateLimit, cacheScope = actor, deadlineAt = DateTimeOffset.UtcNow.AddSeconds(955), text,
-                    images = images.Select(image => new { contentType = image.Mime, length = image.Bytes.Length }) }, RecoveryWorkflow.Json);
-                var candidates = await QueryAsync(new AiCommand("search.hybrid.images", metadata, body, "application/octet-stream"),
-                    mode, images.Count + (text is null ? 0 : 1), ct);
-                return await ResultsAsync(actor, candidates, mode, profile, filter.Area, filter.From, filter.Until, filter.Limit, lostAt, ct);
-            }
-            finally { Array.Clear(body); }
+            var mode = text is null ? "image" : "combined";
+            var profile = text is null ? "image-fusion-v1" : "multimodal-fusion-v1";
+            var metadata = JsonSerializer.SerializeToElement(new { schemaVersion = 1,
+                modelId = AiProtocol.Setting(configuration, "EmbeddingModelId"), modelRevision = AiProtocol.Setting(configuration, "EmbeddingRevision"),
+                processingProfile = "multimodal-v1", searchProfileId = profile, searchProfileVersion = 1,
+                mode, area = RecoveryWorkflow.Optional(filter.Area), from = filter.From, until = filter.Until, limit = filter.Limit,
+                candidateLimit = CandidateLimit, cacheScope = actor, deadlineAt = DateTimeOffset.UtcNow.AddSeconds(955), text,
+                images = images.Select(image => new { contentType = image.Mime, length = image.Bytes.Length }) }, RecoveryWorkflow.Json);
+            var candidates = await QueryAsync(new AiCommand("search.hybrid.images", metadata, body, "application/octet-stream"),
+                mode, images.Count + (text is null ? 0 : 1), ct);
+            return await ResultsAsync(actor, candidates, mode, profile, filter.Area, filter.From, filter.Until, filter.Limit, lostAt, ct);
         }
-        finally { foreach (var image in images) Array.Clear(image.Bytes); }
+        finally { Array.Clear(body); }
     }
     async Task<SearchResponse> SearchAsync(Guid actor, string mode, string? text, string? area, DateOnly? from, DateOnly? until,
         int limit, DateTimeOffset? lostAt, byte[] bytes, string mime, CancellationToken ct) =>
@@ -226,11 +174,8 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
         {
             items.TryGetValue(candidate.ItemId, out var loaded);
             var item = loaded?.Item;
-            var validSources = item is not null && candidate.Sources.All(source => item.DocumentVersion == source.DocumentVersion && (source.Image
-                ? item.Images.Any(image => image.Id == source.SourceId && RecoveryWorkflow.PublicImage(image)
-                    && image.ContentVersion == source.SourceVersion && image.ProcessedObject!.Sha256 == source.SourceHash)
-                : source.SourceId == item.Id && item.ContentVersion == source.SourceVersion
-                    && source.SourceHash == RecoveryWorkflow.Hash(item.Title + "\n" + item.PublicDescription)));
+            var validSources = item is not null && candidate.Sources.All(source => CurrentSource(item,
+                source.DocumentVersion, source.SourceId, source.SourceVersion, source.SourceHash, source.Image));
             if (item is null || !RecoveryWorkflow.Public(item) || !validSources || !Matches(item, from, until))
             { removed = true; continue; }
             if (!scores.TryGetValue(item.Id, out var current)
@@ -247,7 +192,7 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
         return new SearchResponse(hits, mode, profile, 1, removed && hits.Count < limit,
             area is not null && hits.Any(hit => !hit.Item.FoundArea.Contains(area, StringComparison.OrdinalIgnoreCase)), "/api/items", batch.RankingMethod);
     }
-    static DateTimeOffset? ParseLostAt(string? value)
+    internal static DateTimeOffset? ParseLostAt(string? value)
     {
         if (value is null) return null;
         if (!Regex.IsMatch(value, @"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,7})?)?(Z|[+-]\d{2}:\d{2})\z")
@@ -270,7 +215,7 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
             return 0.02;
         return 0;
     }
-    static void ValidateFilters(string? area, DateOnly? from, DateOnly? until, int limit)
+    internal static void ValidateFilters(string? area, DateOnly? from, DateOnly? until, int limit)
     {
         if (from > until || from == DateOnly.MinValue || until == DateOnly.MaxValue) throw new ApiException(400, "Invalid date filter.");
         if (area?.Length > 200 || limit is < 1 or > 10) throw new ApiException(400, "Invalid search filter.");
@@ -283,7 +228,13 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
         public int Group => ImageRelevant && TextRelevant ? 0 : ImageRelevant ? 1 : 2;
     }
     static bool MatchesArea(Item item, string area) => item.FoundArea.Contains(area, StringComparison.OrdinalIgnoreCase);
-    static bool Matches(Item item, DateOnly? from, DateOnly? until)
+    internal static bool CurrentSource(Item item, long documentVersion, Guid sourceId, long sourceVersion, string? hash, bool image) =>
+        item.DocumentVersion == documentVersion && (image
+            ? item.Images.Any(value => value.Id == sourceId && RecoveryWorkflow.PublicImage(value)
+                && value.ContentVersion == sourceVersion && value.ProcessedObject!.Sha256 == hash)
+            : sourceId == item.Id && item.ContentVersion == sourceVersion
+                && hash == RecoveryWorkflow.Hash(item.Title + "\n" + item.PublicDescription));
+    internal static bool Matches(Item item, DateOnly? from, DateOnly? until)
     {
         if (from is { } first)
         {

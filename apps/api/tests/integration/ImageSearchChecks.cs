@@ -28,6 +28,18 @@ static class ImageSearchChecks
             try { AiProtocol.EmbeddingDimensions(configuration); throw new InvalidOperationException("Invalid embedding dimensions should fail."); }
             catch (ApiException error) when (error.StatusCode == 503) { Check(true, "invalid embedding dimensions are rejected"); }
         }
+        foreach (var kind in new[] { "image.embed", "image.redact" })
+        foreach (var code in new[] { "invalid_ocr", "invalid_ocr_truncated", "invalid_ocr_json", "invalid_ocr_too_long", "invalid_ocr_schema", "invalid_regions", "invalid_embedding", "deadline_expired", "private upstream output" })
+        {
+            var failure = JsonSerializer.SerializeToElement(new { schemaVersion = 1, kind, succeeded = false, errorCode = code });
+            try { AiProtocol.Require(failure, kind); throw new InvalidOperationException("AI failure should reject upload."); }
+            catch (ApiException error) when (error.StatusCode == 503)
+            {
+                Check(!error.Message.Contains("basic item filters") && !error.Message.Contains("private upstream output")
+                    && (code == "private upstream output" || error.Message.Contains(code)),
+                    "image failures identify the stage with safe diagnostics and do not suggest search filters");
+            }
+        }
         using var owner = await User("image-owner");
         using var seeker = await User("image-seeker");
         var item = await Send(owner, HttpMethod.Post, "/api/items", Create("Image test"), 201);
@@ -287,7 +299,89 @@ static class ImageSearchChecks
         await CheckLostTimeRanking();
         await CheckSoftAreaAndGroups();
         await CheckOriginalEmbeddingRestoration();
+        await CheckPassportRedaction();
         Console.WriteLine($"PASS: {checks} image/search/outbox checks (output-only storage, review, stale results, bounded retry and cleanup)");
+
+        async Task CheckPassportRedaction()
+        {
+            using var browser = await User("passport-redaction-owner");
+            foreach (var title in new[] { "Hộ chiếu bản mẫu", "PASSPORT sample", "Giấy tờ bản mẫu" })
+            {
+                var value = await Send(browser, HttpMethod.Post, "/api/items", Create(title), 201);
+                var id = value.GetProperty("id").GetGuid();
+                var path = $"/api/items/{id}/images";
+                string[] labels = [];
+                ai.Handler = command =>
+                {
+                    if (command.Kind == "image.embed")
+                    {
+                        var payload = EmbeddingPayload(command, factory.Services.GetRequiredService<IConfiguration>());
+                        if (title == "Giấy tờ bản mẫu")
+                            ((Dictionary<string, object?>)payload["ocr"]!)["text"] = "PASSPORT SAMPLE";
+                        return Task.FromResult(new AiReply(JsonSerializer.SerializeToElement(StubAiGateway.ReplyMetadata(command)),
+                            JsonSerializer.SerializeToUtf8Bytes(payload)));
+                    }
+                    var metadata = ImageMetadata(command);
+                    metadata["sensitiveRegions"] = labels.Select(label => new { label, bbox = new[] { 0, 0, 1000, 1000 } }).ToArray();
+                    return Task.FromResult(new AiReply(JsonSerializer.SerializeToElement(metadata), Output.ToArray()));
+                };
+                var puts = storage.Puts;
+                foreach (var incomplete in new string[][] { [], ["face"], ["passport_number"], ["face", "mrz"], ["passport_number", "mrz"] })
+                {
+                    labels = incomplete;
+                    await Binary(browser, path, original, "image/png", 503);
+                }
+                using (var scope = factory.Services.CreateScope())
+                    Check(storage.Puts == puts && !await scope.ServiceProvider.GetRequiredService<FindieDbContext>().ItemImages.AnyAsync(image => image.ItemId == id),
+                        "passport uploads with empty or missing required masks never create image or storage records");
+                labels = ["face", "passport_number"];
+                var image = await Binary(browser, path, original, "image/png", 201);
+                var imageId = image.GetProperty("id").GetGuid();
+                using (var scope = factory.Services.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<FindieDbContext>();
+                    (await db.ItemImages.SingleAsync(image => image.Id == imageId)).SensitiveRegions = "[]";
+                    await db.SaveChangesAsync();
+                }
+                await Send(browser, HttpMethod.Post, $"{path}/{imageId}/review", new { contentVersion = 1, decision = "approved" }, 503);
+                using (var scope = factory.Services.CreateScope())
+                    Check((await scope.ServiceProvider.GetRequiredService<FindieDbContext>().ItemImages.SingleAsync(image => image.Id == imageId)).ReviewState == "pending",
+                        "legacy passport output without masks cannot be approved even with a stale client");
+                using (var scope = factory.Services.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<FindieDbContext>();
+                    (await db.ItemImages.SingleAsync(image => image.Id == imageId)).SensitiveRegions =
+                        JsonSerializer.Serialize(labels.Select(label => new { label, bbox = new[] { 0, 0, 1000, 1000 } }));
+                    await db.SaveChangesAsync();
+                }
+                await Send(browser, HttpMethod.Post, $"{path}/{imageId}/review", new { contentVersion = 1, decision = "approved" }, 200);
+                await Send(browser, HttpMethod.Post, $"{path}/{imageId}/review", new { contentVersion = 1, decision = "rejected" }, 200);
+            }
+            var card = await Send(browser, HttpMethod.Post, "/api/items", Create("Hộ chiếu và giấy tờ"), 201);
+            var cardUnclear = true;
+            ai.Handler = command =>
+            {
+                if (command.Kind == "image.embed")
+                {
+                    var payload = EmbeddingPayload(command, factory.Services.GetRequiredService<IConfiguration>());
+                    ((Dictionary<string, object?>)payload["ocr"]!)["text"] = "CĂN CƯỚC CÔNG DÂN - SAMPLE";
+                    ((Dictionary<string, object?>)payload["ocr"]!)["hasUnclearText"] = cardUnclear;
+                    return Task.FromResult(new AiReply(JsonSerializer.SerializeToElement(StubAiGateway.ReplyMetadata(command)),
+                        JsonSerializer.SerializeToUtf8Bytes(payload)));
+                }
+                var metadata = ImageMetadata(command);
+                metadata["sensitiveRegions"] = new[] { "face", "identity_number", "address", "qr_code" }
+                    .Select(label => new { label, bbox = new[] { 0, 0, 1000, 1000 } }).ToArray();
+                return Task.FromResult(new AiReply(JsonSerializer.SerializeToElement(metadata), Output.ToArray()));
+            };
+            var cardPath = $"/api/items/{card.GetProperty("id").GetGuid()}/images";
+            await Binary(browser, cardPath, original, "image/png", 503);
+            cardUnclear = false;
+            var cardImage = await Binary(browser, cardPath, original, "image/png", 201);
+            await Send(browser, HttpMethod.Post, $"{cardPath}/{cardImage.GetProperty("id").GetGuid()}/review",
+                new { contentVersion = 1, decision = "approved" }, 200);
+            Check(true, "CCCD OCR overrides a passport post title without requiring a passport-number mask");
+        }
 
         async Task CheckSoftAreaAndGroups()
         {

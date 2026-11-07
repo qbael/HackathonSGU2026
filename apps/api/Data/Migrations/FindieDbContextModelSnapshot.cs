@@ -527,7 +527,7 @@ namespace Findie.Api.Data.Migrations
 
                             t.HasCheckConstraint("idempotency_operation_check", "btrim(operation) <> ''");
 
-                            t.HasCheckConstraint("idempotency_resource_check", "resource_type IN ('item', 'image', 'claim', 'intake', 'custody_event')");
+                            t.HasCheckConstraint("idempotency_resource_check", "resource_type IN ('item', 'image', 'claim', 'intake', 'custody_event', 'saved_search')");
 
                             t.HasCheckConstraint("idempotency_response_check", "response_status BETWEEN 200 AND 299");
                         });
@@ -1133,6 +1133,145 @@ namespace Findie.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Findie.Api.Models.SavedSearch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AfterItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("after_item_id");
+
+                    b.Property<string>("Area")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("area");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("Dimensions")
+                        .HasColumnType("integer")
+                        .HasColumnName("dimensions");
+
+                    b.Property<DateOnly?>("From")
+                        .HasColumnType("date")
+                        .HasColumnName("from");
+
+                    b.Property<string>("ImageEmbeddings")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("image_embeddings");
+
+                    b.Property<DateTimeOffset?>("LastCheckedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_checked_at");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<DateTimeOffset?>("LostAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lost_at");
+
+                    b.Property<string>("ModelId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("model_id");
+
+                    b.Property<string>("ModelRevision")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("model_revision");
+
+                    b.Property<bool>("NeedsRefresh")
+                        .HasColumnType("boolean")
+                        .HasColumnName("needs_refresh");
+
+                    b.Property<DateTimeOffset>("NextCheckAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_check_at");
+
+                    b.Property<string>("Text")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("text");
+
+                    b.Property<DateOnly?>("Until")
+                        .HasColumnType("date")
+                        .HasColumnName("until");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextCheckAt", "Id")
+                        .HasFilter("NOT needs_refresh");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("saved_searches", null, t =>
+                        {
+                            t.HasCheckConstraint("saved_search_dates_check", "\"from\" IS NULL OR until IS NULL OR \"from\" <= until");
+
+                            t.HasCheckConstraint("saved_search_images_check", "jsonb_typeof(image_embeddings) = 'array' AND jsonb_array_length(image_embeddings) <= 3");
+
+                            t.HasCheckConstraint("saved_search_input_check", "(text IS NOT NULL AND char_length(btrim(text)) BETWEEN 1 AND 2000) OR jsonb_array_length(image_embeddings) > 0");
+
+                            t.HasCheckConstraint("saved_search_lease_check", "(lease_token IS NULL) = (lease_until IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Findie.Api.Models.SavedSearchMatch", b =>
+                {
+                    b.Property<Guid>("SavedSearchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("saved_search_id");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<long>("DocumentVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("document_version");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision")
+                        .HasColumnName("score");
+
+                    b.HasKey("SavedSearchId", "ItemId");
+
+                    b.HasIndex("ItemId");
+
+                    b.ToTable("saved_search_matches", null, t =>
+                        {
+                            t.HasCheckConstraint("saved_search_match_score_check", "score >= 0.85 AND score <= 1 AND document_version > 0");
+                        });
+                });
+
             modelBuilder.Entity("Findie.Api.Models.StoredObject", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1683,6 +1822,36 @@ namespace Findie.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Findie.Api.Models.SavedSearch", b =>
+                {
+                    b.HasOne("Findie.Api.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Findie.Api.Models.SavedSearchMatch", b =>
+                {
+                    b.HasOne("Findie.Api.Models.Item", "Item")
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Findie.Api.Models.SavedSearch", "SavedSearch")
+                        .WithMany("Matches")
+                        .HasForeignKey("SavedSearchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+
+                    b.Navigation("SavedSearch");
+                });
+
             modelBuilder.Entity("Findie.Api.Models.StoredObject", b =>
                 {
                     b.HasOne("Findie.Api.Models.ApplicationUser", "Owner")
@@ -1784,6 +1953,11 @@ namespace Findie.Api.Data.Migrations
             modelBuilder.Entity("Findie.Api.Models.ReceptionPoint", b =>
                 {
                     b.Navigation("Staff");
+                });
+
+            modelBuilder.Entity("Findie.Api.Models.SavedSearch", b =>
+                {
+                    b.Navigation("Matches");
                 });
 #pragma warning restore 612, 618
         }

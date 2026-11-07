@@ -14,7 +14,7 @@ import aio_pika
 
 from . import images
 from .contracts import (BatchSearchMetadata, ImageEmbeddingMetadata, IndexImageMetadata, IndexMetadata, IndexVectorMetadata,
-                        OriginalEmbedding, Query, RedactMetadata, SearchMetadata, Snapshot)
+                        OriginalEmbedding, Query, RedactMetadata, SavedSearchMetadata, SavedSearchQuery, SearchMetadata, Snapshot)
 from .ollama import EmbeddingInputRejected, ModelUnavailable, OCR_PROFILE, Ollama
 from .store import Store
 from .search_cache import SearchCache
@@ -162,7 +162,7 @@ class Worker:
         revision = self.settings.redaction_revision if redaction else self.settings.revision
         if metadata.modelId != model or metadata.modelRevision != revision:
             raise ValueError("model_configuration_mismatch")
-        if isinstance(metadata, (IndexMetadata, ImageEmbeddingMetadata)) and metadata.dimensions != self.settings.dimensions:
+        if isinstance(metadata, (IndexMetadata, ImageEmbeddingMetadata, SavedSearchMetadata)) and metadata.dimensions != self.settings.dimensions:
             raise ValueError("dimension_configuration_mismatch")
         if isinstance(metadata, SearchMetadata):
             profile = self.settings.search_profile if metadata.mode == "text" else self.settings.image_search_profile
@@ -260,6 +260,18 @@ class Worker:
 
     async def execute(self, kind, metadata, body, content_type="application/json"):
         self.identity(metadata)
+        if kind == "search.saved":
+            query = SavedSearchQuery.model_validate_json(body)
+            if query.images and not self.settings.image_search_enabled:
+                raise ModelUnavailable("image_search_disabled")
+            for image in query.images:
+                if (image.modelId, image.modelRevision, image.dimensions) != (
+                        self.settings.model_id, self.settings.revision, self.settings.dimensions):
+                    raise ValueError("saved_embedding_configuration_mismatch")
+            vector = await self.embed_text(query.text, metadata.cacheScope, query=True) if query.text else None
+            metadata.remaining()
+            return await self.store.saved_matches(vector, [image.vector for image in query.images],
+                from_date=query.from_, until=query.until, after_item_id=query.afterItemId)
         if kind == "search.hybrid.images":
             if sum(image.length for image in metadata.images) != len(body):
                 raise ValueError("image_lengths_mismatch")
@@ -537,17 +549,17 @@ class Worker:
                 raise ValueError("invalid_reply_route")
             image = kind in {"index.source.image", "image.embed", "image.redact", "search.hybrid.image"}
             if not ((durable and (image or message.content_type == "application/json"))
-                    or lane == "query" and kind == "search.hybrid" and message.content_type == "application/json"
+                    or lane == "query" and kind in {"search.hybrid", "search.saved"} and message.content_type == "application/json"
                     or lane == "image" and (kind in {"image.embed", "image.redact", "search.hybrid.image"} or batch)):
                 raise ValueError("unsupported_operation")
-            json_limit = 1024 * 1024 if kind == "index.source.vector" else 65536
+            json_limit = 2 * 1024 * 1024 if kind == "search.saved" else 1024 * 1024 if kind == "index.source.vector" else 65536
             if (batch and message.content_type != "application/octet-stream"
                     or not batch and (image and message.content_type not in MIMES or not image and len(message.body) > json_limit)):
                 raise ValueError("invalid_content_type_or_size")
             model = (IndexVectorMetadata if kind == "index.source.vector" else
                      IndexImageMetadata if kind == "index.source.image" else IndexMetadata if durable else
                      ImageEmbeddingMetadata if kind == "image.embed" else RedactMetadata if kind == "image.redact" else
-                     BatchSearchMetadata if batch else SearchMetadata)
+                     SavedSearchMetadata if kind == "search.saved" else BatchSearchMetadata if batch else SearchMetadata)
             metadata = model.model_validate_json(header)
             self.identity(metadata)
             remaining = metadata.remaining()
@@ -581,6 +593,13 @@ class Worker:
                     failure_reply_allowed = False
             if metadata is not None and kind not in {"index.source.image", "index.source.vector"} and failure_reply_allowed:
                 code = "model_unavailable" if isinstance(error, ModelUnavailable) else "processing_failed"
+                # Only fixed codes may cross the boundary; never forward model output or exception text.
+                if isinstance(error, ModelUnavailable) and str(error) in {
+                        "invalid_regions", "invalid_ocr", "invalid_embedding", "invalid_ocr_truncated",
+                        "invalid_ocr_json", "invalid_ocr_too_long", "invalid_ocr_schema"}:
+                    code = str(error)
+                if isinstance(error, TimeoutError):
+                    code = "deadline_expired"
                 try:
                     await self.reply(message, metadata.model_dump(mode="json", by_alias=True), False, {}, code)
                     self.drop_body(message)
@@ -611,7 +630,7 @@ class Worker:
         binary = isinstance(result, bytes)
         payload = result if binary else json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
         limit = 10 * 1024 * 1024 if binary else 1024 * 1024 if message.type in {
-            "image.embed", "search.hybrid", "search.hybrid.image", "search.hybrid.images"} else 262144
+            "image.embed", "search.hybrid", "search.hybrid.image", "search.hybrid.images", "search.saved"} else 262144
         if len(payload) > limit:
             raise ValueError("response_too_large")
         header = json.dumps(response, separators=(",", ":"))

@@ -25,6 +25,9 @@ public sealed class FindieDbContext(DbContextOptions<FindieDbContext> options)
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<IndexOutbox> IndexOutbox => Set<IndexOutbox>();
 
+    public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
+    public DbSet<SavedSearchMatch> SavedSearchMatches => Set<SavedSearchMatch>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -308,7 +311,7 @@ public sealed class FindieDbContext(DbContextOptions<FindieDbContext> options)
             {
                 table.HasCheckConstraint("idempotency_operation_check", "btrim(operation) <> ''");
                 table.HasCheckConstraint("idempotency_hash_check", "request_sha256 ~ '^[0-9a-f]{64}$'");
-                table.HasCheckConstraint("idempotency_resource_check", "resource_type IN ('item', 'image', 'claim', 'intake', 'custody_event')");
+                table.HasCheckConstraint("idempotency_resource_check", "resource_type IN ('item', 'image', 'claim', 'intake', 'custody_event', 'saved_search')");
                 table.HasCheckConstraint("idempotency_response_check", "response_status BETWEEN 200 AND 299");
             });
             entity.HasKey(value => new { value.ActorUserId, value.IdempotencyKeyValue });
@@ -336,6 +339,31 @@ public sealed class FindieDbContext(DbContextOptions<FindieDbContext> options)
             entity.HasIndex(value => new { value.ItemId, value.DocumentVersion }).IsUnique();
             entity.HasIndex(value => new { value.NextAttemptAt, value.Id }).HasFilter("status IN ('pending', 'retry')");
             entity.HasIndex(value => value.LeaseUntil).HasFilter("status = 'running'");
+        });
+
+        modelBuilder.Entity<SavedSearch>(entity =>
+        {
+            entity.ToTable("saved_searches", table =>
+            {
+                table.HasCheckConstraint("saved_search_input_check", "(text IS NOT NULL AND char_length(btrim(text)) BETWEEN 1 AND 2000) OR jsonb_array_length(image_embeddings) > 0");
+                table.HasCheckConstraint("saved_search_images_check", "jsonb_typeof(image_embeddings) = 'array' AND jsonb_array_length(image_embeddings) <= 3");
+                table.HasCheckConstraint("saved_search_dates_check", "\"from\" IS NULL OR until IS NULL OR \"from\" <= until");
+                table.HasCheckConstraint("saved_search_lease_check", "(lease_token IS NULL) = (lease_until IS NULL)");
+            });
+            entity.Property(value => value.Text).HasMaxLength(2000);
+            entity.Property(value => value.Area).HasMaxLength(200);
+            entity.Property(value => value.ImageEmbeddings).HasColumnType("jsonb");
+            entity.HasOne(value => value.User).WithMany().HasForeignKey(value => value.UserId);
+            entity.HasIndex(value => new { value.UserId, value.CreatedAt });
+            entity.HasIndex(value => new { value.NextCheckAt, value.Id }).HasFilter("NOT needs_refresh");
+        });
+        modelBuilder.Entity<SavedSearchMatch>(entity =>
+        {
+            entity.ToTable("saved_search_matches", table =>
+                table.HasCheckConstraint("saved_search_match_score_check", "score >= 0.85 AND score <= 1 AND document_version > 0"));
+            entity.HasKey(value => new { value.SavedSearchId, value.ItemId });
+            entity.HasOne(value => value.SavedSearch).WithMany(value => value.Matches).HasForeignKey(value => value.SavedSearchId);
+            entity.HasOne(value => value.Item).WithMany().HasForeignKey(value => value.ItemId);
         });
 
         foreach (var entity in modelBuilder.Model.GetEntityTypes())

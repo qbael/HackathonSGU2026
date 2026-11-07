@@ -97,6 +97,29 @@ class OriginalEmbedding(Contract):
         return self
 
 
+class SavedSearchMetadata(Metadata):
+    dimensions: Annotated[int, Field(gt=0, le=16000, strict=True)]
+
+
+class SavedSearchQuery(Contract):
+    text: str | None = Field(default=None, max_length=2000, strict=True)
+    images: list[OriginalEmbedding] = Field(default_factory=list, max_length=3)
+    from_: date | None = Field(default=None, alias="from")
+    until: date | None = None
+    afterItemId: UUID | None = None
+
+    @model_validator(mode="after")
+    def valid(self):
+        self.text = self.text.strip() or None if self.text is not None else None
+        if not self.text and not self.images:
+            raise ValueError("empty_saved_search")
+        if any(image.ocr is not None for image in self.images):
+            raise ValueError("saved_search_ocr_forbidden")
+        if self.from_ == date.min or self.until == date.max or self.from_ and self.until and self.from_ > self.until:
+            raise ValueError("invalid_date_range")
+        return self
+
+
 class RedactMetadata(Metadata):
     imageId: UUID
     itemId: UUID

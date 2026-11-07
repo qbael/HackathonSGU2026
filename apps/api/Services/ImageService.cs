@@ -94,6 +94,7 @@ public sealed class ImageService(IRecoveryRepository repository, RecoveryWorkflo
             var metadata = JsonSerializer.SerializeToElement(redactionRequest);
             await using var reply = await ai.RequestAsync(new AiCommand("image.redact", metadata, bytes, mime!), ct);
             var output = ValidateOutput(reply, metadata);
+            RequirePassportMasks(current, embedding, output.Regions);
             var value = new StoredObject { OwnerUserId = actor, Bucket = storage.Bucket, ObjectKey = $"processed/{itemId}/{Guid.NewGuid():N}",
                 Sha256 = output.Hash, ContentType = output.Mime, ByteSize = reply.Body.Length, Width = output.Width, Height = output.Height,
                 ExpiresAt = DateTimeOffset.UtcNow.AddHours(1), CleanupNextAt = DateTimeOffset.UtcNow.AddHours(1) };
@@ -128,6 +129,30 @@ public sealed class ImageService(IRecoveryRepository repository, RecoveryWorkflo
             return Response(Find(await workflow.ItemAsync(itemId, false, ct), id));
         }
         finally { Array.Clear(bytes); }
+    }
+    static void RequirePassportMasks(Item item, string? embedding, string? regions)
+    {
+        static bool Passport(string text) => text.Contains("hộ chiếu", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("passport", StringComparison.OrdinalIgnoreCase);
+        var passport = Passport(item.Title);
+        if (embedding is not null)
+        {
+            using var cached = JsonDocument.Parse(embedding);
+            if (cached.RootElement.TryGetProperty("ocr", out var ocr))
+            {
+                var text = ocr.GetProperty("text").GetString()!;
+                if (Passport(text)) passport = true;
+                else if (!ocr.GetProperty("hasUnclearText").GetBoolean()
+                    && (text.Contains("căn cước công dân", StringComparison.OrdinalIgnoreCase)
+                        || text.Contains("citizen identity card", StringComparison.OrdinalIgnoreCase))) passport = false;
+            }
+        }
+        if (!passport) return;
+        using var masks = JsonDocument.Parse(regions ?? "[]");
+        var labels = masks.RootElement.EnumerateArray().Select(region => region.GetProperty("label").GetString()).ToHashSet();
+        // shortcut: passport posts require identity-page masks; extend the policy before accepting cover-only photos.
+        if (!new[] { "face", "passport_number" }.All(labels.Contains))
+            throw new ApiException(503, "AI chưa che đủ khuôn mặt và số hộ chiếu. Bản ảnh này không thể được lưu mới hoặc duyệt; vui lòng tải lại ảnh.");
     }
     static (string Mime, string Hash, int Width, int Height, string Regions) ValidateOutput(AiReply reply, JsonElement expected)
     {
@@ -208,6 +233,7 @@ public sealed class ImageService(IRecoveryRepository repository, RecoveryWorkflo
             if (image.ContentVersion != request.ContentVersion || image.RetiredAt != null
                 || image.ProcessingState is not ("needs_review" or "ready") || image.ProcessedObject?.ObjectState != "validated")
                 throw new ApiException(409, "The output changed or is no longer reviewable.");
+            if (request.Decision == "approved") RequirePassportMasks(item, image.OriginalEmbedding, image.SensitiveRegions);
             image.ReviewState = request.Decision;
             image.ProcessingState = request.Decision == "approved" ? "ready" : "rejected";
             if (request.Decision == "rejected") image.OriginalEmbedding = null;
@@ -317,7 +343,28 @@ public static class AiProtocol
     public static void Require(JsonElement data, string kind)
     {
         if (data.GetProperty("schemaVersion").GetInt32() != 1 || data.GetProperty("kind").GetString() != kind) throw new JsonException();
-        if (!data.GetProperty("succeeded").GetBoolean()) throw new ApiException(503, "AI processing failed; retry or use basic item filters.");
+        if (!data.GetProperty("succeeded").GetBoolean())
+        {
+            if (kind is "image.embed" or "image.redact")
+            {
+                var code = data.TryGetProperty("errorCode", out var failure) && failure.ValueKind == JsonValueKind.String
+                    ? failure.GetString() : null;
+                var reason = code switch
+                {
+                    "invalid_ocr_truncated" => "AI đọc chữ trên ảnh bị cắt do hết giới hạn sinh chữ (invalid_ocr_truncated).",
+                    "invalid_ocr_json" => "AI đọc chữ trên ảnh trả về JSON sai cú pháp (invalid_ocr_json).",
+                    "invalid_ocr_too_long" => "AI đọc chữ trên ảnh vượt giới hạn 3000 ký tự (invalid_ocr_too_long).",
+                    "invalid_ocr_schema" => "AI đọc chữ trên ảnh trả về dữ liệu sai cấu trúc (invalid_ocr_schema).",
+                    "invalid_ocr" => "AI đọc chữ trên ảnh trả về kết quả không hợp lệ (invalid_ocr).",
+                    "invalid_regions" => "AI xác định vùng cần che trả về kết quả không hợp lệ (invalid_regions).",
+                    "invalid_embedding" => "AI tạo dữ liệu tìm kiếm ảnh trả về kết quả không hợp lệ (invalid_embedding).",
+                    "deadline_expired" => "AI xử lý ảnh quá thời gian cho phép (deadline_expired).",
+                    _ => kind == "image.redact" ? "AI chưa thể che thông tin trên ảnh." : "AI chưa thể đọc chữ hoặc tạo dữ liệu tìm kiếm ảnh."
+                };
+                throw new ApiException(503, reason + " Chưa lưu ảnh; vui lòng thử lại.");
+            }
+            throw new ApiException(503, "AI processing failed; retry or use basic item filters.");
+        }
     }
     public static string Setting(IConfiguration configuration, string key) => configuration["Ai:" + key] is { Length: > 0 } value
         && value is not ("main" or "latest") ? value : throw new ApiException(503, "AI model revision/profile is not configured.");

@@ -63,7 +63,7 @@ using (var scope = factory.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FindieDbContext>();
     Check(!db.Database.HasPendingModelChanges(), "migration matches the current EF model");
-    Check(db.Model.GetEntityTypes().Count() == 22, "22 Identity and business entity types");
+    Check(db.Model.GetEntityTypes().Count() == 24, "24 Identity and business entity types");
     Check(db.Model.GetEntityTypes().SelectMany(entity => entity.GetForeignKeys())
         .All(key => key.DeleteBehavior == DeleteBehavior.Restrict), "all relationships restrict deletion");
     Check(!db.Model.GetEntityTypes().SelectMany(entity => entity.GetProperties())
@@ -154,12 +154,14 @@ await ItemDeletionChecks.RunAsync(factory, aiGateway, async (browser, subject) =
 await ImageSearchChecks.RunAsync(factory, aiGateway, storage, async (browser, subject) =>
     await GoogleLogin(browser, subject, subject + "@example.test", true, HttpStatusCode.Redirect));
 await SearchQueryChecks.RunAsync(factory);
+await SavedSearchChecks.RunAsync(factory, aiGateway, storage, async (browser, subject) =>
+    await GoogleLogin(browser, subject, subject + "@example.test", true, HttpStatusCode.Redirect));
 await AdminChecks.RunAsync(factory, async (browser, subject) =>
     await GoogleLogin(browser, subject, subject + "@example.test", true, HttpStatusCode.Redirect));
 await BrokerChecks.RunAsync(factory.Services.GetRequiredService<IServiceScopeFactory>());
 using (var seedScope = factory.Services.CreateScope())
     await LocalSeedChecks.RunAsync(seedScope.ServiceProvider.GetRequiredService<FindieDbContext>());
-var documentation = string.Join("\n", new[] { "recovery.md", "media-search.md" }.Select(file => File.ReadAllText(
+var documentation = string.Join("\n", new[] { "recovery.md", "media-search.md", "saved-searches.md" }.Select(file => File.ReadAllText(
     Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../../docs/api/", file)))));
 static string NormalizeRoute(string route) => Regex.Replace(route.Split('?')[0].TrimStart('/'), "\\{[^}]+\\}", "{id}");
 var documented = Regex.Matches(documentation, @"(?m)^## (GET|POST|PUT|DELETE) (/api/[^\s?]+)")
@@ -169,8 +171,8 @@ var implemented = factory.Services.GetRequiredService<EndpointDataSource>().Endp
         && typeof(RecoveryController).IsAssignableFrom(action.ControllerTypeInfo))
     .SelectMany(endpoint => endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Select(method =>
         method + " " + NormalizeRoute(endpoint.RoutePattern.RawText!))).ToHashSet();
-Check(implemented.Count == 29 && documented.SetEquals(implemented), "every new recovery/media/search endpoint has dedicated API documentation");
-Console.WriteLine("PASS: all 29 business/media/search endpoints have matching per-endpoint documentation");
+Check(implemented.Count == 33 && documented.SetEquals(implemented), "every new recovery/media/search endpoint has dedicated API documentation");
+Console.WriteLine("PASS: all 33 business/media/search endpoints have matching per-endpoint documentation");
 Console.WriteLine("PASS: migrations, EF relationships, Google OAuth, Identity, cookie/CSRF, profile validation, DTOs, point lookup, SQL invariants and concurrency");
 
 HttpClient NewClient() => factory.CreateClient(new WebApplicationFactoryClientOptions

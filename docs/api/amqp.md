@@ -60,6 +60,7 @@ do bên yêu cầu tạo/chỉ định (.NET cho index/search, Python cho `searc
 | --- | --- |
 | `image.embed`, `image.redact` | 300 giây |
 | `search.hybrid` | 45 giây |
+| `search.saved` | 30 giây |
 | `search.hybrid.image` | 315 giây |
 | `search.hybrid.images` | 955 giây |
 | `search.materials` và các part trả về | Tối đa 15 giây, trong ngân sách chấm lại |
@@ -127,13 +128,13 @@ processingProfile:"redact-v4",deadlineAt`. Full mode dùng `qwen3-vl:4b-instruct
 như MSSV, mã nhân viên, số thẻ/tài khoản; giữ khoảng 40% phần cuối để nhận diện.
 Tỷ lệ tính theo chiều rộng bbox, không OCR/đếm ký tự nên không bảo đảm đúng 40% số chữ số.
 Detector vẫn trả khung toàn bộ giá trị; Python cắt phần cần che, không thêm viền ở ranh
-giới nội bộ để tránh che mất phần đuôi. Số hộ chiếu (`passport_number`), toàn bộ
-vùng mã đọc máy (`mrz`), chữ ký (`signature`), khuôn mặt, địa chỉ riêng tư/quê quán/nơi sinh,
+giới nội bộ để tránh che mất phần đuôi. Số hộ chiếu (`passport_number`),
+chữ ký (`signature`), khuôn mặt, địa chỉ riêng tư/quê quán/nơi sinh,
 QR và mã vạch được che toàn bộ. Họ tên, ngày sinh, các ngày cấp/hết hạn và thông tin
-đối chiếu ngoài MRZ giữ nguyên; dữ liệu lặp trong MRZ vẫn che kín. Bố cục, logo,
+đối chiếu giữ nguyên. MRZ không được che tự động và có thể còn đọc được trên ảnh. Bố cục, logo,
 tên cơ quan và nhãn trường giữ nguyên.
-Nhãn vùng là `face`, `identity_number`, `identifier_number`, `passport_number`, `mrz`,
-`signature`, `phone`, `address`, `qr_code`, `barcode`.
+Nhãn tự động là `face`, `identity_number`, `identifier_number`, `passport_number`,
+`signature`, `phone`, `address`, `qr_code`, `barcode`. Nhãn `mrz` vẫn được đọc cho dữ liệu/tọa độ thủ công cũ.
 Mỗi `bbox` gồm bốn số nguyên `[x1,y1,x2,y2]` trong khoảng 0–1000 theo toàn ảnh;
 mỗi giá trị nhạy cảm hoặc trường địa chỉ đầy đủ có một khung riêng; trường địa chỉ
 có thể gồm nhãn và các dòng tiếp theo. Chữ/khuôn mặt thêm viền
@@ -141,7 +142,7 @@ có thể gồm nhãn và các dòng tiếp theo. Chữ/khuôn mặt thêm viề
 là 1000–1600 px, để che kín mép mã khi khung nhận diện hơi thiếu.
 
 Nếu lượt đầu thấy dấu hiệu giấy tờ qua `face`, `identity_number`, `identifier_number`,
-`passport_number`, `mrz`, `signature`, `qr_code` hoặc `barcode`, worker chạy thêm một
+`passport_number`, `signature`, `qr_code` hoặc `barcode`, worker chạy thêm một
 lượt tìm trường giấy tờ trên toàn ảnh, kể cả khi đã tìm được một số trường ở lượt đầu.
 Gộp kết quả, bỏ khung trùng chính xác theo nhãn/bbox rồi kiểm giới hạn tổng 32 vùng.
 
@@ -318,6 +319,26 @@ Response metadata echo cấu hình, thêm `kind:search.hybrid.images,succeeded`,
 phải true và phù hợp mode. Không đem giới hạn số học của RRF áp vào relevance.
 .NET kiểm wire theo nhóm đạt ngưỡng/relevance, ưu tiên khu vực, cộng bonus thời gian
 trên relevance rồi giới hạn hiển thị 10. Không pad/refill khi không đủ món đạt chất lượng.
+
+## search.saved — cron đối chiếu tin tìm đã lưu
+
+Lệnh tạm trên query queue, JSON body tối đa **2 MiB**, không persistent/DLQ.
+Metadata: `schemaVersion:1,modelId,modelRevision,dimensions,deadlineAt`, cùng
+`cacheScope` tài khoản (không echo). Deadline tối đa 35 giây; .NET gửi 30 giây.
+Body: `text` tùy chọn, `images` mảng tối đa 3 `OriginalEmbedding` không OCR,
+`from`, `until` tùy chọn và `afterItemId` UUID/null. Cần mô tả hoặc ảnh.
+Các vector phải khớp namespace model/revision/dimensions hiện hành.
+
+Response metadata echo định danh model/chiều, thêm `kind:search.saved,succeeded`;
+body tối đa 1 MiB: `{candidates:[{itemId,relevanceScore,sources:[...]}],nextAfter}`.
+Mỗi source dùng `documentVersion,sourceId,sourceVersion,sourceSha256,sourceKind`
+như tìm kiếm tương tác. Không echo mô tả, embedding hay ảnh trong reply metadata.
+
+Python quét cosine, text-only dùng nguồn text, image-only lấy ảnh giống nhất;
+kết hợp lấy trung bình text và điểm ảnh. Chỉ trả điểm **>=0.85**, không dùng
+reranker/RRF/bonus. Phân trang theo ID tối đa 100 món, `nextAfter` là ID cuối
+khi đủ trang, null khi hết. .NET lưu cursor, kiểm nguồn/trạng thái và chống trùng.
+Xem [API, lịch chạy, privacy và quy tắc thông báo](saved-searches.md).
 
 ## search.materials — Python lấy dữ liệu chấm qua RabbitMQ
 

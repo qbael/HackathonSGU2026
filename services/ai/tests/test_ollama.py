@@ -30,6 +30,10 @@ def test_remote_endpoints_and_model_configuration_require_safe_values():
     assert 'secret' not in repr(configured)
 
 
+def grounding_response(regions):
+    return json.dumps([{'label': region['label'], 'bbox_2d': region['bbox']} for region in regions])
+
+
 def image_bytes():
     buffer = BytesIO()
     with Image.new('RGB', (4, 4), 'white') as image:
@@ -145,21 +149,31 @@ def test_ocr_preserves_visible_text_and_uncertainty_with_bounded_pinned_generati
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('changes', [
-    {'response': '{"text":"private OCR","hasUnclearText":false,"extra":"private"}'},
-    {'response': json.dumps({'text': 'x' * (OCR_MAX_CHARS + 1), 'hasUnclearText': False})},
-    {'response': '{"text":123,"hasUnclearText":false}'},
-    {'response': '{"text":null,"hasUnclearText":false}'},
-    {'response': '{"text":"private OCR","hasUnclearText":"false"}'},
-    {'response': '{"text":"private OCR","hasUnclearText":0}'},
-    {'response': '{"text":"private OCR"}'},
-    {'response': 'private unstructured OCR'},
-    {'response': None}, {'done': False}, {'done': 1}, {'done_reason': 'length'}, {'model': 'other'},
+@pytest.mark.parametrize('changes,code', [
+    ({'response': '{"text":"private OCR","hasUnclearText":false,"extra":"private"}'}, 'invalid_ocr_schema'),
+    ({'response': json.dumps({'text': 'x' * (OCR_MAX_CHARS + 1), 'hasUnclearText': False})}, 'invalid_ocr_too_long'),
+    ({'response': '{"text":123,"hasUnclearText":false}'}, 'invalid_ocr_schema'),
+    ({'response': '{"text":null,"hasUnclearText":false}'}, 'invalid_ocr_schema'),
+    ({'response': '{"text":"private OCR","hasUnclearText":"false"}'}, 'invalid_ocr_schema'),
+    ({'response': '{"text":"private OCR","hasUnclearText":0}'}, 'invalid_ocr_schema'),
+    ({'response': '{"text":"private OCR"}'}, 'invalid_ocr_schema'),
+    ({'response': 'private unstructured OCR'}, 'invalid_ocr_json'),
+    ({'response': '{"text":"private unfinished OCR'}, 'invalid_ocr_json'),
+    ({'response': '[]'}, 'invalid_ocr_schema'),
+    ({'response': None}, 'invalid_ocr'),
+    ({'done': False}, 'invalid_ocr'),
+    ({'done': 1}, 'invalid_ocr'),
+    ({'done_reason': 'length'}, 'invalid_ocr_truncated'),
+    ({'done_reason': 'length', 'response': '{"text":"private truncated'}, 'invalid_ocr_truncated'),
+    ({'done_reason': {}}, 'invalid_ocr'),
+    ({'model': 'other'}, 'invalid_ocr'),
 ])
-def test_ocr_invalid_or_incomplete_output_fails_without_exposing_transcription(changes):
+def test_ocr_invalid_output_reports_only_fixed_codes_without_retrying(changes, code):
     settings = replace(SETTINGS, redaction_revision='b' * 64)
+    paths = []
 
     def respond(request):
+        paths.append(request.url.path)
         body = {'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]} if request.method == 'GET' else {
             'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
             'response': '{"text":"","hasUnclearText":false}', **changes}
@@ -168,16 +182,106 @@ def test_ocr_invalid_or_incomplete_output_fails_without_exposing_transcription(c
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
         try:
-            with pytest.raises(ModelUnavailable, match='invalid_ocr') as raised:
+            with pytest.raises(ModelUnavailable) as raised:
                 await model.read_text(image_bytes())
-            assert 'private' not in str(raised.value)
+            assert str(raised.value) == code
+            assert raised.value.__context__ is None or raised.value.__suppress_context__
+        finally:
+            await model.close()
+    asyncio.run(run())
+    assert paths == ['/api/tags', '/api/generate', '/api/tags']
+
+
+@pytest.mark.parametrize('layout', ['unfinished_text', 'unfinished_flag', 'flag_first', 'complete_object'])
+@pytest.mark.parametrize('ensure_ascii', [False, True])
+def test_truncated_ocr_keeps_complete_lines_and_marks_uncertainty_without_retry(layout, ensure_ascii):
+    settings = replace(SETTINGS, redaction_revision='b' * 64)
+    text = 'MÃ THỬ 001234\nSAMPLE "QUOTE" \\ 01/01/2000\nUNFINISHED ID 000'
+    value = json.dumps(text, ensure_ascii=ensure_ascii)
+    response = {
+        'unfinished_text': '{"text":' + value[:-1],
+        'unfinished_flag': '{"text":' + value + ',"hasUnclearText":fal',
+        'flag_first': '{"hasUnclearText":false,"text":' + value[:-1],
+        'complete_object': '{"text":' + value + ',"hasUnclearText":false}',
+    }[layout]
+    calls = []
+
+    def respond(request):
+        calls.append(request.url.path)
+        if request.method == 'GET':
+            return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
+        return httpx.Response(200, json={'model': settings.redaction_model, 'done': True,
+            'done_reason': 'length', 'response': response})
+
+    async def run():
+        model = Ollama(settings, httpx.MockTransport(respond))
+        try:
+            assert await model.read_text(image_bytes()) == {
+                'text': text.rpartition('\n')[0], 'hasUnclearText': True}
+        finally:
+            await model.close()
+    asyncio.run(run())
+    assert calls == ['/api/tags', '/api/generate', '/api/tags']
+
+
+def test_truncated_ocr_caps_at_complete_line_before_the_character_limit():
+    settings = replace(SETTINGS, redaction_revision='b' * 64)
+    text = 'SAMPLE 001234\n' + 'x' * OCR_MAX_CHARS + '\nUNFINISHED'
+
+    def respond(request):
+        if request.method == 'GET':
+            return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
+        return httpx.Response(200, json={'model': settings.redaction_model, 'done': True,
+            'done_reason': 'length', 'response': '{"text":' + json.dumps(text)[:-1]})
+
+    async def run():
+        model = Ollama(settings, httpx.MockTransport(respond))
+        try:
+            assert await model.read_text(image_bytes()) == {'text': 'SAMPLE 001234', 'hasUnclearText': True}
         finally:
             await model.close()
     asyncio.run(run())
 
 
+@pytest.mark.parametrize('response', [
+    '{"text":"single incomplete line 000',
+    '{"text":"\\nINCOMPLETE',
+    '{"text":123}',
+    '{"hasUnclearText":false}',
+    '{"text":"SAMPLE\\nPARTIAL","hasUnclearText":"false"}',
+    '{"text":"SAMPLE\\nPARTIAL","hasUnclearText":0}',
+    '{"text":"SAMPLE\\nPARTIAL","extra":"private"}',
+    '{"text":"SAMPLE\\nPARTIAL",broken}',
+    'private unstructured OCR',
+    '["SAMPLE\\nPARTIAL"]',
+])
+def test_unrecoverable_truncated_ocr_fails_closed_without_exposing_private_output(response):
+    settings = replace(SETTINGS, redaction_revision='b' * 64)
+    calls = []
+
+    def respond(request):
+        calls.append(request.url.path)
+        if request.method == 'GET':
+            return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
+        return httpx.Response(200, json={'model': settings.redaction_model, 'done': True,
+            'done_reason': 'length', 'response': response})
+
+    async def run():
+        model = Ollama(settings, httpx.MockTransport(respond))
+        try:
+            with pytest.raises(ModelUnavailable) as raised:
+                await model.read_text(image_bytes())
+            assert str(raised.value) == 'invalid_ocr_truncated'
+            assert raised.value.__suppress_context__
+        finally:
+            await model.close()
+    asyncio.run(run())
+    assert calls == ['/api/tags', '/api/generate', '/api/tags']
+
+
 @pytest.mark.parametrize('switch_after_generate', [False, True])
-def test_ocr_changed_or_unpinned_model_fails_before_output_is_used(switch_after_generate):
+@pytest.mark.parametrize('done_reason', ['stop', 'length'])
+def test_ocr_changed_or_unpinned_model_fails_before_output_is_used(switch_after_generate, done_reason):
     settings = replace(SETTINGS, redaction_revision='b' * 64)
     generated = False
 
@@ -185,8 +289,8 @@ def test_ocr_changed_or_unpinned_model_fails_before_output_is_used(switch_after_
         nonlocal generated
         if request.method == 'POST':
             generated = True
-            return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
-                                            'response': '{"text":"001234","hasUnclearText":false}'})
+            return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': done_reason,
+                                            'response': json.dumps({'text': '001234\nPARTIAL 00', 'hasUnclearText': False})})
         digest = settings.redaction_revision if switch_after_generate and not generated else 'c' * 64
         return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': digest}]})
 
@@ -223,11 +327,11 @@ def test_address_refinement_restricts_schema_and_rejects_other_fields(label):
         if request.method == 'GET':
             return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
         body = json.loads(request.content)
-        assert body['format']['$defs']['Region']['properties']['label']['enum'] == ['address']
+        assert body['format']['$defs']['GroundingRegion']['properties']['label']['enum'] == ['address']
         assert 'first house-number fragment' in body['prompt']
         assert 'Do not box names, dates' in body['prompt']
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
-                                        'response': json.dumps({'regions': [{'label': label, 'bbox': [0, 0, 100, 100]}]})})
+                                        'response': grounding_response([{'label': label, 'bbox': [0, 0, 100, 100]}])})
 
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
@@ -251,22 +355,24 @@ def test_document_redaction_restricts_schema_and_rejects_other_fields(label):
         if request.method == 'GET':
             return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
         body = json.loads(request.content)
-        assert body['format']['$defs']['Region']['properties']['label']['enum'] == [
-            'identity_number', 'identifier_number', 'passport_number', 'mrz', 'signature', 'address', 'qr_code', 'barcode',
+        assert body['format']['$defs']['GroundingRegion']['properties']['label']['enum'] == [
+            'face', 'identity_number', 'identifier_number', 'passport_number', 'signature', 'address', 'qr_code', 'barcode',
         ]
         assert 'passports' in body['prompt'] and 'residence permits' in body['prompt']
         assert 'passport_number' in body['prompt'] and 'signature' in body['prompt']
-        assert 'ALL two or three lines' in body['prompt']
-        assert 'masked completely' in body['prompt']
-        assert 'Nơi thường trú / Place of residence values including every line' in body['prompt']
+        assert 'Box complete values' in body['prompt']
+        assert 'Nơi thường trú / Place of residence' in body['prompt']
         assert 'relative to the whole image' in body['prompt']
+        assert 'sample/specimen documents' in body['prompt'] and 'every human face' in body['prompt']
+        assert 'identity_number, never passport_number' in body['prompt']
+        assert 'not chip icons or logos' in body['prompt']
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
-                                        'response': json.dumps({'regions': [region]})})
+                                        'response': grounding_response([region])})
 
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
         try:
-            if label not in {'phone', 'face'}:
+            if label not in {'phone', 'mrz'}:
                 assert await model.detect_regions(image_bytes(), document_only=True) == [region]
             else:
                 with pytest.raises(ModelUnavailable, match='invalid_regions'):
@@ -304,28 +410,26 @@ def test_vision_redaction_uses_pinned_model_and_strict_structured_schema():
         body = json.loads(request.content)
         assert body['model'] == settings.redaction_model and body['stream'] is False
         assert base64.b64decode(body['images'][0]) == image
-        assert body['format']['additionalProperties'] is False
-        assert body['format']['properties']['regions']['maxItems'] == 32
-        labels = body['format']['$defs']['Region']['properties']['label']['enum']
+        assert body['format']['type'] == 'array' and body['format']['maxItems'] == 32
+        assert body['format']['$defs']['GroundingRegion']['additionalProperties'] is False
+        box = body['format']['$defs']['GroundingRegion']['properties']['bbox_2d']
+        assert box['minItems'] == box['maxItems'] == 4
+        assert box['items'] == {'minimum': 0, 'maximum': 1000, 'type': 'integer'}
+        labels = body['format']['$defs']['GroundingRegion']['properties']['label']['enum']
         assert 'identity_number' in labels and 'identifier_number' in labels and 'personal_text' not in labels
         assert 'identity_document' not in labels and 'payment_card' not in labels
-        assert {'passport_number', 'mrz', 'signature'} <= set(labels)
-        assert 'passports' in body['prompt'] and 'place of birth' in body['prompt']
-        assert 'ALL two or three lines' in body['prompt']
-        assert 'rotated or partly cropped' in body['prompt']
-        assert 'masked completely' in body['prompt'] and 'outside MRZ blocks' in body['prompt']
-        assert 'separate tight bounding box' in body['prompt']
-        assert 'Keep card borders, logos, institution names' in body['prompt']
-        assert 'cropped secondary cards at every image edge' in body['prompt']
-        assert 'Keep personal names, birth dates, all other dates, gender, nationality' in body['prompt']
-        assert 'student IDs (MSSV)' in body['prompt']
-        assert 'Student IDs belong to identifier_number' in body['prompt']
-        assert 'the application masks the first 60% and preserves the last 40%' in body['prompt']
-        assert 'Omit fields and categories that are not visible' in body['prompt']
-        assert 'never invent entries or use placeholder boxes such as [0,0,0,0]' in body['prompt']
+        assert {'passport_number', 'signature'} <= set(labels)
+        assert 'mrz' not in labels and 'MRZ' not in body['prompt']
+        assert 'passport/travel-document' in body['prompt'] and 'place of birth' in body['prompt']
+        assert 'including repeated copies' in body['prompt']
+        assert 'Box complete values, including all digits of an identifier' in body['prompt']
+        assert 'outside boxes' in body['prompt']
+        assert 'sample/specimen documents' in body['prompt']
+        assert 'Omit absent fields' in body['prompt']
+        assert 'Do not transcribe text' in body['prompt']
         assert body['options'] == {'temperature': 0, 'num_ctx': 8192, 'num_predict': 2048}
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
-                                        'response': '{"regions":[{"label":"face","bbox":[0,0,100,100]}]}'})
+                                        'response': '[{"label":"face","bbox_2d":[0,0,100,100]}]'})
 
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
@@ -337,7 +441,7 @@ def test_vision_redaction_uses_pinned_model_and_strict_structured_schema():
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("label", ["passport_number", "mrz", "signature"])
+@pytest.mark.parametrize("label", ["passport_number", "signature"])
 def test_vision_redaction_accepts_passport_fields_without_transcribing_text(label):
     settings = replace(SETTINGS, redaction_revision='b' * 64)
     region = {"label": label, "bbox": [0, 0, 100, 100]}
@@ -346,7 +450,7 @@ def test_vision_redaction_accepts_passport_fields_without_transcribing_text(labe
         if request.method == 'GET':
             return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
-                                        'response': json.dumps({'regions': [region]})})
+                                        'response': grounding_response([region])})
 
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
@@ -376,11 +480,12 @@ def test_redaction_retries_placeholder_boxes_once_with_fresh_complete_output(mod
             regions = [{'label': label, 'bbox': [0, 0, 100, 100]}, {'label': label, 'bbox': [0, 0, 0, 0]}]
         else:
             assert 'Your previous response did not match the region schema.' in body['prompt']
+            assert 'fresh complete JSON array' in body['prompt']
             assert 'Omit absent categories entirely' in body['prompt']
             assert body['format'] == requests[0]['format']
             regions = [valid]
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
-                                        'response': json.dumps({'regions': regions})})
+                                        'response': grounding_response(regions)})
 
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
@@ -402,7 +507,7 @@ def test_redaction_second_invalid_response_fails_closed_without_more_retries_or_
             return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
         generated += 1
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
-                                        'response': '{"regions":[{"label":"phone","bbox":[0,0,0,0],"text":"private"}]}'})
+                                        'response': '[{"label":"phone","bbox_2d":[0,0,0,0],"text":"private"}]'})
 
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
@@ -426,7 +531,7 @@ def test_redaction_model_revision_change_during_retry_fails_before_using_valid_o
             digest = settings.redaction_revision if generated < 2 else 'c' * 64
             return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': digest}]})
         generated += 1
-        response = '{"regions":[{"label":"face","bbox":[0,0,0,0]}]}' if generated == 1 else '{"regions":[]}'
+        response = '[{"label":"face","bbox_2d":[0,0,0,0]}]' if generated == 1 else '[]'
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop', 'response': response})
 
     async def run():
@@ -441,10 +546,16 @@ def test_redaction_model_revision_change_during_retry_fails_before_using_valid_o
 
 
 @pytest.mark.parametrize('changes', [
-    {'response': '{"regions":[{"label":"face","bbox":[0,0,NaN,100]}]}'},
-    {'response': '{"regions":[{"label":"face","bbox":[0,0,100,100],"text":"private"}]}'},
-    {'response': '{"regions":[{"label":"unknown","bbox":[0,0,100,100]}]}'},
-    {'response': '{"regions":[]', 'done_reason': 'length'},
+    {'response': '{"regions":[]}'},
+    {'response': '[{"label":"face","bbox":[0,0,100,100]}]'},
+    {'response': '[{"label":"face","bbox_2d":[0,0,100]}]'},
+    {'response': '[{"label":"face","bbox_2d":[0,0,1001,100]}]'},
+    {'response': '[{"label":"face","bbox_2d":[0,0,100.5,100]}]'},
+    {'response': grounding_response([{'label': 'face', 'bbox': [0, 0, 100, 100]}] * 33)},
+    {'response': '[{"label":"face","bbox_2d":[0,0,NaN,100]}]'},
+    {'response': '[{"label":"face","bbox_2d":[0,0,100,100],"text":"private"}]'},
+    {'response': '[{"label":"unknown","bbox_2d":[0,0,100,100]}]'},
+    {'response': '[', 'done_reason': 'length'},
     {'done': False}, {'model': 'other'}, {'response': None}, {'response': 'private unstructured response'},
 ])
 def test_redaction_rejects_invalid_or_incomplete_model_output_without_leaking_it(changes):
@@ -452,7 +563,7 @@ def test_redaction_rejects_invalid_or_incomplete_model_output_without_leaking_it
 
     def respond(request):
         body = {'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]} if request.method == 'GET' else {
-            'model': settings.redaction_model, 'done': True, 'done_reason': 'stop', 'response': '{"regions":[]}', **changes}
+            'model': settings.redaction_model, 'done': True, 'done_reason': 'stop', 'response': '[]', **changes}
         return httpx.Response(200, json=body)
 
     async def run():
@@ -476,7 +587,7 @@ def test_redaction_changed_model_digest_fails_closed(switch_after_generate):
         if request.method == 'POST':
             generated = True
             return httpx.Response(200, json={'model': settings.redaction_model, 'done': True,
-                                           'done_reason': 'stop', 'response': '{"regions":[]}'})
+                                           'done_reason': 'stop', 'response': '[]'})
         digest = settings.redaction_revision if switch_after_generate and not generated else 'c' * 64
         return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': digest}]})
 

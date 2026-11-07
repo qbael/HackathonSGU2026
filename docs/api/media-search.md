@@ -86,10 +86,10 @@ Gửi lại đúng khóa/input trả cùng ảnh, không chạy AI/upload thêm.
 `redact-v4` che khoảng 60% phần đầu và giữ khoảng 40% phần cuối của số CCCD/CMND,
 điện thoại và mã định danh như MSSV, mã nhân viên, số thẻ/tài khoản. Tỷ lệ dựa trên
 chiều rộng vùng nhận diện, không phải phép đếm ký tự. Số hộ chiếu (`passport_number`),
-toàn bộ vùng mã đọc máy (`mrz`), chữ ký (`signature`), khuôn mặt, địa chỉ/quê quán/nơi sinh, QR và mã
+chữ ký (`signature`), khuôn mặt, địa chỉ/quê quán/nơi sinh, QR và mã
 vạch được che toàn bộ. Họ tên, ngày sinh, ngày cấp/hết hạn và thông tin đối chiếu
-khác ngoài MRZ giữ nguyên; dữ liệu lặp trong MRZ vẫn được che kín.
-Khi lượt đầu thấy dấu hiệu giấy tờ (khuôn mặt, số định danh/hộ chiếu, MRZ, chữ ký,
+khác giữ nguyên. MRZ không được che tự động và có thể còn đọc được trên ảnh.
+Khi lượt đầu thấy dấu hiệu giấy tờ (khuôn mặt, số định danh/hộ chiếu, chữ ký,
 QR hoặc mã vạch), worker kiểm tra thêm các trường trên toàn ảnh rồi gộp, bỏ khung
 trùng chính xác và kiểm giới hạn 32 vùng; lỗi hoặc quá giới hạn không trả ảnh che dở.
 Ảnh đã xử lý trước thay đổi này giữ output cũ; muốn áp dụng cách che hoặc embedding

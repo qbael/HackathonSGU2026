@@ -73,6 +73,30 @@ def test_redaction_masks_real_pixels_and_returns_matching_clean_metadata():
     assert output != body
 
 
+def test_empty_broad_pass_still_masks_faces_and_passport_numbers_from_focused_pass():
+    regions = [
+        {"label": "face", "bbox": [50, 250, 250, 750]},
+        {"label": "passport_number", "bbox": [400, 300, 800, 375]},
+        {"label": "mrz", "bbox": [0, 800, 1000, 1000]},
+    ]
+    detector = Detector([], documents=regions)
+    output, metadata = asyncio.run(redact(detector, encoded(size=(400, 240)), "image/png"))
+    assert len(detector.document_calls) == 1
+    assert metadata["sensitiveRegions"] == regions[:2]
+    with Image.open(BytesIO(output)) as image:
+        pixels = np.array(image)
+        assert (pixels[60:180, 20:100] == 0).all()
+        assert (pixels[72:90, 160:320] == 0).all()
+        assert (pixels[192:240, :] == 255).all()
+        assert (pixels[100:120, 160:320] == 255).all()
+
+
+def test_empty_broad_pass_does_not_skip_a_failing_document_check():
+    detector = Detector([], documents=RuntimeError("document_detection_unavailable"))
+    with pytest.raises(RuntimeError, match="document_detection_unavailable"):
+        asyncio.run(redact(detector, encoded(), "image/png"))
+
+
 def test_face_only_result_checks_printed_document_fields_before_masking():
     face = {"label": "face", "bbox": [50, 250, 250, 750]}
     identifier = {"label": "identity_number", "bbox": [400, 300, 800, 375]}
@@ -87,7 +111,7 @@ def test_face_only_result_checks_printed_document_fields_before_masking():
         assert (pixels[24:60, 340:380] == 0).all()
 
 
-def test_partial_passport_result_checks_missing_mrz_and_signature_before_masking():
+def test_passport_result_masks_signature_and_leaves_mrz_visible():
     face = {"label": "face", "bbox": [50, 250, 250, 750]}
     number = {"label": "passport_number", "bbox": [400, 300, 800, 375]}
     mrz = {"label": "mrz", "bbox": [0, 800, 1000, 1000]}
@@ -96,11 +120,11 @@ def test_partial_passport_result_checks_missing_mrz_and_signature_before_masking
     body = encoded(size=(400, 240))
     output, metadata = asyncio.run(redact(detector, body, "image/png"))
     assert detector.document_calls == [body]
-    assert metadata["sensitiveRegions"] == [face, number, mrz, signature]
+    assert metadata["sensitiveRegions"] == [face, number, signature]
     with Image.open(BytesIO(output)) as image:
         pixels = np.array(image)
         assert (pixels[72:90, 160:320] == 0).all()
-        assert (pixels[192:240, :] == 0).all()
+        assert (pixels[192:240, :] == 255).all()
         assert (pixels[144:168, 160:320] == 0).all()
         assert (pixels[100:120, 160:320] == 255).all()
 
@@ -112,10 +136,10 @@ def test_cropped_document_without_face_still_checks_other_printed_fields(label):
     detector = Detector([initial], documents=[number])
     _, metadata = asyncio.run(redact(detector, encoded(), "image/png"))
     assert len(detector.document_calls) == 1
-    assert metadata["sensitiveRegions"] == [initial, number]
+    assert metadata["sensitiveRegions"] == ([initial, number] if label != "mrz" else [number])
 
 
-@pytest.mark.parametrize("label", ["passport_number", "mrz", "signature"])
+@pytest.mark.parametrize("label", ["passport_number", "signature"])
 def test_passport_fields_are_fully_masked_and_comparison_text_stays_visible(label):
     buffer = BytesIO()
     with Image.new("RGB", (400, 240), "white") as source:
@@ -130,6 +154,25 @@ def test_passport_fields_are_fully_masked_and_comparison_text_stays_visible(labe
         np.testing.assert_array_equal(pixels[:50], original[:50])
         np.testing.assert_array_equal(pixels[:, :90], original[:, :90])
     assert metadata["sensitiveRegions"] == [region]
+
+
+def test_false_mrz_cannot_cover_cccd_number_name_or_birth_date():
+    face = {"label": "face", "bbox": [50, 400, 250, 750]}
+    number = {"label": "identity_number", "bbox": [350, 400, 850, 450]}
+    address = {"label": "address", "bbox": [300, 700, 900, 900]}
+    code = {"label": "qr_code", "bbox": [850, 200, 950, 350]}
+    false_mrz = {"label": "mrz", "bbox": [300, 400, 900, 900]}
+    detector = Detector([face, number, address, code, false_mrz], documents=[false_mrz])
+    output, metadata = asyncio.run(redact(detector, encoded(size=(400, 200)), "image/png"))
+    assert metadata["sensitiveRegions"] == [face, number, address, code]
+    with Image.open(BytesIO(output)) as image:
+        pixels = np.array(image)
+        assert (pixels[110:130, 140:340] == 255).all()
+        assert (pixels[80:90, 140:260] == 0).all()
+        assert (pixels[80:90, 260:340] == 255).all()
+        assert (pixels[145:175, 125:350] == 0).all()
+        assert (pixels[85:145, 25:95] == 0).all()
+        assert (pixels[42:68, 342:378] == 0).all()
 
 
 def test_document_pass_deduplicates_before_enforcing_total_region_limit():

@@ -6,6 +6,7 @@ using System.Text.Json;
 using Findie.Api.Contracts;
 using Findie.Api.Data;
 using Findie.Api.Infrastructure;
+using Findie.Api.Models;
 using Findie.Api.Repositories;
 using Findie.Api.Services;
 using Microsoft.AspNetCore.Hosting;
@@ -96,10 +97,47 @@ static class CrossServiceChecks
             var outsideArea = await InScope(services => Search(services).TextAsync(actor, new SearchRequest("ví", "Wrong campus"), default));
             Check(outsideArea.Items.Count == 1 && outsideArea.Items[0].Item.Id == item.Id && outsideArea.FiltersRelaxed,
                 "cross-service search retains relevant items outside the preferred area");
+            var seeker = await InScope(async services =>
+            {
+                var db = services.GetRequiredService<FindieDbContext>();
+                var user = new ApplicationUser { UserName = "bridge-saved-seeker", DisplayName = "Bridge saved seeker" };
+                db.Users.Add(user);
+                await db.SavedSearches.ExecuteUpdateAsync(update => update.SetProperty(value => value.NextCheckAt, DateTimeOffset.UtcNow.AddDays(1)));
+                await db.SaveChangesAsync();
+                return user.Id;
+            });
+            var storedOutputs = storage.Puts;
+            SavedSearchResponse saved;
+            using (var content = new MultipartFormDataContent())
+            {
+                content.Add(new StringContent("ví da phòng E.205"), "text");
+                var queryImage = new ByteArrayContent(raw);
+                queryImage.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+                content.Add(queryImage, "images", "saved-query.png");
+                using var stream = await content.ReadAsStreamAsync();
+                saved = await InScope(services => Saved(services).CreateAsync(seeker, Guid.NewGuid(), new ImageSearchFilter(),
+                    content.Headers.ContentType!.ToString(), stream, content.Headers.ContentLength, default));
+            }
+            Check(saved.ImageCount == 1 && saved.Text == "ví da phòng E.205" && storage.Puts == storedOutputs,
+                "saving a combined query embeds the image through real Python without storing its original");
+            using var savedMaintenance = new SavedSearchMaintenance(scopes, gateway, configuration, NullLogger<SavedSearchMaintenance>.Instance);
+            Check(await savedMaintenance.CheckOneAsync(default), "scheduled saved-query matching runs through the real broker");
+            var followed = (await InScope(services => Saved(services).ListAsync(seeker, default))).Single(value => value.Id == saved.Id);
+            Check(followed.LastCheckedAt is not null && followed.Matches.Count == 1 && followed.Matches[0].ItemId == item.Id
+                && followed.Matches[0].Score >= .85,
+                "real stored image and text vectors produce a threshold-qualified in-app match with current source evidence");
+            await InScope(services => services.GetRequiredService<FindieDbContext>().SavedSearches.Where(value => value.Id == saved.Id)
+                .ExecuteUpdateAsync(update => update.SetProperty(value => value.NextCheckAt, DateTimeOffset.UtcNow.AddMinutes(-1))));
+            await savedMaintenance.CheckOneAsync(default);
+            Check((await InScope(services => Saved(services).ListAsync(seeker, default))).Single(value => value.Id == saved.Id).Matches.Count == 1,
+                "repeated real saved-query scans preserve one notification per item");
+
             await InScope(services => Images(services).RetireAsync(actor, Guid.NewGuid(), item.Id, images[0].Id,
                 new RetireImageRequest(images[0].ContentVersion), default));
             item = await Current();
             Check(item.PublicationState == "published" && item.Images.Count == 1, "removing one of two approved images keeps the item public");
+            Check((await InScope(services => Saved(services).ListAsync(seeker, default))).Single(value => value.Id == saved.Id).Matches.Count == 0,
+                "saved notifications hide changed source versions immediately before the index catches up");
             var staleBatch = await Batch("ví da phòng E.205", 2);
             Check(staleBatch.Items.Count == 0 && !staleBatch.Partial,
                 "Python drops candidates reported stale by the material provider before .NET receives them");
@@ -114,7 +152,8 @@ static class CrossServiceChecks
             await Flush(item.Id, item.DocumentVersion);
             Check((await Text()).Items.Count == 0 && (await Image()).Items.Count == 0,
                 "last-image retirement commits a tombstone removing text and image matches across the real service boundary");
-            Console.WriteLine("PASS: .NET -> RabbitMQ -> Python -> material RPC -> .NET -> processed-output R2 double -> Python reranker; all query modes, provenance, retirement and tombstone");
+            await InScope(async services => { await Saved(services).DeleteAsync(seeker, saved.Id, default); return true; });
+            Console.WriteLine("PASS: .NET -> RabbitMQ -> Python -> material RPC -> .NET -> processed-output R2 double -> Python reranker; all query modes, saved-search cron, provenance, retirement and tombstone");
 
             Task<ItemResponse> Current() => InScope(services => services.GetRequiredService<IItemService>().GetAsync(actor, item.Id, default));
             Task<SearchResponse> Text() => InScope(services => Search(services).TextAsync(actor, new SearchRequest("ví da phòng E.205", "Bridge-only Campus"), default));
@@ -151,6 +190,8 @@ static class CrossServiceChecks
         ImageService Images(IServiceProvider services) => new(services.GetRequiredService<IRecoveryRepository>(),
             services.GetRequiredService<RecoveryWorkflow>(), gateway, storage, configuration);
         SearchService Search(IServiceProvider services) => new(services.GetRequiredService<IRecoveryRepository>(), gateway, configuration,
+            services.GetRequiredService<RecoveryWorkflow>());
+        SavedSearchService Saved(IServiceProvider services) => new(services.GetRequiredService<IRecoveryRepository>(), gateway, configuration,
             services.GetRequiredService<RecoveryWorkflow>());
         async Task<T> InScope<T>(Func<IServiceProvider, Task<T>> operation)
         {

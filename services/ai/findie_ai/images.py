@@ -122,11 +122,12 @@ async def redact(ollama, body: bytes, content_type: str) -> tuple[bytes, dict]:
     image = await asyncio.to_thread(_decode, body, content_type)
     height, width = image.shape[:2]
     clean = await asyncio.to_thread(_encode, image)
-    regions = Regions(regions=await ollama.detect_regions(clean)).regions
-    if any(region.label in {"face", "identity_number", "identifier_number", "passport_number", "mrz", "signature", "qr_code", "barcode"}
+    regions = [region for region in Regions(regions=await ollama.detect_regions(clean)).regions if region.label != "mrz"]
+    if not regions or any(region.label in {"face", "identity_number", "identifier_number", "passport_number", "signature", "qr_code", "barcode"}
            for region in regions):
-        # Finding some document fields does not mean the broad pass found every sensitive field.
-        document_regions = Regions(regions=await ollama.detect_regions(clean, document_only=True)).regions
+        # An empty broad pass can also miss a whole document; confirm with the focused pass.
+        document_regions = [region for region in Regions(regions=await ollama.detect_regions(clean, document_only=True)).regions
+                            if region.label != "mrz"]
         regions = Regions(regions=list({(region.label, region.bbox): region
                                         for region in [*regions, *document_regions]}.values())).regions
     addresses = [region.bbox for region in regions if region.label == "address"]

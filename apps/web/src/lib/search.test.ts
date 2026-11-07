@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, mock, test } from "node:test";
 import { ApiError } from "./api.ts";
-import { basicSearchUrl, searchImage, searchImages, searchText, validateSearchImages } from "./search.ts";
+import { basicSearchUrl, searchImage, searchImages, searchText, saveSearch, validateSearchImages } from "./search.ts";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 const preparedImage = new Blob(["jpeg"], { type: "image/jpeg" });
@@ -260,4 +260,56 @@ test("search fallback never opens the full list without filters", () => {
   assert.equal(basicSearchUrl({ lostAt: "2026-10-24T09:30" }), null);
   assert.equal(basicSearchUrl({ area: "  ", from: "", until: " " }), null);
   assert.equal(basicSearchUrl({ until: "2026-10-30" }), "/search?mode=basic&until=2026-10-30");
+});
+
+test("saved search sends prepared images, description, filters, CSRF and stable retry key", async () => {
+  const requests: { path: string; init?: RequestInit }[] = [];
+  mock.method(globalThis, "fetch", async (path: string, init?: RequestInit) => {
+    requests.push({ path, init });
+    return Response.json(path === "/api/auth/csrf" ? { token: "csrf-saved" } : { id: "saved-1" });
+  });
+  const files = [new File([png], "front.png", { type: "image/png" }),
+    new File([png], "back.png", { type: "image/png" })];
+  await saveSearch(files, " ví đen ", { area: " SGU ", lostAt: "2026-11-01T09:30" }, "saved-key");
+  const request = requests[1];
+  const url = new URL(request.path, "https://findie.test");
+  assert.equal(url.pathname, "/api/saved-searches");
+  assert.deepEqual(Object.fromEntries(url.searchParams), { area: "SGU", lostAt: "2026-11-01T09:30:00+07:00" });
+  assert.equal(request.init!.method, "POST");
+  assert.equal(request.init!.credentials, "same-origin");
+  assert.deepEqual(request.init!.headers, { "X-CSRF-TOKEN": "csrf-saved", "Idempotency-Key": "saved-key" });
+  const body = request.init!.body as FormData;
+  assert.equal(body.get("text"), "ví đen");
+  assert.equal(body.getAll("images").length, 2);
+  for (const image of body.getAll("images") as File[]) {
+    assert.equal(image.type, "image/jpeg");
+    assert.equal(await image.text(), "jpeg");
+  }
+});
+
+test("saved search permits text-only and image-only requests and keeps failures actionable", async () => {
+  const requests: RequestInit[] = [];
+  mock.method(globalThis, "fetch", async (path: string, init?: RequestInit) => {
+    if (path === "/api/auth/csrf") return Response.json({ token: "csrf-saved" });
+    requests.push(init!);
+    return requests.length === 1
+      ? new Response(null, { status: 503 })
+      : Response.json({ id: "saved-1" });
+  });
+  await assert.rejects(saveSearch([], "Ví đen", {}, "same-key"), (error) => error instanceof ApiError && error.status === 503);
+  await saveSearch([], "Ví đen", {}, "same-key");
+  assert.equal((requests[1].headers as Record<string, string>)["Idempotency-Key"],
+    (requests[0].headers as Record<string, string>)["Idempotency-Key"]);
+  assert.deepEqual([...(requests[1].body as FormData).keys()], ["text"]);
+  await saveSearch([new File([png], "query.png", { type: "image/png" })], "", {}, "image-key");
+  assert.deepEqual([...(requests[2].body as FormData).keys()], ["images"]);
+});
+
+test("invalid saved searches never send private content", async () => {
+  let calls = 0;
+  mock.method(globalThis, "fetch", async () => { calls++; return Response.json({}); });
+  await assert.rejects(saveSearch([], "   ", {}, "key"));
+  await assert.rejects(saveSearch([], "x".repeat(2001), {}, "key"));
+  await assert.rejects(saveSearch([new File(["bad"], "bad.svg", { type: "image/svg+xml" })], "", {}, "key"));
+  assert.equal(calls, 0);
 });

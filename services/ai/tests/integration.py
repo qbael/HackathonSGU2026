@@ -99,8 +99,10 @@ class OllamaStub(BaseHTTPRequestHandler):
                 type(self).ocr_requests += 1
                 result = {"text": OCR_TEXT, "hasUnclearText": False}
             else:
-                labels = payload["format"]["$defs"]["Region"]["properties"]["label"]["enum"]
-                result = {"regions": [{"label": "face", "bbox": [100, 100, 600, 600]}] if "face" in labels else []}
+                assert payload["format"]["type"] == "array"
+                labels = payload["format"]["$defs"]["GroundingRegion"]["properties"]["label"]["enum"]
+                assert "mrz" not in labels
+                result = [{"label": "face", "bbox_2d": [100, 100, 600, 600]}] if "face" in labels else []
             self.respond({"model": REDACTION_MODEL, "done": True, "done_reason": "stop",
                 "response": json.dumps(result)})
             return

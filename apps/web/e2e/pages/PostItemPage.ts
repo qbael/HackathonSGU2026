@@ -101,7 +101,7 @@ export class PostItemPage extends BasePage {
   async expectSavedSuccessfully() {
     // Either on review page or saved panel visible
     await expect(
-      this.page.locator('.saved-panel, .review-panel, h1:has-text("Kiểm tra ảnh trước khi công khai")').first()
+      this.page.locator('.saved-panel, .review-page').first()
     ).toBeVisible({ timeout: 10000 });
   }
 

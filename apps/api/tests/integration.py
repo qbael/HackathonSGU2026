@@ -62,7 +62,7 @@ def run():
         sql("DELETE FROM app_users;")
         migrate()
         migrate()
-        assert sql('SELECT count(*) FROM pg_tables WHERE schemaname = \'public\';') == "23", "22 app tables plus migration history"
+        assert sql('SELECT count(*) FROM pg_tables WHERE schemaname = \'public\';') == "25", "24 app tables plus migration history"
         search_environment = environment | {
             "POSTGRES_PORT": port, "SEARCH_POSTGRES_DB": database + "_search",
             "SEARCH_POSTGRES_USER": "findie_search_app", "SEARCH_POSTGRES_PASSWORD": secrets.token_hex(24),
@@ -113,6 +113,9 @@ def run():
                        cwd=ROOT, env=environment, check=True)
         subprocess.run(["uv", "run", "--project", "services/ai", "--locked", "python", "apps/api/tests/cross_service.py"],
                        cwd=ROOT, env=search_environment | environment | {"AI_SEARCH_DSN": search_environment["AI_SEARCH_DSN"]}, check=True)
+        subprocess.run(["uv", "run", "--project", "services/ai", "--locked", "python", "-m", "pytest",
+                        "services/ai/tests/test_saved_search.py", "-q"], cwd=ROOT,
+                       env=environment | {"AI_TEST_DATABASE_URL": search_environment["AI_SEARCH_MIGRATION_DSN"]}, check=True)
         seed_command = ["dotnet", "run", "--project", "apps/api", "--no-build", "--no-launch-profile", "--", "--seed-local",
                         "--staff-email", "owner@example.test"]
         subprocess.run(seed_command, cwd=ROOT, env=environment | {"ASPNETCORE_ENVIRONMENT": "Development"}, check=True)

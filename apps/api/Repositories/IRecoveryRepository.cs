@@ -32,6 +32,11 @@ public interface IRecoveryRepository
     Task<bool> ExistingIntakeAsync(Item item, Guid pointId, CancellationToken ct);
     Task<(List<CustodyEvent> Items, int TotalCount)> EventsAsync(Guid itemId, int page, int pageSize, CancellationToken ct);
     Task<CustodyEvent?> EventAsync(Guid id, CancellationToken ct);
+    Task<List<SavedSearch>> SavedSearchesAsync(Guid actor, CancellationToken ct);
+    Task<SavedSearch?> SavedSearchAsync(Guid actor, Guid id, CancellationToken ct);
+    Task AddSavedSearchAsync(SavedSearch search, CancellationToken ct);
+    Task DeleteSavedSearchAsync(Guid actor, Guid id, CancellationToken ct);
+    Task<bool> ReadSavedMatchAsync(Guid actor, Guid id, Guid itemId, CancellationToken ct);
     void ReplaceQuestions(Item item, IReadOnlyList<string> questions);
     void Add<T>(T entity) where T : class;
     Task SaveAsync(CancellationToken ct);

@@ -2,6 +2,27 @@ import { api, validateImages, writeHeaders, type Item } from "./api.ts";
 import { prepareImage } from "./images.ts";
 
 export type SearchFilters = { area?: string; from?: string; until?: string; lostAt?: string };
+export type SavedSearchMatch = {
+  itemId: string;
+  title: string;
+  foundArea: string;
+  score: number;
+  createdAt: string;
+  readAt: string | null;
+};
+export type SavedSearch = {
+  id: string;
+  text: string | null;
+  imageCount: number;
+  area: string | null;
+  from: string | null;
+  until: string | null;
+  lostAt: string | null;
+  createdAt: string;
+  lastCheckedAt: string | null;
+  needsRefresh: boolean;
+  matches: SavedSearchMatch[];
+};
 export type SearchResponse = {
   items: { rank: number; item: Item }[];
   mode: "text" | "image" | "combined";
@@ -99,4 +120,31 @@ export function basicSearchUrl(filters: SearchFilters): string | null {
     if (value) query.set(key, value);
   }
   return query.size > 1 ? `/search?${query}` : null;
+}
+
+export async function saveSearch(
+  files: readonly File[],
+  text: string,
+  filters: SearchFilters,
+  requestKey: string,
+): Promise<SavedSearch> {
+  validateSearchImages(files);
+  text = text.trim();
+  if (!text && !files.length)
+    throw new Error("Hãy nhập mô tả hoặc chọn ảnh để theo dõi tìm kiếm.");
+  if (text.length > 2000)
+    throw new Error("Mô tả tìm kiếm có tối đa 2000 ký tự.");
+  const body = new FormData();
+  for (const file of files)
+    body.append("images", await prepareImage(file), file.name);
+  if (text) body.append("text", text);
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(apiSearchFilters(filters)))
+    if (value?.trim()) query.set(key, value.trim());
+  return api<SavedSearch>(`/api/saved-searches${query.size ? `?${query}` : ""}`, {
+    method: "POST",
+    signal: AbortSignal.timeout(975000),
+    body,
+    headers: { ...(await writeHeaders()), "Idempotency-Key": requestKey },
+  });
 }

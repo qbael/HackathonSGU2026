@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 
 export function useResource<T>(url: string | null) {
@@ -42,12 +42,8 @@ export function useResource<T>(url: string | null) {
       controller.abort();
     };
   }, [url, version]);
-  return {
-    data,
-    loading,
-    error,
-    reload: () => setVersion((value) => value + 1),
-  };
+  const reload = useCallback(() => setVersion((value) => value + 1), []);
+  return { data, loading, error, reload };
 }
 
 export function useAction() {

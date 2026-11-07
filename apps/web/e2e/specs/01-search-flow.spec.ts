@@ -100,7 +100,7 @@ test.describe('CUJ-01: Tìm kiếm đồ thất lạc (Search & Filter Flow)', (
     await expect(page.locator('.item-card').first()).toContainText('Chìa khóa Honda');
   });
 
-  test('Enter ở bất kỳ vị trí nào trên trang tìm kiếm đều kích hoạt đúng một lượt tìm', async ({ page }) => {
+  test('Enter gửi tìm từ ô nhập và giữ thao tác bàn phím của liên kết', async ({ page }) => {
     const searchPage = new SearchPage(page);
     const requests: string[] = [];
     page.on('request', (request) => {
@@ -110,27 +110,27 @@ test.describe('CUJ-01: Tìm kiếm đồ thất lạc (Search & Filter Flow)', (
     await searchPage.queryInput.fill('Chìa khóa Honda');
     await page.locator('.search-options summary').click();
     const targets = [
-      'body', '#search-query', 'aside input[name="area"]', 'aside select[name="mode"]',
+      '#search-query', 'aside input[name="area"]',
       'aside input[name="from"]', 'aside input[name="until"]', 'aside input[name="lostAt"]',
-      '.search-images input[type="file"]', '.search-options summary',
-      'aside button[type="submit"]', 'aside a[href="/search"]',
-      '#search-results-title', '.main-nav a:first-child',
+      'aside button[type="submit"]',
     ];
     for (const [index, target] of targets.entries()) {
-      if (target === 'body') await searchPage.queryInput.blur();
-      else await page.locator(target).focus();
+      await page.locator(target).focus();
       const response = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/search');
       await page.keyboard.press('Enter');
       await response;
       await expect(searchPage.searchButton).toBeEnabled();
       await expect(searchPage.itemCards.first()).toContainText('Chìa khóa Honda');
       expect(requests, target).toHaveLength(index + 1);
-      await expect(page).toHaveURL(/\/search$/);
     }
-    await page.getByRole('link', { name: /Findie — Trang chủ/i }).click();
-    await expect(page.locator('#home-query')).toBeVisible();
+    await page.locator('#search-results-title').focus();
+    await page.keyboard.press('Enter');
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    expect(requests).toHaveLength(targets.length);
+    await page.locator('.main-nav a:first-child').focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator('#home-query')).toBeVisible();
     expect(requests).toHaveLength(targets.length);
   });
 

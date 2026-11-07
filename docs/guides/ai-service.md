@@ -153,17 +153,32 @@ Bước này giảm tải truyền ảnh; API trực tiếp và kiểm tra serve
    OCR vẫn chạy riêng; profile `ocr-v1` trả text tối đa 3000
    ký tự cùng `hasUnclearText`; giữ nguyên số 0 đầu, bỏ chữ không rõ thay vì đoán, không
    giải QR/barcode hoặc làm theo lệnh in trên ảnh.
+   OCR gọi model một lần, không tự retry kết quả lỗi. Khi chạm giới hạn sinh chữ,
+   parser giữ các dòng đã hoàn chỉnh trong 3000 ký tự, bỏ dòng cuối có thể đang dở,
+   kiểm schema và đặt `hasUnclearText: true`; không đoán tiếp ký tự hoặc sửa kiểu dữ liệu.
+   OCR có thể thiếu chữ; vector ảnh gốc và bước che ảnh vẫn xử lý riêng như bình thường.
+   Nếu không có dòng hoàn chỉnh hoặc dữ liệu không hợp lệ thì dừng upload.
+   Mã lỗi cố định phân biệt `invalid_ocr_truncated` (không khôi phục được dòng hoàn chỉnh), `invalid_ocr_json` (JSON sai cú pháp),
+   `invalid_ocr_too_long` (hơn 3000 ký tự), `invalid_ocr_schema` (sai cấu trúc) và
+   `invalid_ocr` (phản hồi model chưa hợp lệ). Không trả nội dung OCR hoặc thông báo
+   validation cho client/log; OCR lỗi thì dừng upload trước khi lưu ảnh.
 2. .NET gửi cùng ảnh chưa che qua `image.redact`. Python kiểm JPEG/PNG/WebP, MIME thật,
    tối đa 10 MiB, 40 triệu pixel/cạnh 10000, từ chối animation. Áp dụng EXIF orientation,
    giảm cạnh tối đa 1600px, bỏ EXIF/GPS, flatten alpha và encode PNG mới.
-3. Vision model trả bbox/nhãn theo schema, không OCR text; Python validate tọa độ hữu hạn
+3. Ollama nhận schema grounding dạng mảng với `label` và `bbox_2d`, kèm yêu cầu nhận diện gọn.
+   Adapter đổi `bbox_2d` về `bbox` trong hợp đồng worker/API hiện hành; không đổi schema lưu trữ.
+   Vision model không trả OCR text; Python validate tọa độ hữu hạn
    0..1000/thứ tự/nhãn/số vùng rồi OpenCV che theo quy tắc `redact-v4` bên dưới.
-   Khi lượt đầu thấy khuôn mặt, số định danh/hộ chiếu, MRZ, chữ ký, QR hoặc mã vạch,
-   worker tìm thêm trường giấy tờ trên toàn ảnh. Kết quả gộp được bỏ khung trùng chính
+   Khi lượt đầu trả rỗng hoặc thấy khuôn mặt, số định danh/hộ chiếu, chữ ký, QR hoặc mã vạch,
+   worker tìm thêm trường giấy tờ và khuôn mặt trên toàn ảnh, kể cả giấy tờ ghi SPECIMEN/BẢN MẪU. Kết quả gộp được bỏ khung trùng chính
    xác theo nhãn/bbox trước khi kiểm giới hạn 32 vùng; có địa chỉ thì kiểm thêm vùng
    cắt địa chỉ. Mọi lượt dùng chung deadline 300 giây.
    Model/JSON lỗi hoặc quá giới hạn làm cả request thất bại; không dùng raw làm output.
-   Không PII vẫn re-encode.
+   Không PII vẫn re-encode. Với tin có tiêu đề hoặc OCR nhận ra hộ chiếu, API yêu cầu đủ nhãn
+   `face`, `passport_number` trước khi lưu output hoặc duyệt ảnh cũ. Thiếu nhãn thì từ chối;
+   OCR rõ ràng (`hasUnclearText: false`) nhận ra CCCD thì không áp điều kiện số hộ chiếu chỉ vì tiêu đề tin ghi hộ chiếu.
+   Chính sách hộ chiếu dành cho trang thông tin, ảnh chỉ có bìa cũng có thể bị từ chối.
+   Có đủ nhãn không chứng minh tọa độ chính xác: vẫn phải kiểm tra bản che trước khi duyệt.
 4. .NET chỉ lưu output hợp lệ lên R2 private và cache vector/model/revision/chiều/hash gốc
    cùng OCR có provenance model/profile riêng trong `item_images.original_embedding`
    jsonb nội bộ. Bytes gốc bị bỏ. Người có quyền
@@ -209,12 +224,13 @@ lại API/worker cùng phiên bản; không cần migration DB hoặc lập ch�
 Profile `redact-v4` che khoảng 60% phần đầu của số CCCD/CMND, điện thoại và mã định danh
 như MSSV, mã nhân viên, số thẻ/tài khoản, giữ khoảng 40% phần cuối để nhận diện.
 Tỷ lệ dựa trên chiều rộng bbox, không OCR/đếm chữ số; chuỗi nghiêng hoặc ký tự không đều
-có thể để lại số lượng ký tự khác tỷ lệ này. Số hộ chiếu (`passport_number`), toàn bộ
-vùng mã đọc máy (`mrz`), chữ ký (`signature`), khuôn mặt, địa chỉ riêng tư/quê quán/nơi sinh,
+có thể để lại số lượng ký tự khác tỷ lệ này. Số hộ chiếu (`passport_number`),
+chữ ký (`signature`), khuôn mặt, địa chỉ riêng tư/quê quán/nơi sinh,
 QR và mã vạch được che toàn bộ. Họ tên, ngày sinh, ngày cấp/hết hạn và các thông tin
-đối chiếu ngoài MRZ giữ nguyên; dữ liệu lặp trong MRZ vẫn được che kín.
+đối chiếu giữ nguyên. MRZ không được nhận diện/che tự động và có thể còn đọc được trên ảnh.
 Các nhãn vùng gồm `face`, `identity_number`, `identifier_number`, `passport_number`,
-`mrz`, `signature`, `phone`, `address`, `qr_code`, `barcode`.
+`signature`, `phone`, `address`, `qr_code`, `barcode`. Nhãn `mrz` chỉ giữ tương thích
+dữ liệu và tọa độ che thủ công cũ; không xuất hiện trong kết quả che tự động mới.
 Đặt `Ai__RedactionProfile=redact-v4` rồi khởi động lại API/worker sau khi cập
 nhật. Prompt/schema được worker gửi trong mỗi request nên không cần tải lại model hoặc
 gateway Colab chỉ để đổi cách che. Ảnh đã xử lý giữ nguyên profile và output cũ; muốn

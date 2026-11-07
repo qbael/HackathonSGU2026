@@ -9,12 +9,13 @@ import {
   type Page,
   type Point,
 } from "../lib/api";
-import { useResource } from "../hooks/hooks";
+import { useAction, useResource } from "../hooks/hooks";
 import { SearchImages } from "../components/SearchImages";
 import { vietnamLocal } from "../lib/itemForm";
 import {
   basicSearchUrl,
   searchImages,
+  saveSearch,
   searchText,
   type SearchFilters,
   type SearchResponse,
@@ -236,6 +237,9 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || target.closest("form") !== searchButton.current?.form
+        || target.closest("button, a, summary, select, input[type=file], [role=button]")) return;
       event.preventDefault();
       searchButton.current?.click();
     }
@@ -271,6 +275,20 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
   const [searchError, setSearchError] = useState<Error | null>(null);
   const [searching, setSearching] = useState(Boolean(request));
   const [attempt, setAttempt] = useState(0);
+  const saveAction = useAction();
+  const [savedRequest, setSavedRequest] = useState<SearchInput | null>(null);
+  const saveKey = useRef<{ request: SearchInput; key: string } | null>(null);
+  function trackSearch() {
+    if (!request) return;
+    const submitted = request;
+    if (saveKey.current?.request !== submitted)
+      saveKey.current = { request: submitted, key: crypto.randomUUID() };
+    const key = saveKey.current.key;
+    void saveAction.run(async () => {
+      await saveSearch(submitted.files, submitted.text, submitted.filters, key);
+      setSavedRequest(submitted);
+    });
+  }
   const filter = new URLSearchParams({ page: String(page), pageSize: "12" });
   for (const key of ["q", "area", "from", "until"])
     if (query.get(key)?.trim()) filter.set(key, query.get(key)!.trim());
@@ -332,6 +350,7 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
       return;
     }
     setFormError(null);
+    saveAction.setError(null);
     setRequest({
       text,
       files,
@@ -530,6 +549,22 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
                   Lọc cơ bản theo khu vực và ngày
                 </a>
               )}
+            </Notice>
+          )}
+          {request && suggestions && (
+            <Notice tone={savedRequest === request ? "success" : "info"}>
+              {savedRequest === request ? (
+                <p>Đã lưu tin tìm. <a href="/saved-searches">Xem tin tìm và thông báo</a></p>
+              ) : (
+                <>
+                  <strong>Chưa có món đồ phù hợp với bạn?</strong>
+                  <p>Theo dõi tìm kiếm này để nhận thông báo khi có món đồ có thể phù hợp. Ảnh gốc không được lưu.</p>
+                  <button className="button button-secondary" type="button" disabled={saveAction.busy} onClick={trackSearch}>
+                    {saveAction.busy ? "Đang lưu tin tìm…" : "Theo dõi tìm kiếm này"}
+                  </button>
+                </>
+              )}
+              <ErrorNotice error={saveAction.error} />
             </Notice>
           )}
           {items && (

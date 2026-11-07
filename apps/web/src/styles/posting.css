@@ -1,0 +1,465 @@
+.posting-page .page-heading {
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.posting-page .page-heading .eyebrow {
+  color: var(--color-brand);
+}
+.posting-page .stepper {
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  margin-bottom: 28px;
+}
+.posting-page .stepper li {
+  padding: 12px;
+  border-radius: 10px;
+}
+.posting-page .stepper li > span {
+  width: 34px;
+  height: 34px;
+}
+.posting-page .stepper strong {
+  font-size: 12px;
+}
+.posting-page .post-layout {
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 28px;
+}
+.posting-page .panel {
+  border-radius: 16px;
+}
+.posting-page .post-form {
+  padding: 32px;
+}
+.posting-page .post-form > .panel-title {
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.posting-page .post-form > .panel-title > svg {
+  padding: 10px;
+  width: 48px;
+  height: 48px;
+  background: var(--soft);
+  border-radius: 14px;
+}
+.post-form .post-step-description {
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.8;
+  margin-top: 9px;
+}
+.posting-page .form-stack {
+  gap: 24px;
+}
+.posting-page .post-required-note,
+.posting-page .post-character-count {
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+.post-character-count {
+  display: block;
+  width: 100%;
+  text-align: right;
+}
+.posting-page .field-hint {
+  line-height: 1.8;
+  font-size: 12px;
+}
+.posting-page :is(input:not([type="radio"], [type="checkbox"], [type="file"]), textarea, select) {
+  border-radius: 9px;
+  min-height: 46px;
+  font-size: 13px;
+}
+.posting-page textarea {
+  resize: vertical;
+}
+.posting-page .upload-zone {
+  padding: 30px 20px;
+  border-radius: 14px;
+  background: #f1f8f5;
+  gap: 12px;
+}
+.posting-page .upload-zone:hover,
+.posting-page .upload-zone:focus-within {
+  border-color: var(--color-primary);
+}
+.posting-page .upload-zone > svg {
+  padding: 12px;
+  width: 52px;
+  height: 52px;
+  background: #deeee6;
+  border-radius: 16px;
+  color: var(--color-brand);
+}
+.posting-page .upload-zone > strong {
+  font-size: 15px;
+}
+.posting-page .upload-zone > span {
+  font-size: 12px;
+  color: var(--secondary);
+}
+.posting-page .image-previews {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 16px 0 12px;
+  gap: 12px;
+}
+.posting-page .image-previews li {
+  border-radius: 10px;
+}
+.posting-page .image-previews img {
+  height: 110px;
+}
+.post-context-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  padding: 24px 0 0;
+  min-width: 0;
+}
+.post-context-fields legend {
+  padding-right: 14px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.post-context-fields legend svg {
+  display: inline;
+  vertical-align: middle;
+  margin-right: 6px;
+  color: var(--color-brand);
+}
+.post-context-fields > .form-row {
+  grid-column: 1 / -1;
+}
+.posting-page .post-aside {
+  position: sticky;
+  top: 24px;
+}
+.post-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.posting-page .post-section-heading h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.post-preview-label,
+.post-optional {
+  color: var(--secondary);
+  font-size: 10px;
+}
+.post-preview-label {
+  padding: 4px 8px;
+  background: var(--soft);
+  border-radius: 5px;
+}
+.posting-page .post-summary h3 {
+  font-size: 18px;
+  margin: 20px 0 10px;
+}
+.post-summary > p {
+  white-space: pre-wrap;
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.9;
+}
+.post-summary ul {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 20px;
+  list-style: none;
+}
+.post-summary li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--secondary);
+  font-size: 12px;
+}
+.post-summary li svg {
+  color: var(--color-primary);
+  margin-top: 2px;
+}
+.posting-page .post-preview-note {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--secondary);
+  font-size: 11px;
+}
+.post-preview .post-summary > p {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.posting-page .tips-list {
+  font-size: 12px;
+  line-height: 1.9;
+}
+.posting-page .choice-card {
+  padding: 22px;
+  border-radius: 12px;
+}
+.posting-page .choice-card.selected {
+  border-color: var(--color-primary);
+  background: #eff7f3;
+}
+.posting-page .choice-card:focus-within {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.posting-page .choice-card strong {
+  font-size: 15px;
+}
+.posting-page .choice-card small {
+  font-size: 13px;
+  color: var(--secondary);
+}
+.post-recap {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fbfa;
+}
+.post-question-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--secondary);
+  font-size: 13px;
+}
+.post-question-hint svg {
+  color: var(--color-primary);
+  margin-top: 3px;
+}
+.posting-page .question-field {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+}
+.posting-page .post-add-question {
+  border-style: dashed;
+  background: #f8fbfa;
+}
+.posting-page .post-confirmation,
+.posting-page .safety-check {
+  font-size: 12px !important;
+  color: var(--secondary) !important;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f5f9f7;
+}
+.posting-page .checkbox-field input {
+  width: 18px;
+  height: 18px;
+}
+.posting-page .form-actions {
+  gap: 16px;
+  margin-top: 32px;
+}
+.posting-page .form-actions > .button:last-child {
+  min-width: 180px;
+}
+.posting-page .notice {
+  border-radius: 10px;
+}
+.posting-page .saved-panel {
+  padding: 56px 24px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.posting-page .post-saved-note {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+}
+.post-saved-note svg {
+  color: var(--color-primary);
+  margin-top: 3px;
+}
+.review-page .item-summary {
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 28px;
+}
+.review-page .review-layout {
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 28px;
+}
+.review-page .review-canvas .panel-title h2 {
+  margin-top: 6px;
+}
+.review-image-stage {
+  display: grid;
+  place-items: center;
+  background: #f0f4f2;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-height: 400px;
+  overflow: hidden;
+}
+.review-page .processed-image {
+  height: 400px;
+  background: transparent;
+}
+.review-page .review-image-caption {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--secondary);
+  font-size: 12px;
+}
+.review-image-caption svg {
+  color: var(--color-primary);
+  margin-top: 3px;
+}
+.review-page .review-thumbnails > button {
+  width: 110px;
+  border-radius: 10px;
+  padding: 8px;
+}
+.review-page .review-thumbnails > button[aria-pressed="true"] {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.review-thumbnails > button > span:not(.badge) {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.review-page .review-checklist > .eyebrow {
+  margin-top: 20px;
+}
+.review-page .review-check-progress {
+  margin-top: 20px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: var(--soft);
+  color: var(--color-brand);
+  font-size: 12px;
+}
+.safety-check strong {
+  display: block;
+  font-weight: 500;
+  color: var(--color-ink);
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+.review-page .publication-actions {
+  margin-top: 26px;
+  padding-top: 26px;
+}
+.publication-actions h3 {
+  margin: 8px 0;
+}
+.publication-actions .muted {
+  font-size: 12px;
+}
+@media (max-width: 1050px) {
+  .posting-page .post-layout,
+  .review-page .review-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .posting-page .post-aside {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .posting-page .stepper li {
+    padding: 10px 8px;
+    gap: 8px;
+  }
+}
+@media (max-width: 640px) {
+  .posting-page .page-heading h1 {
+    font-size: 26px;
+  }
+  .posting-page .stepper {
+    gap: 4px;
+    padding: 8px;
+  }
+  .posting-page .stepper li {
+    padding: 10px 3px;
+    gap: 8px;
+  }
+  .posting-page .stepper strong {
+    font-size: 10px;
+  }
+  .posting-page .stepper li > span {
+    width: 28px;
+    height: 28px;
+  }
+  .posting-page .post-form,
+  .posting-page .review-canvas,
+  .posting-page .review-checklist {
+    padding: 22px 18px;
+  }
+  .posting-page .post-form > .panel-title > svg {
+    display: none;
+  }
+  .posting-page .post-aside,
+  .post-context-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .posting-page .post-preview {
+    display: none;
+  }
+  .posting-page .upload-zone {
+    padding: 24px 14px;
+  }
+  .posting-page .image-previews {
+    gap: 8px;
+  }
+  .posting-page .image-previews img {
+    height: 80px;
+  }
+  .posting-page .choice-card,
+  .posting-page .question-field,
+  .post-recap {
+    padding: 16px;
+  }
+  .posting-page .choice-card > svg {
+    display: none;
+  }
+  .posting-page .form-actions {
+    flex-wrap: nowrap;
+  }
+  .posting-page .form-actions > .button {
+    width: auto;
+    min-width: 0;
+    font-size: 12px;
+  }
+  .posting-page .form-actions > .button:last-child {
+    flex: 1;
+    min-width: 0;
+  }
+  .review-image-stage {
+    min-height: 280px;
+  }
+  .review-page .processed-image {
+    height: 280px;
+  }
+  .review-page .item-summary {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+  }
+  .review-page .item-summary > .item-photo {
+    width: 64px;
+    aspect-ratio: 1;
+  }
+}

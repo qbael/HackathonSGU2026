@@ -156,5 +156,34 @@ public sealed class RecoveryRepository(FindieDbContext db) : IRecoveryRepository
         db.VerificationQuestions.RemoveRange(old.Values);
     }
     public void Add<T>(T entity) where T : class => db.Add(entity);
+    IQueryable<SavedSearch> SavedSearches(Guid actor) => db.SavedSearches.AsNoTracking().Where(value => value.UserId == actor)
+        .Include(value => value.Matches.Where(match => match.Item.PublicationState == "published" && match.Item.Lifecycle == "active"
+            && match.Item.DocumentVersion == match.DocumentVersion)).ThenInclude(match => match.Item).AsSplitQuery();
+    public Task<List<SavedSearch>> SavedSearchesAsync(Guid actor, CancellationToken ct) =>
+        SavedSearches(actor).OrderByDescending(value => value.CreatedAt).ToListAsync(ct);
+    public Task<SavedSearch?> SavedSearchAsync(Guid actor, Guid id, CancellationToken ct) =>
+        SavedSearches(actor).SingleOrDefaultAsync(value => value.Id == id, ct);
+    public async Task AddSavedSearchAsync(SavedSearch search, CancellationToken ct)
+    {
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM app_users WHERE id = {search.UserId} FOR UPDATE", ct);
+        if (await db.SavedSearches.CountAsync(value => value.UserId == search.UserId, ct) >= 20)
+            throw new Services.ApiException(409, "Bạn có thể theo dõi tối đa 20 tin tìm. Hãy dừng một tin trước khi lưu thêm.");
+        db.SavedSearches.Add(search);
+    }
+    public async Task DeleteSavedSearchAsync(Guid actor, Guid id, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var search = await db.SavedSearches.FromSqlInterpolated($"SELECT * FROM saved_searches WHERE id = {id} AND user_id = {actor} FOR UPDATE")
+            .SingleOrDefaultAsync(ct) ?? throw new Services.ApiException(404, "Saved search not found.");
+        await db.SavedSearchMatches.Where(value => value.SavedSearchId == id).ExecuteDeleteAsync(ct);
+        db.SavedSearches.Remove(search);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+    }
+    public async Task<bool> ReadSavedMatchAsync(Guid actor, Guid id, Guid itemId, CancellationToken ct) =>
+        await db.SavedSearchMatches.Where(value => value.SavedSearchId == id && value.ItemId == itemId && value.SavedSearch.UserId == actor
+            && value.Item.Lifecycle == "active" && value.Item.PublicationState == "published" && value.Item.DocumentVersion == value.DocumentVersion)
+            .ExecuteUpdateAsync(update => update.SetProperty(value => value.ReadAt, value => value.ReadAt ?? DateTimeOffset.UtcNow), ct) > 0;
+
     public Task SaveAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
 }

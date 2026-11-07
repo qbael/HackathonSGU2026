@@ -140,6 +140,58 @@ class Store:
                 await connection.execute("UPDATE ai_search_state SET version = gen_random_uuid() WHERE singleton")
             return True
 
+    async def saved_matches(self, text_vector, image_vectors, *, from_date=None, until=None, after_item_id=None):
+        """Page all qualifying items by ID, independent of interactive top-k limits."""
+        # shortcut: each page scans remaining vectors, optimize after measuring corpus size and recall.
+        if text_vector is None and not image_vectors or len(image_vectors) > 3:
+            raise ValueError("Saved search requires text or at most three image embeddings.")
+        if from_date == date.min or until == date.max or from_date and until and from_date > until:
+            raise ValueError("Invalid saved search date range.")
+        text = self._vector(text_vector) if text_vector is not None else None
+        image_queries = [self._vector(vector) for vector in image_vectors]
+        profiles = (["text-v1"] if text is not None else []) + (["image-v1"] if image_queries else [])
+        local_timezone = timezone(timedelta(hours=7))
+        start = datetime.combine(from_date, time.min, local_timezone) if from_date else None
+        end = datetime.combine(until + timedelta(days=1), time.min, local_timezone) if until else None
+        async with await psycopg.AsyncConnection.connect(self.dsn, row_factory=dict_row, autocommit=True) as connection:
+            cursor = await connection.execute(
+                """WITH query_images AS (
+                    SELECT value::vector AS embedding FROM unnest(%s::text[]) AS value
+                ), scored AS (
+                    SELECT d.*, CASE WHEN d.processing_profile = 'text-v1'
+                        THEN 1 - (d.embedding <=> %s::vector)
+                        ELSE (SELECT max(1 - (d.embedding <=> q.embedding)) FROM query_images q)
+                        END AS similarity
+                    FROM ai_documents d JOIN ai_items i USING (item_id)
+                    WHERE NOT i.tombstone AND d.document_version = i.document_version
+                      AND (d.model_id, d.model_revision, d.dimensions) = (%s, %s, %s)
+                      AND d.processing_profile = ANY(%s::text[])
+                      AND (%s::uuid IS NULL OR d.item_id > %s::uuid)
+                      AND (%s::date IS NULL OR d.found_on >= %s OR coalesce(d.found_until, d.found_from) >= %s)
+                      AND (%s::date IS NULL OR d.found_on <= %s OR d.found_from < %s)
+                ), ranked AS (
+                    SELECT *, row_number() OVER (PARTITION BY item_id, processing_profile
+                        ORDER BY similarity DESC, source_id) AS source_rank
+                    FROM scored
+                )
+                SELECT item_id, avg(similarity) AS relevance_score,
+                    jsonb_agg(jsonb_build_object('documentVersion', document_version,
+                        'sourceId', source_id, 'sourceVersion', source_version,
+                        'sourceSha256', source_sha256,
+                        'sourceKind', CASE WHEN processing_profile = 'text-v1' THEN 'text' ELSE 'image' END)
+                        ORDER BY processing_profile) AS sources
+                FROM ranked WHERE source_rank = 1
+                GROUP BY item_id
+                HAVING count(*) = %s AND avg(similarity) >= 0.85
+                ORDER BY item_id LIMIT 100""",
+                (image_queries, text, *self.identity[:3], profiles,
+                 after_item_id, after_item_id, from_date, from_date, start, until, until, end, len(profiles)),
+            )
+            rows = await cursor.fetchall()
+        candidates = [{"itemId": str(row["item_id"]), "relevanceScore": min(1.0, row["relevance_score"]),
+                       "sources": row["sources"]} for row in rows]
+        return {"candidates": candidates, "nextAfter": candidates[-1]["itemId"] if len(candidates) == 100 else None}
+
     async def search(self, text, vector, area=None, from_date=None, until=None, limit=MAX_SEARCH_CANDIDATES, *, strategy="hybrid",
                      modality="text", include_images=False, embed=None, outside_area=False, include_similarity=False):
         if not 1 <= limit <= MAX_SEARCH_CANDIDATES:
