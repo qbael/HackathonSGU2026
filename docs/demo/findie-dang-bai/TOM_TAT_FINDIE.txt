@@ -1,0 +1,17 @@
+🔎 findie — Kết nối để tìm lại
+
+Bạn đăng tìm chiếc ví bị mất ở group Facebook này, còn người nhặt được lại đăng tìm chủ ở một group khác. Thông tin bị phân tán, phải đăng đi đăng lại nhiều lần. Tìm “ví” có thể bỏ sót bài gọi là “bóp”; đôi khi bạn còn không có ảnh, chỉ nhớ vài đặc điểm món đồ.
+
+Đó là lý do chúng tôi muốn tạo ra findie — nền tảng kết nối người mất đồ, người nhặt được và các điểm tiếp nhận, giúp việc tìm kiếm và trao trả thuận tiện hơn.
+
+📸 Nhặt được đồ: tải ảnh món đồ, xem trước, bổ sung mô tả, nơi và thời điểm nhặt, rồi chọn nơi đang giữ để đăng tin.
+
+🔍 Mất đồ: tìm bằng ảnh hoặc mô tả tiếng Việt, kèm khu vực và thời điểm làm mất. Không có ảnh vẫn có thể tìm bằng những đặc điểm bạn còn nhớ.
+
+🤝 Nhận lại đồ: xem gợi ý và nơi đang giữ. Nếu cá nhân giữ, gửi yêu cầu để người giữ xem xét; chỉ sau khi được duyệt mới mở chat hẹn trao trả. Nếu đồ ở điểm tiếp nhận, đến xác minh và nhận trực tiếp.
+
+Bạn từng mất món đồ nào và đã tìm lại bằng cách nào? Chia sẻ câu chuyện hoặc góp ý để chúng tôi hoàn thiện ý tưởng nhé!
+
+Demo ý tưởng · Giao diện và dữ liệu minh họa · Chưa triển khai vận hành thực tế.
+
+#findie #TimDoThatLac #TimChuNhan #KetNoiCongDong #DemoSanPham #Hackathon
