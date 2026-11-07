@@ -20,9 +20,7 @@ apps/web/
 │   │   ├── HomePage.ts             # Trang chủ, Hero section & thanh tìm kiếm
 │   │   ├── SearchPage.ts           # Trang tìm kiếm, bộ lọc bên hông, upload ảnh & kết quả
 │   │   ├── ItemDetailPage.ts       # Trang chi tiết món đồ & Form gửi yêu cầu nhận đồ
-│   │   ├── ItemModal.ts            # Alias tương thích
 │   │   ├── PostItemPage.ts         # Wizard 3 bước tạo bài đăng nhặt được đồ
-│   │   ├── PostItemModal.ts        # Alias tương thích
 │   │   ├── AdminPage.ts            # Portal Quản trị (Super Admin dashboard, users, items)
 │   │   └── HubPage.ts              # Workspace Findie Hub (Trạm trực, intakes, kho đồ)
 │   ├── specs/                      # Kịch bản kiểm thử (Critical User Journeys)

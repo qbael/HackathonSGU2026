@@ -14,6 +14,9 @@ from redis.backoff import NoBackoff
 from redis.exceptions import RedisError
 
 
+from .ranking import MAX_SEARCH_CANDIDATES
+
+
 log = logging.getLogger(__name__)
 
 
@@ -27,7 +30,7 @@ class Candidate(BaseModel):
     location_tokens: Annotated[list[Annotated[str, Field(max_length=200)]], Field(max_length=200)]
 
 
-ROWS = TypeAdapter(Annotated[list[Candidate], Field(max_length=200)])
+ROWS = TypeAdapter(Annotated[list[Candidate], Field(max_length=MAX_SEARCH_CANDIDATES)])
 EMBEDDING = TypeAdapter(Annotated[list[Annotated[float, Field(strict=True, allow_inf_nan=False)]],
                                 Field(min_length=1, max_length=16000)])
 

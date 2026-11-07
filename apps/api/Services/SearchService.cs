@@ -21,8 +21,7 @@ public interface ISearchService
 public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai, IConfiguration configuration, RecoveryWorkflow workflow) : ISearchService
 {
     const double MaxTimeBonus = 0.05;
-    // shortcut: area preference is heuristic; calibrate it on labelled search results.
-    const double MaxAreaBonus = 0.05;
+    const int CandidateLimit = 30;
 
     public Task<SearchResponse> TextAsync(Guid actor, SearchRequest request, CancellationToken ct)
     {
@@ -107,7 +106,7 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
                     modelId = AiProtocol.Setting(configuration, "EmbeddingModelId"), modelRevision = AiProtocol.Setting(configuration, "EmbeddingRevision"),
                     processingProfile = "multimodal-v1", searchProfileId = profile, searchProfileVersion = 1,
                     mode, area = RecoveryWorkflow.Optional(filter.Area), from = filter.From, until = filter.Until, limit = filter.Limit,
-                    candidateLimit = 200 * (images.Count + (text is null ? 0 : 1)), cacheScope = actor, deadlineAt = DateTimeOffset.UtcNow.AddSeconds(940), text,
+                    candidateLimit = CandidateLimit, cacheScope = actor, deadlineAt = DateTimeOffset.UtcNow.AddSeconds(940), text,
                     images = images.Select(image => new { contentType = image.Mime, length = image.Bytes.Length }) }, RecoveryWorkflow.Json);
                 var candidates = await QueryAsync(new AiCommand("search.hybrid.images", metadata, body, "application/octet-stream"),
                     mode, images.Count + (text is null ? 0 : 1), ct);
@@ -132,7 +131,7 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
         var profile = AiProtocol.Setting(configuration, mode == "text" ? "TextSearchProfile" : "ImageSearchProfile");
         var metadata = JsonSerializer.SerializeToElement(new { schemaVersion = 1, modelId = model, modelRevision = revision,
             processingProfile = mode + "-v1", searchProfileId = profile, searchProfileVersion = 1,
-            mode, area, from, until, limit, candidateLimit = 200, cacheScope = actor,
+            mode, area, from, until, limit, candidateLimit = CandidateLimit, cacheScope = actor,
             deadlineAt = DateTimeOffset.UtcNow.AddSeconds(mode == "image" ? 300 : 30) }, RecoveryWorkflow.Json);
         var kind = mode == "image" ? "search.hybrid.image" : "search.hybrid";
         var body = mode == "image" ? bytes : JsonSerializer.SerializeToUtf8Bytes(new { text, area, from, until }, RecoveryWorkflow.Json);
@@ -152,7 +151,7 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
             var candidates = document.RootElement.GetProperty("candidates");
             if (candidates.ValueKind != JsonValueKind.Array
                 || candidates.GetArrayLength() > command.Metadata.GetProperty("candidateLimit").GetInt32()
-                || candidates.GetArrayLength() > 800) throw new JsonException();
+                || candidates.GetArrayLength() > CandidateLimit) throw new JsonException();
             var result = new List<SearchCandidate>();
             var previousScore = double.PositiveInfinity;
             var previousGroup = -1;
@@ -206,12 +205,13 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
     {
         area = RecoveryWorkflow.Optional(area);
         var scores = new Dictionary<Guid, (SearchCandidate Candidate, Item Item)>();
-        var items = new Dictionary<Guid, Item?>();
+        var items = (await repository.SearchItemsAsync(actor, candidates.Select(candidate => candidate.ItemId).Distinct().ToArray(), ct))
+            .ToDictionary(value => value.Item.Id);
         var removed = false;
         foreach (var candidate in candidates)
         {
-            if (!items.TryGetValue(candidate.ItemId, out var item))
-                items[candidate.ItemId] = item = await repository.ItemAsync(candidate.ItemId, false, ct);
+            items.TryGetValue(candidate.ItemId, out var loaded);
+            var item = loaded?.Item;
             var validSources = item is not null && candidate.Sources.All(source => item.DocumentVersion == source.DocumentVersion && (source.Image
                 ? item.Images.Any(image => image.Id == source.SourceId && RecoveryWorkflow.PublicImage(image)
                     && image.ContentVersion == source.SourceVersion && image.ProcessedObject!.Sha256 == source.SourceHash)
@@ -225,11 +225,11 @@ public sealed class SearchService(IRecoveryRepository repository, IAiGateway ai,
                 scores[item.Id] = (candidate, item);
         }
         var hits = new List<SearchHit>();
-        foreach (var value in scores.Values.OrderBy(value => value.Candidate.Group).ThenByDescending(value =>
-            value.Candidate.Score * (1 + (area is not null && MatchesArea(value.Item, area) ? MaxAreaBonus : 0))
-                * (1 + (lostAt is { } whenLost ? TimeBonus(value.Item, whenLost) : 0)))
+        foreach (var value in scores.Values.OrderByDescending(value => area is not null && MatchesArea(value.Item, area))
+            .ThenBy(value => value.Candidate.Group).ThenByDescending(value =>
+                value.Candidate.Score * (1 + (lostAt is { } whenLost ? TimeBonus(value.Item, whenLost) : 0)))
             .ThenByDescending(value => value.Candidate.ImageScore).ThenByDescending(value => value.Candidate.TextScore).Take(limit))
-            hits.Add(new SearchHit(hits.Count + 1, await workflow.ResponseAsync(value.Item, actor, ct)));
+            hits.Add(new SearchHit(hits.Count + 1, workflow.Response(value.Item, actor, items[value.Item.Id].CanManage)));
         return new SearchResponse(hits, mode, profile, 1, removed && hits.Count < limit,
             area is not null && hits.Any(hit => !hit.Item.FoundArea.Contains(area, StringComparison.OrdinalIgnoreCase)), "/api/items");
     }

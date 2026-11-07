@@ -23,6 +23,24 @@ public sealed class RecoveryRepository(FindieDbContext db) : IRecoveryRepository
         ? db.Items.FromSqlInterpolated($"SELECT * FROM items WHERE id = {id} FOR UPDATE")
         : db.Items.AsNoTracking().Where(item => item.Id == id)).SingleOrDefaultAsync(ct);
 
+    public Task<List<SearchItem>> SearchItemsAsync(Guid actor, IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    {
+        if (ids.Count == 0) return Task.FromResult<List<SearchItem>>([]);
+        var candidateIds = ids.ToArray();
+        return db.Items.AsNoTracking().Where(item => candidateIds.Contains(item.Id))
+            .Include(item => item.HolderUser).Include(item => item.HolderPoint)
+            .Include(item => item.Images.Where(image => image.RetiredAt == null && image.ProcessingState == "ready"
+                && image.ReviewState == "approved" && image.ProcessedObject != null
+                && image.ProcessedObject.ObjectKind == "processed" && image.ProcessedObject.ObjectState == "validated"))
+                .ThenInclude(image => image.ProcessedObject)
+            .AsSingleQuery()
+            .Select(item => new SearchItem(item, item.CustodyKind == "person" ? item.HolderUserId == actor
+                : item.CustodyKind == "external" ? item.PostedBy == actor
+                : item.CustodyKind == "point" && db.PointStaff.Any(staff => staff.PointId == item.HolderPointId
+                    && staff.UserId == actor && staff.RevokedAt == null && staff.Point.Active && staff.CanReceive)))
+            .ToListAsync(ct);
+    }
+
     public Task<(List<Item> Items, int TotalCount)> ItemsAsync(Guid actor, ItemFilter filter, CancellationToken ct)
     {
         var items = db.Items.AsNoTracking().Where(item => item.Lifecycle != "deleted");

@@ -233,7 +233,7 @@ async def checks(broker_url, dsn, ollama_url):
 
         candidates = await search("ví da đen tại phòng E.205")
         assert candidates and candidates[0]["itemId"] == room_id, "exact classroom must rank before a different location"
-        assert other_id in {hit["itemId"] for hit in candidates}, "area preference must retain another university"
+        assert other_id not in {hit["itemId"] for hit in candidates}, "a strong local match must not search another university"
         requests = OllamaStub.embedding_requests
         assert await search("ví da đen tại phòng E.205") == candidates
         assert OllamaStub.embedding_requests == requests + 1, "Redis keyword hits must still rank vector candidates"
@@ -244,6 +244,18 @@ async def checks(broker_url, dsn, ollama_url):
             assert hit["sourceVersion"] == source["version"] and hit["sourceSha256"] == source["sha256"]
         assert (await search("ví da đen tại sảnh hội trường A"))[0]["itemId"] == hall_id
         assert await search("ví da đen", area="Khu vực không tồn tại"), "a mistaken area must not hide relevant items"
+        async with await psycopg.AsyncConnection.connect(dsn) as db:
+            await db.execute("UPDATE ai_documents SET embedding = %s::vector WHERE found_area = %s",
+                             (json.dumps([0.0, 1.0] + [0.0] * (DIMENSIONS - 2)), CAMPUS))
+        requests = OllamaStub.embedding_requests
+        expanded = await search("ví da đen tại phòng E.205")
+        assert [hit["itemId"] for hit in expanded[:2]] == [hit["itemId"] for hit in candidates]
+        assert expanded[-1]["itemId"] == other_id, "low cosine must expand beyond the area despite high local RRF ranks"
+        assert OllamaStub.embedding_requests == requests + 1, "fallback must reuse the query embedding"
+        assert all("similarity" not in hit for hit in expanded), "cosine gating stays inside the worker"
+        async with await psycopg.AsyncConnection.connect(dsn) as db:
+            await db.execute("UPDATE ai_documents SET embedding = %s::vector WHERE found_area = %s",
+                             (json.dumps([1.0] + [0.0] * (DIMENSIONS - 1)), CAMPUS))
         assert not await search("ví da đen", **{"from": "2026-10-25"}), "date filters must run before candidate limits"
 
         from findie_ai.config import Settings

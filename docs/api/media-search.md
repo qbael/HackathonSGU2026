@@ -138,8 +138,10 @@ Cookie + CSRF; không yêu cầu Idempotency-Key vì không lưu query/job nghi�
 }
 ```
 
-`text` 1–2000 sau trim, bắt buộc; `area` tùy chọn tối đa 200, là khu vực ưu tiên,
-không loại món ở khu vực khác. `from/until` là bộ lọc ngày bắt buộc tuân thủ khi có,
+`text` 1–2000 sau trim, bắt buộc; `area` tùy chọn tối đa 200. Khi có khu vực,
+Python lọc và tìm trong khu vực trước. Nếu không có tin đạt ngưỡng phù hợp thì mới tìm
+thêm ngoài khu vực; khi mở rộng, tin trong khu vực vẫn xếp trước.
+`from/until` là bộ lọc ngày bắt buộc tuân thủ khi có,
 bao gồm hai đầu; `limit=1..10`, mặc định 10. Quy tắc này áp dụng cho cả ba endpoint AI;
 `GET /api/items?area=...` vẫn lọc cứng theo khu vực.
 `lostAt` là thời điểm mất ước tính, tùy chọn, dùng ISO 8601 kèm múi giờ.
@@ -177,18 +179,23 @@ Response **200**:
 `rank` là vị trí gợi ý sau kiểm tra nghiệp vụ, không phải xác suất sở hữu. Response
 thực tế `item` là object ItemResponse. .NET kiểm lại published/active, document/source
 version/hash, model/profile và bộ lọc ngày hiện tại, bỏ ứng viên cũ/trùng.
-Khi `foundArea` chứa `area` (không phân biệt hoa thường), .NET cộng 5% điểm một lần;
-đây là ưu tiên nhỏ, không đưa mọi món cùng khu vực lên trước món giống hơn ở nơi khác.
+Món khớp khu vực khi `foundArea` chứa `area`, không phân biệt hoa thường. .NET xếp
+món khớp khu vực trước mọi món ngoài khu vực, kể cả khi món ngoài khu vực có điểm
+cao hơn hoặc khớp nhiều loại truy vấn hơn. Không truyền `area` thì giữ thứ tự nhóm và điểm.
 Khi có `lostAt`, .NET cộng tối đa 5% điểm cho giờ nhặt gần sau giờ mất,
 giảm dần về 0 trong 24 giờ. Khoảng giờ nhặt có thể khớp được tối đa 2,5%.
 Tin chỉ ghi ngày nhặt được cộng 2% nếu cùng ngày theo múi giờ của tin.
-Thời điểm mất và khu vực chỉ ảnh hưởng thứ hạng; điểm được nhân với
-`(1 + bonusKhuVuc) * (1 + bonusThoiGian)`. Bộ lọc ngày luôn được giữ nguyên.
+Trong từng khu vực và nhóm truy vấn, điểm được nhân với `1 + bonusThoiGian`.
+Khu vực quyết định thứ tự trước nhóm truy vấn và điểm; bộ lọc ngày luôn được giữ nguyên.
 `filtersRelaxed:true` chỉ khi có `area` và danh sách trả về có món ngoài khu vực ưu tiên;
-không có nghĩa là đã nới ngày. Tìm text hoặc ảnh đơn nhận tối đa 200 ứng viên từ Python;
-.NET cộng ưu tiên khu vực trước khi cắt kết quả cuối còn `limit=1..10`, tránh bỏ sót món
-có thể tăng hạng nhờ bonus. Không refill ngoài pool này; `partial:true` khi bỏ ứng viên
-khiến kết quả chưa đủ limit. Kết quả hợp lệ rỗng là **200** với `items:[]`.
+không có nghĩa là đã nới ngày. Cả ba endpoint tìm kiếm nhận tối đa **30 món duy nhất**
+từ Python cho toàn bộ request. Mỗi kênh/nhánh truy hồi cũng giữ tối đa 30; nếu mở rộng,
+kết quả ngoài khu vực nối sau kết quả trong khu vực trước khi cắt pool chung.
+.NET đọc cả pool bằng một truy vấn SQL JOIN kèm ảnh công khai và quyền quản lý Hub
+qua correlated `EXISTS`, kiểm phiên bản/quyền hiện tại rồi xếp khu vực và nhóm trước
+khi cắt kết quả cuối còn `limit=1..10`. Không truy vấn lại từng món hay refill ngoài
+pool 30; `partial:true` khi bỏ ứng viên khiến kết quả chưa đủ limit.
+Kết quả hợp lệ rỗng là **200** với `items:[]`.
 
 Input rỗng/khoảng ngày sai (kể cả from=0001-01-01 hoặc until=9999-12-31) **400**; response AI sai schema/model **502**;
 broker/model/search store thiếu hoặc timeout 30 giây **503**. Lúc lỗi dùng
@@ -250,21 +257,37 @@ reciprocal rank fusion: mỗi danh sách ảnh đóng góp `1 / (60 + rank)`, nh
 danh sách và chỉ xuất hiện một lần trong kết quả; không trộn điểm similarity giữa model.
 Nhánh mô tả vẫn dùng hybrid text 60/40 bên trong.
 
-Khi có cả ảnh và mô tả, kết quả chia theo nguồn truy vấn đã góp điểm: nhóm được cả
-nhánh ảnh và nhánh mô tả tìm thấy trước, rồi nhóm chỉ nhánh ảnh tìm thấy, cuối cùng
-nhóm chỉ nhánh mô tả tìm thấy. Trong mỗi nhóm, xếp giảm dần theo tổng điểm, điểm ảnh
-hoặc điểm mô tả tương ứng. Nhóm tính theo nhánh truy vấn, không theo `sourceKind`;
-nhánh mô tả vẫn có thể tìm thấy nguồn ảnh. Bonus khu vực 5% và bonus `lostAt` chỉ
-điều chỉnh thứ tự bên trong từng nhóm, không chuyển món sang nhóm khác.
+Khi có `area`, tất cả nhánh tìm trong khu vực trước. Ngưỡng mặc định cho cosine ảnh
+và mô tả đều là `0.6`, chỉnh bằng `AI_SEARCH_MIN_IMAGE_SIMILARITY` và
+`AI_SEARCH_MIN_TEXT_SIMILARITY` (0–1). Có cả ảnh và mô tả: cần ít nhất một tin đạt
+cả hai ngưỡng trên cùng món đồ; với nhiều ảnh, lấy độ giống cao nhất của các ảnh.
+Chỉ có một loại đầu vào thì xét ngưỡng tương ứng. Nếu không đạt (kể cả rỗng), mới
+truy vấn phần ngoài khu vực, dùng lại embedding và giữ bộ lọc ngày. Không có `area`
+thì tìm toàn bộ một lần. Cosine là `1 - cosine_distance`, không dùng điểm RRF làm
+ngưỡng và không coi `0.6` là xác suất 60%; ngưỡng này cần hiệu chỉnh theo model/dữ liệu.
+Cosine chỉ dùng nội bộ worker, không thay đổi body AMQP/HTTP. Với text/ảnh đơn,
+áp dụng cùng quy tắc. Không refill nếu .NET loại ứng viên stale sau bước này.
 
-Python trả toàn bộ pool đã gộp: tối đa 200 ứng viên mỗi nhánh truy vấn, tức tối đa
-`200 * (số ảnh + số nhánh mô tả)` và không quá 800 ứng viên. Mỗi ứng viên kèm điểm tổng,
-điểm ảnh, điểm mô tả và provenance của mọi nguồn góp điểm; các điểm này chỉ trao đổi nội bộ
-qua AMQP, HTTP vẫn chỉ trả rank. Body ứng viên AMQP tối đa 1 MiB cho cả ba endpoint.
-Trả đủ pool để cộng ưu tiên khu vực trước khi cắt kết quả cuối.
-.NET kiểm lại publication/lifecycle, document/source version/hash và bộ lọc ngày hiện tại;
+Khi mở rộng, kết quả trong khu vực được xếp trước mọi kết quả ngoài khu vực.
+Trong mỗi phần đó, nhóm được cả nhánh ảnh và nhánh mô tả tìm thấy đứng trước, rồi
+nhóm chỉ nhánh ảnh tìm thấy, cuối cùng nhóm chỉ nhánh mô tả tìm thấy. Trong mỗi nhóm,
+xếp giảm dần theo tổng điểm, điểm ảnh hoặc điểm mô tả tương ứng, có bonus `lostAt`.
+Nhóm tính theo nhánh truy vấn, không theo `sourceKind`; nhánh mô tả vẫn có thể tìm
+thấy nguồn ảnh. Bonus `lostAt` chỉ đổi thứ tự trong nhóm, không vượt ưu tiên khu vực.
+Không truyền `area` thì chỉ xếp theo nhóm truy vấn rồi điểm như trên.
+
+Python hợp nhất và loại trùng rồi chọn tối đa **30 món duy nhất cho cả request**,
+ưu tiên khu vực trước nhóm truy vấn và điểm. Mỗi kênh/nhánh cũng giới hạn 30;
+giới hạn chung không nhân với số ảnh hoặc số nhánh. Pool đã chọn được gửi theo
+nhóm/điểm để kiểm hợp đồng AMQP. Mỗi ứng viên kèm điểm tổng, điểm ảnh, điểm mô tả
+và provenance của mọi nguồn góp điểm; các điểm này chỉ trao đổi nội bộ qua AMQP,
+HTTP vẫn chỉ trả rank. Body ứng viên AMQP tối đa 1 MiB cho cả ba endpoint.
+.NET đọc cả pool bằng một truy vấn SQL JOIN, gồm ảnh công khai và quyền Hub qua
+correlated `EXISTS`, rồi kiểm publication/lifecycle, document/source version/hash và bộ lọc ngày hiện tại;
 chỉ một nguồn góp điểm không còn hợp lệ cũng khiến cả ứng viên bị loại. .NET không gộp
-lại; dùng điểm Python cùng các bonus, giữ tối đa `limit` món và đánh lại rank từ 1.
+lại; xếp khu vực trước, giữ nhóm truy vấn và áp dụng bonus `lostAt` trên điểm Python,
+giữ tối đa `limit` món và đánh lại rank từ 1. Không refill ngoài pool 30 nếu loại tin
+stale hoặc không còn quyền hiển thị; không cần migration DB hay thêm trường HTTP.
 `partial`, `filtersRelaxed`, `fallbackUrl` giữ ý nghĩa như tìm text.
 
 Thiếu ảnh, quá ba ảnh, ảnh rỗng, text/form/bộ lọc sai **400**; sai MIME **415**;

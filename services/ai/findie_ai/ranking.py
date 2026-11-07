@@ -4,6 +4,9 @@ import re
 import unicodedata
 
 
+MAX_SEARCH_CANDIDATES = 30
+
+
 def normalize_text(text: str) -> str:
     text = "".join(
         char for char in unicodedata.normalize("NFKD", text.casefold().replace("đ", "d"))
@@ -23,7 +26,7 @@ def location_tokens(text: str) -> list[str]:
                    *("hall:" + hall for hall in halls)})
 
 
-def rank_candidates(semantic, lexical, locations, query_locations, limit=200, *, semantic_weight=0.6):
+def rank_candidates(semantic, lexical, locations, query_locations, limit=MAX_SEARCH_CANDIDATES, *, semantic_weight=0.6):
     """Fuse exact cosine and lexical ranks with a bounded location tie-break."""
     candidates, scores = {}, {}
     # shortcut: location weight is a regression baseline; calibrate it on labelled Findie queries.
@@ -47,10 +50,10 @@ def rank_candidates(semantic, lexical, locations, query_locations, limit=200, *,
         "sourceKind": "image" if candidates[item_id].get("processing_profile") == "image-v1" else "text",
         "sourceVersion": candidates[item_id]["source_version"],
         "sourceSha256": candidates[item_id]["source_sha256"],
-    } for item_id in ordered[:limit]]
+    } for item_id in ordered[:min(limit, MAX_SEARCH_CANDIDATES)]]
 
 
-def fuse_rankings(rankings, limit=15, *, weights=None, text_index=None):
+def fuse_rankings(rankings, limit=MAX_SEARCH_CANDIDATES, *, weights=None, text_index=None, preferred_ids=()):
     """Order combined, image-only, then text-only hits, retaining their evidence."""
     candidates = {}
     for idx, ranking in enumerate(rankings):
@@ -70,7 +73,11 @@ def fuse_rankings(rankings, limit=15, *, weights=None, text_index=None):
                 "documentVersion", "sourceId", "sourceKind", "sourceVersion", "sourceSha256")}
             if source not in fused["sources"]:
                 fused["sources"].append(source)
-    return sorted(candidates.values(), key=lambda candidate: (
+    ranked = sorted(candidates.values(), key=lambda candidate: (
         0 if candidate["imageScore"] and candidate["textScore"] else 1 if candidate["imageScore"] else 2,
         -candidate["score"], -candidate["imageScore"], -candidate["textScore"], candidate["itemId"],
-    ))[:limit]
+    ))
+    # Select with area priority, then preserve the group/score wire order checked by the API.
+    selected = sorted(ranked, key=lambda candidate: candidate["itemId"] not in preferred_ids)
+    selected_ids = {candidate["itemId"] for candidate in selected[:min(limit, MAX_SEARCH_CANDIDATES)]}
+    return [candidate for candidate in ranked if candidate["itemId"] in selected_ids]

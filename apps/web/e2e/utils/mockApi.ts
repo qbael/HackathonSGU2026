@@ -57,6 +57,7 @@ export type MockScenarioOptions = {
   items?: any[];
   aiServiceAvailable?: boolean;       // false: Giả lập AI Service 503 Service Unavailable
   authStatus?: 'authenticated' | 'unauthorized' | 'token-expired';
+  expandSearchArea?: boolean;       // Giả lập kết quả trong khu vực dưới ngưỡng phù hợp
   searchDelayMs?: number;            // Giả lập độ trễ mạng để test loading spinner
 };
 
@@ -166,6 +167,12 @@ export async function setupDefaultApiMocks(
       );
     }
 
+    if (area) {
+      const local = matched.filter((item) => item.foundArea.toLowerCase().includes(area));
+      matched = options?.expandSearchArea || !local.length
+        ? [...matched].sort((a, b) => Number(b.foundArea.toLowerCase().includes(area)) - Number(a.foundArea.toLowerCase().includes(area)))
+        : local;
+    }
     await route.fulfill({
       status: 200,
       json: {
@@ -197,15 +204,19 @@ export async function setupDefaultApiMocks(
     }
 
     const area = new URL(route.request().url()).searchParams.get('area')?.toLowerCase() ?? '';
+    const local = items.filter((item) => item.foundArea.toLowerCase().includes(area));
+    const matched = area && (options?.expandSearchArea || !local.length)
+      ? [...items].sort((a, b) => Number(b.foundArea.toLowerCase().includes(area)) - Number(a.foundArea.toLowerCase().includes(area)))
+      : local;
     await route.fulfill({
       status: 200,
       json: {
-        items: items.map((item: any, idx: number) => ({ rank: idx + 1, item })),
+        items: matched.map((item: any, idx: number) => ({ rank: idx + 1, item })),
         mode: 'image',
         searchProfileId: 'mock-prof-img',
         searchProfileVersion: 1,
         partial: false,
-        filtersRelaxed: Boolean(area && items.some((item: any) => !item.foundArea.toLowerCase().includes(area))),
+        filtersRelaxed: Boolean(area && matched.some((item: any) => !item.foundArea.toLowerCase().includes(area))),
         fallbackUrl: '/search?mode=basic',
       },
     });

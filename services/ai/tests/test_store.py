@@ -256,7 +256,7 @@ def test_multisource_snapshot_is_atomic_and_image_search_deduplicates_with_prove
         assert text[0]["sourceId"] == sources[0]["id"]
         assert images[0]["sourceId"] == sources[1]["id"]
         assert images[0]["sourceVersion"] == 2 and images[0]["sourceSha256"] == sources[1]["sha256"]
-        assert (await store.search("", [0, 1, 0], area="other", limit=1, modality="image"))[0]["itemId"] == value["itemId"]
+        assert (await store.search("", [0, 1, 0], area="other", limit=1, modality="image", outside_area=True))[0]["itemId"] == value["itemId"]
         assert await store.search("", [0, 1, 0], from_date="2026-10-26", limit=1, modality="image") == []
         async with await psycopg.AsyncConnection.connect(store.dsn) as db:
             rows = await (await db.execute("SELECT processing_profile, search_terms::text, location_tokens FROM ai_documents")).fetchall()
@@ -382,19 +382,43 @@ def test_bad_later_source_rolls_back_watermark_and_keeps_previous_projection(sto
     asyncio.run(run())
 
 
-
-def test_area_preference_retains_text_and_image_candidates_elsewhere(store):
+def test_area_scopes_filter_text_and_image_candidates_before_ranking(store):
     async def run():
         local = with_images(snapshot(area="Đường Quang Trung"), count=1)
         outside = with_images(snapshot(area="Trường Đại học Sài Gòn, Chợ Quán"), count=1)
         for value in (local, outside):
             await store.upsert(value, checksum(value),
                 {source["id"]: [1, 0, 0] for source in value["sources"]}, deadline())
-        expected = {local["itemId"], outside["itemId"]}
         for modality in ("text", "image"):
-            hits = await store.search("ví", [1, 0, 0], area="quang trung", modality=modality)
-            assert {hit["itemId"] for hit in hits} == expected
-            assert len(hits) == len(expected)
-            assert await store.search("ví", [1, 0, 0], area="quang trung",
-                                      from_date="2026-10-26", modality=modality) == []
+            for outside_area, expected in ((False, local), (True, outside)):
+                hits = await store.search("ví", [1, 0, 0], area="quang trung", modality=modality,
+                                          outside_area=outside_area, include_similarity=True)
+                assert [hit["itemId"] for hit in hits] == [expected["itemId"]]
+                assert hits[0]["similarity"] == pytest.approx(1)
+                assert await store.search("ví", [1, 0, 0], area="quang trung", from_date="2026-10-26",
+                                          modality=modality, outside_area=outside_area) == []
+    asyncio.run(run())
+
+
+def test_area_filter_precedes_channel_pool_limit_and_keeps_actual_cosine(store):
+    async def run():
+        local = with_images(snapshot(title="Bình nước", description="Bình trắng",
+                                     area="Đường Quang Trung"), count=1)
+        await store.upsert(local, checksum(local),
+            {source["id"]: [0.1, 0.9, 0] for source in local["sources"]}, deadline())
+        outside_ids = set()
+        for _ in range(31):
+            outside = with_images(snapshot(area="Chợ Quán"), count=1)
+            outside_ids.add(outside["itemId"])
+            await store.upsert(outside, checksum(outside),
+                {source["id"]: [1, 0, 0] for source in outside["sources"]}, deadline())
+        for modality in ("text", "image"):
+            hits = await store.search("ví", [1, 0, 0], area="quang trung", limit=10,
+                                      modality=modality, include_similarity=True)
+            assert [hit["itemId"] for hit in hits] == [local["itemId"]]
+            assert hits[0]["similarity"] == pytest.approx(0.1 / (0.1 ** 2 + 0.9 ** 2) ** 0.5)
+            outside = await store.search("ví", [1, 0, 0], area="quang trung", limit=10,
+                                         modality=modality, outside_area=True)
+            assert len(outside) == 10
+            assert all(hit["itemId"] in outside_ids for hit in outside)
     asyncio.run(run())

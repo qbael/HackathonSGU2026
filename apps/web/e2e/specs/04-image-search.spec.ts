@@ -38,9 +38,9 @@ test.describe('CUJ-04: Tìm kiếm bằng hình ảnh (Image Search Flow)', () =
     await expect(searchPage.itemCards.first()).toContainText(/Gợi ý 1/i);
   });
 
-  test('Giữ khu vực và ngày từ trang chủ, hiển thị gợi ý ngoài khu vực theo thứ tự API', async ({ page }) => {
+  test('Mở rộng khi tin trong khu vực yếu, giữ khu vực và ngày từ trang chủ', async ({ page }) => {
     const items = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../fixtures/mock-items.json'), 'utf-8')).reverse();
-    await setupDefaultApiMocks(page, { items });
+    await setupDefaultApiMocks(page, { items, expandSearchArea: true });
     const requests: URL[] = [];
     page.on('request', (request) => {
       const url = new URL(request.url());
@@ -59,9 +59,9 @@ test.describe('CUJ-04: Tìm kiếm bằng hình ảnh (Image Search Flow)', () =
     await expect(searchPage.areaInput).toHaveValue('Cơ sở 1 - Khu A');
     await expect(page.locator('aside input[name="from"]')).toHaveValue('2026-11-01');
     await expect(page.locator('aside input[name="until"]')).toHaveValue('2026-11-06');
-    await expect(searchPage.itemCards.nth(0)).toContainText('Ví da nam Pedro màu đen');
-    await expect(searchPage.itemCards.nth(1)).toContainText('Chìa khóa Honda');
-    await expect(page.getByText('Có gợi ý ngoài khu vực ưu tiên; bộ lọc ngày vẫn được giữ nguyên.')).toBeVisible();
+    await expect(searchPage.itemCards.nth(0)).toContainText('Chìa khóa Honda');
+    await expect(searchPage.itemCards.nth(1)).toContainText('Ví da nam Pedro màu đen');
+    await expect(page.getByText('Chưa có tin đủ phù hợp trong khu vực nên đã tìm thêm ở nơi khác. Tin cùng khu vực vẫn xếp trước; bộ lọc ngày được giữ nguyên.')).toBeVisible();
 
     await searchPage.searchButton.click();
     await expect.poll(() => requests.length).toBe(2);
@@ -74,6 +74,27 @@ test.describe('CUJ-04: Tìm kiếm bằng hình ảnh (Image Search Flow)', () =
     await page.getByRole('link', { name: 'Lọc cơ bản theo khu vực và ngày' }).click();
     await expect(searchPage.itemCards).toHaveCount(1);
     await expect(searchPage.itemCards.first()).toContainText('Chìa khóa Honda');
+  });
+
+  test('Chỉ hiện trong khu vực khi đã có tin đủ phù hợp', async ({ page }) => {
+    const searchPage = new SearchPage(page);
+    await searchPage.goto('/search');
+    await searchPage.uploadSearchImage(sampleImage);
+    await searchPage.areaInput.fill('Cơ sở 1 - Khu A');
+    await searchPage.searchButton.click();
+    await expect(searchPage.itemCards).toHaveCount(1);
+    await expect(searchPage.itemCards.first()).toContainText('Chìa khóa Honda');
+    await expect(page.getByText(/Chưa có tin đủ phù hợp trong khu vực nên đã tìm thêm/)).toHaveCount(0);
+  });
+
+  test('Tìm ngoài khu vực khi không có tin trong khu vực đã nhập', async ({ page }) => {
+    const searchPage = new SearchPage(page);
+    await searchPage.goto('/search');
+    await searchPage.uploadSearchImage(sampleImage);
+    await searchPage.areaInput.fill('Khu vực chưa có tin');
+    await searchPage.searchButton.click();
+    await expect(searchPage.itemCards).toHaveCount(2);
+    await expect(page.getByText(/Chưa có tin đủ phù hợp trong khu vực nên đã tìm thêm/)).toBeVisible();
   });
 
   test('Kịch bản 4.2: Tải nhiều ảnh cùng lúc và xóa bớt ảnh preview', async ({ page }) => {

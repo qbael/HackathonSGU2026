@@ -9,6 +9,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 
 from .images import ReviewedRegion
+from .ranking import MAX_SEARCH_CANDIDATES
 
 
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
@@ -118,7 +119,7 @@ class SearchMetadata(Metadata):
     from_: date | None = Field(default=None, alias="from")
     until: date | None = None
     limit: Annotated[int, Field(ge=1, le=10, strict=True)]
-    candidateLimit: Annotated[int, Field(ge=1, le=200, strict=True)]
+    candidateLimit: Annotated[int, Field(ge=1, le=MAX_SEARCH_CANDIDATES, strict=True)]
 
 
     @model_validator(mode="after")
@@ -144,7 +145,7 @@ class BatchSearchMetadata(Metadata):
     from_: date | None = Field(default=None, alias="from")
     until: date | None = None
     limit: Annotated[int, Field(ge=1, le=10, strict=True)]
-    candidateLimit: Annotated[int, Field(ge=1, le=800, strict=True)]
+    candidateLimit: Annotated[int, Field(ge=1, le=MAX_SEARCH_CANDIDATES, strict=True)]
     text: str | None = Field(default=None, max_length=2000, strict=True, exclude=True)
     images: list[SearchImage] = Field(min_length=1, max_length=3, exclude=True)
 

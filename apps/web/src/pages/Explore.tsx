@@ -143,7 +143,7 @@ export function Home({ signedIn, onImageSearch }: {
                   maxLength={200}
                 />
               </div>
-              <span className="field-hint">Ưu tiên khi tìm theo mô tả hoặc ảnh; lọc chính xác khi chỉ tìm theo khu vực.</span>
+              <span className="field-hint">Tìm trong khu vực trước; nếu chưa đủ phù hợp sẽ tìm thêm ở nơi khác. Chỉ tìm theo khu vực: lọc chính xác.</span>
             </label>
             <label>
               Từ ngày
@@ -332,8 +332,8 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
         eyebrow="Có thể món đồ của bạn đang ở đây"
         title="Tìm đồ thất lạc"
       >
-        Tìm bằng mô tả, tối đa 3 ảnh hoặc kết hợp cả hai; ưu tiên khu vực bạn
-        chọn và lọc theo ngày nhặt được.
+        Tìm bằng mô tả, tối đa 3 ảnh hoặc kết hợp cả hai. Tìm trong khu vực trước;
+        nếu chưa đủ phù hợp sẽ tìm thêm ở nơi khác. Ngày nhặt được vẫn dùng để lọc.
       </PageHeader>
       <div className="search-layout">
         <aside className="panel filter-panel">
@@ -380,7 +380,7 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
                 maxLength={200}
                 placeholder="Ví dụ: Trường Đại học Sài Gòn"
               />
-              {mode !== "basic" && <span className="field-hint">Món ở khu vực khác vẫn có thể xuất hiện.</span>}
+              {mode !== "basic" && <span className="field-hint">Nếu chưa có tin đủ phù hợp trong khu vực, sẽ tìm thêm ở nơi khác; tin cùng khu vực vẫn xếp trước.</span>}
             </label>
             <label>
               Nhặt từ ngày
@@ -466,7 +466,7 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
                 <p>Một số gợi ý không còn hợp lệ nên danh sách có thể chưa đầy đủ.</p>
               )}
               {suggestions.filtersRelaxed && (
-                <p>Có gợi ý ngoài khu vực ưu tiên; bộ lọc ngày vẫn được giữ nguyên.</p>
+                <p>Chưa có tin đủ phù hợp trong khu vực nên đã tìm thêm ở nơi khác. Tin cùng khu vực vẫn xếp trước; bộ lọc ngày được giữ nguyên.</p>
               )}
               {suggestions.items.length > 0 && fallback && (
                 <a className="text-button" href={fallback}>

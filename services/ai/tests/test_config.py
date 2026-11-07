@@ -37,3 +37,20 @@ def test_worker_passes_search_semantic_weight_to_store():
         finally:
             await worker.close()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("kind", ["image", "text"])
+@pytest.mark.parametrize("value", ["0.6", "0", "1", "0.75"])
+def test_area_similarity_threshold_environment(monkeypatch, kind, value):
+    monkeypatch.setenv("AI_SERVICE_TOKEN", "test")
+    monkeypatch.setenv(f"AI_SEARCH_MIN_{kind.upper()}_SIMILARITY", value)
+    assert getattr(Settings.from_env(), f"min_{kind}_similarity") == float(value)
+
+
+@pytest.mark.parametrize("kind", ["image", "text"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-0.01", "1.01", "bad", ""])
+def test_area_similarity_threshold_rejects_invalid_values(monkeypatch, kind, value):
+    monkeypatch.setenv("AI_SERVICE_TOKEN", "test")
+    monkeypatch.setenv(f"AI_SEARCH_MIN_{kind.upper()}_SIMILARITY", value)
+    with pytest.raises(ValueError):
+        Settings.from_env()

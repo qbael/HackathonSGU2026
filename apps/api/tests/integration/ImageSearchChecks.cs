@@ -220,7 +220,7 @@ static class ImageSearchChecks
         ai.Handler = command => SearchReply(command, [firstCandidate]);
         await Binary(ocrSeeker, "/api/search/image", original, "image/png", 502);
         ai.Handler = command => {
-            Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 200, "single-image requests retain the bounded candidate pool before API ranking");
+            Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 30, "single-image requests cap candidates at thirty before API ranking");
             Check(command.Kind == "search.hybrid.image" && !command.Persistent && command.Body.SequenceEqual(original), "image query uses transient binary transport");
             var remaining = command.Metadata.GetProperty("deadlineAt").GetDateTimeOffset() - DateTimeOffset.UtcNow;
             Check(remaining.TotalSeconds is > 295 and <= 300, "image queries allow five minutes for image embedding");
@@ -305,8 +305,8 @@ static class ImageSearchChecks
             ai.Handler = command => SearchReply(command, candidates);
             const string query = "/api/search/images?area=quang%20trung";
             var result = await Multipart(browser, query, [original], "white bottle", 200);
-            Check(Ids(result).SequenceEqual([local.Id, remote.Id, weak.Id, imageOnly.Id, textOnly.Id]),
-                "results group combined matches before image-only and text-only matches, boost nearby matches and deduplicate items across groups");
+            Check(Ids(result).SequenceEqual([local.Id, weak.Id, remote.Id, imageOnly.Id, textOnly.Id]),
+                "results put the preferred area first, then combined, image-only and text-only groups, without duplicates");
             Check(result.GetProperty("filtersRelaxed").GetBoolean() && !result.GetProperty("partial").GetBoolean(),
                 "out-of-area results are reported and duplicate matches do not make the response partial");
             var limited = await Multipart(browser, query + "&limit=1", [original], "white bottle", 200);
@@ -315,24 +315,37 @@ static class ImageSearchChecks
             ai.Handler = command => SearchReply(command, Enumerable.Repeat(Fused(0.016, 0.008, remote.Image, remote.Text), 15)
                 .Append(Fused(0.0155, 0.008, local.Image, local.Text)).ToArray());
             limited = await Multipart(browser, query + "&limit=1", [original], "white bottle", 200);
-            Check(Ids(limited).SequenceEqual([local.Id]), "area boosting considers candidates beyond the old fifteen-candidate cutoff");
+            Check(Ids(limited).SequenceEqual([local.Id]), "area ordering considers candidates beyond the old fifteen-candidate cutoff");
             ai.Handler = command => SearchReply(command, candidates);
             var unfiltered = await Multipart(browser, "/api/search/images", [original], "white bottle", 200);
             Check(Ids(unfiltered).SequenceEqual([remote.Id, local.Id, weak.Id, imageOnly.Id, textOnly.Id]),
                 "without an area preference each group keeps descending relevance scores");
             ai.Handler = command => SearchReply(command, [Fused(0.016, 0.008, remote.Image, remote.Text), Fused(0.01, 0.005, weak.Image, weak.Text)]);
             result = await Multipart(browser, query, [original], "white bottle", 200);
-            Check(Ids(result).SequenceEqual([remote.Id, weak.Id]), "a bounded area boost cannot bury a much stronger out-of-area match");
+            Check(Ids(result).SequenceEqual([weak.Id, remote.Id]), "the preferred area comes before a higher-scoring out-of-area match");
             result = await Multipart(browser, query + "&from=2026-01-02", [original], "white bottle", 200);
             Check(!Ids(result).Any(), "soft area ranking keeps date filters strict");
 
             ai.Handler = command => SearchReply(command, [remote.Image, local.Image]);
             result = await Binary(browser, "/api/search/image?area=quang%20trung", original, "image/png", 200);
-            Check(Ids(result).SequenceEqual([local.Id, remote.Id]), "single-image search boosts the preferred area while retaining remote matches");
+            Check(Ids(result).SequenceEqual([local.Id, remote.Id]), "single-image search puts the preferred area first while retaining remote matches");
             ai.Handler = command => SearchReply(command, [remote.Text, local.Text]);
             result = await Send(browser, HttpMethod.Post, "/api/search", new { text = "white bottle", area = "quang trung" }, 200);
-            Check(Ids(result).SequenceEqual([local.Id, remote.Id]), "text search boosts the preferred area while retaining remote matches");
+            Check(Ids(result).SequenceEqual([local.Id, remote.Id]), "text search puts the preferred area first while retaining remote matches");
 
+            ai.Handler = command => SearchReply(command, [Fused(0.016, 0.008, remote.Image, remote.Text),
+                Fused(0.016, 0, local.Image), Fused(0, 0.008, weak.Text)]);
+            result = await Multipart(browser, "/api/search/images?area=QUANG%20TRUNG", [original], "white bottle", 200);
+            Check(Ids(result).SequenceEqual([local.Id, weak.Id, remote.Id]),
+                "case-insensitive area priority puts local image-only and text-only matches before remote combined matches");
+            limited = await Multipart(browser, query + "&limit=2", [original], "white bottle", 200);
+            Check(Ids(limited).SequenceEqual([local.Id, weak.Id]) && !limited.GetProperty("filtersRelaxed").GetBoolean(),
+                "the result limit is applied after area and modality grouping");
+            result = await Multipart(browser, "/api/search/images?area=unknown", [original], "white bottle", 200);
+            Check(Ids(result).SequenceEqual([remote.Id, local.Id, weak.Id]) && result.GetProperty("filtersRelaxed").GetBoolean(),
+                "an unmatched area keeps all results in their normal group and relevance order");
+
+            using var validationBrowser = await User("area-ranking-validation");
             foreach (var (field, invalid) in new (string, object?)[] {
                 ("imageScore", -0.001), ("imageScore", 1d), ("textScore", -0.001), ("textScore", 0.01),
                 ("score", 0.001), ("imageScore", "not-a-score"), ("textScore", null) })
@@ -340,16 +353,16 @@ static class ImageSearchChecks
                 var candidate = (Dictionary<string, object?>)Fused(0.016, 0.008, remote.Image, remote.Text);
                 candidate[field] = invalid;
                 ai.Handler = command => SearchReply(command, [candidate]);
-                await Multipart(browser, "/api/search/images", [original], "white bottle", 502);
+                await Multipart(validationBrowser, "/api/search/images", [original], "white bottle", 502);
             }
             var missing = (Dictionary<string, object?>)Fused(0.016, 0.008, remote.Image, remote.Text);
             missing.Remove("imageScore");
             ai.Handler = command => SearchReply(command, [missing]);
-            await Multipart(browser, "/api/search/images", [original], "white bottle", 502);
+            await Multipart(validationBrowser, "/api/search/images", [original], "white bottle", 502);
             ai.Handler = command => SearchReply(command, [Fused(0.016, 0, imageOnly.Image), Fused(0.01, 0.005, remote.Image, remote.Text)]);
-            await Multipart(browser, "/api/search/images", [original], "white bottle", 502);
+            await Multipart(validationBrowser, "/api/search/images", [original], "white bottle", 502);
             ai.Handler = command => SearchReply(command, [Fused(0.016, 0.0000000000001, imageOnly.Image)]);
-            await Multipart(browser, "/api/search/images", [original], null, 502);
+            await Multipart(validationBrowser, "/api/search/images", [original], null, 502);
 
             async Task<(Guid Id, object Text, object Image)> Publish(string title, string area)
             {
@@ -614,7 +627,7 @@ static class ImageSearchChecks
             var firstText = await Candidate(itemId, false);
             ai.Handler = command =>
             {
-                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 800, "batch requests retain every bounded branch candidate before API ranking");
+                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 30, "batch requests cap the complete fused candidate pool at thirty");
                 Check(!command.Persistent && command.Metadata.GetProperty("area").GetString() == "Campus"
                     && command.Metadata.GetProperty("from").GetString() == "2026-01-01"
                     && command.Metadata.GetProperty("until").GetString() == "2026-01-01", "batch search receives filters through transient AI transport");
@@ -707,15 +720,15 @@ static class ImageSearchChecks
             using var limitBrowser = await User("candidate-limit-seeker");
             ai.Handler = command =>
             {
-                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 200, "text requests retain the bounded candidate pool before API ranking");
-                return SearchReply(command, Enumerable.Repeat(firstText, 200).ToArray());
+                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 30, "text requests cap candidates at thirty before API ranking");
+                return SearchReply(command, Enumerable.Repeat(firstText, 30).ToArray());
             };
             await Send(limitBrowser, HttpMethod.Post, "/api/search", new { text = "wallet" }, 200);
-            ai.Handler = command => SearchReply(command, Enumerable.Repeat(firstText, 201).ToArray());
+            ai.Handler = command => SearchReply(command, Enumerable.Repeat(firstText, 31).ToArray());
             await Send(limitBrowser, HttpMethod.Post, "/api/search", new { text = "wallet" }, 502);
-            ai.Handler = command => SearchReply(command, Enumerable.Repeat(imageCandidate, 201).ToArray());
+            ai.Handler = command => SearchReply(command, Enumerable.Repeat(imageCandidate, 31).ToArray());
             await Binary(limitBrowser, "/api/search/image", original, "image/png", 502);
-            ai.Handler = command => SearchReply(command, Enumerable.Repeat(Fused(1d / 61, 0, imageCandidate), 201).ToArray());
+            ai.Handler = command => SearchReply(command, Enumerable.Repeat(Fused(1d / 61, 0, imageCandidate), 31).ToArray());
             await Multipart(limitBrowser, "/api/search/images", [original], null, 502);
             ai.Handler = command => SearchReply(command, [imageCandidate]);
         }

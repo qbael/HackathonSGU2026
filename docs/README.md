@@ -28,7 +28,7 @@ demo/           Ảnh, video và tóm tắt demo
 - [API .NET](api/README.md): Google cookie/CSRF, hồ sơ/điểm, món đồ, claim/chat, tiếp nhận/trao trả, ảnh/search; tài liệu từng endpoint, AMQP và kiểm thử.
 - [Python AI service với Ollama](guides/ai-service.md): tìm bằng mô tả tiếng Việt, vị trí phòng/hội trường, đổi model và cấu hình chỉ mục.
 - [Thử AI trên Google Colab](guides/colab.md).
-- Hồ sơ khởi tạo: [phạm vi](specs/001-project-bootstrap/spec.md), [kế hoạch](specs/001-project-bootstrap/plan.md), [nhiệm vụ](specs/001-project-bootstrap/tasks.md), [đánh giá sẵn sàng](specs/001-project-bootstrap/readiness-review.md).
+- Hồ sơ khởi tạo: [phạm vi](specs/001-project-bootstrap/spec.md), [kế hoạch](specs/001-project-bootstrap/plan.md), [nhiệm vụ](specs/001-project-bootstrap/tasks.md).
 - [Kiểm thử E2E](guides/e2e-testing-guide.md): cấu hình và cách chạy Playwright hiện hành.
 
 ## Tư liệu demo

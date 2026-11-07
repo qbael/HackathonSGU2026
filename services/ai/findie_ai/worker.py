@@ -18,7 +18,7 @@ from .contracts import (BatchSearchMetadata, ImageEmbeddingMetadata, IndexImageM
 from .ollama import EmbeddingInputRejected, ModelUnavailable, OCR_PROFILE, Ollama
 from .store import Store
 from .search_cache import SearchCache
-from .ranking import fuse_rankings
+from .ranking import MAX_SEARCH_CANDIDATES, fuse_rankings
 
 
 log = logging.getLogger(__name__)
@@ -163,21 +163,52 @@ class Worker:
         if (isinstance(metadata, BatchSearchMetadata) or isinstance(metadata, SearchMetadata) and metadata.mode == "image") and not self.settings.image_search_enabled:
             raise ModelUnavailable("image_search_disabled")
 
-    async def search_candidates(self, metadata, body, content_type, limit):
-        if metadata.mode == "text":
-            query = Query.model_validate_json(body)
-            if (query.area, query.from_, query.until) != (metadata.area, metadata.from_, metadata.until):
-                raise ValueError("filter_mismatch")
-            candidates = await self.store.search(query.text, None, query.area, query.from_, query.until,
-                limit, include_images=self.settings.image_search_enabled,
-                embed=lambda: self.embed_text(query.text, metadata.cacheScope, query=True))
+    async def search_rankings(self, requests, *, text_index=None):
+        rankings, prepared, vectors, preferred_ids = [], [], {}, set()
+        for index, (metadata, body, content_type) in enumerate(requests):
+            async with asyncio.timeout(metadata.remaining()):
+                kwargs = {"include_similarity": True}
+                if metadata.mode == "text":
+                    query = Query.model_validate_json(body)
+                    if (query.area, query.from_, query.until) != (metadata.area, metadata.from_, metadata.until):
+                        raise ValueError("filter_mismatch")
+
+                    async def embed(text=query.text, scope=metadata.cacheScope, index=index):
+                        if index not in vectors:
+                            vectors[index] = await self.embed_text(text, scope, query=True)
+                        return vectors[index]
+
+                    args = (query.text, None, query.area, query.from_, query.until, metadata.candidateLimit)
+                    kwargs.update(include_images=self.settings.image_search_enabled, embed=embed)
+                else:
+                    normalized = await images.normalize(body, content_type)
+                    vector = await self.embed_image(normalized, metadata.cacheScope)
+                    args = ("", vector, metadata.area, metadata.from_, metadata.until, metadata.candidateLimit)
+                    kwargs["modality"] = "image"
+                rankings.append(await self.store.search(*args, **kwargs))
+                if metadata.area:
+                    preferred_ids.update(hit["itemId"] for hit in rankings[-1])
+                prepared.append((args, kwargs))
+                metadata.remaining()
+
+        image_matches, text_matches = set(), set()
+        # shortcut: cosine thresholds need calibration on labelled queries for the deployed model.
+        for index, ranking in enumerate(rankings):
+            threshold = self.settings.min_text_similarity if index == text_index else self.settings.min_image_similarity
+            matches = {hit["itemId"] for hit in ranking if hit.get("similarity", -1.0) >= threshold}
+            (text_matches if index == text_index else image_matches).update(matches)
+        if text_index is None:
+            confident = image_matches
+        elif len(rankings) == 1:
+            confident = text_matches
         else:
-            normalized = await images.normalize(body, content_type)
-            vector = await self.embed_image(normalized, metadata.cacheScope)
-            candidates = await self.store.search("", vector, metadata.area, metadata.from_, metadata.until,
-                                                 limit, modality="image")
-        metadata.remaining()
-        return candidates
+            confident = image_matches & text_matches
+        if metadata.area and not confident:
+            for ranking, (args, kwargs) in zip(rankings, prepared):
+                outside = await self.store.search(*args, **kwargs, outside_area=True)
+                ranking.extend(outside[:max(0, args[5] - len(ranking))])
+        return [[{key: value for key, value in hit.items() if key != "similarity"}
+                 for hit in ranking] for ranking in rankings], preferred_ids
 
     async def execute(self, kind, metadata, body, content_type="application/json"):
         self.identity(metadata)
@@ -188,29 +219,31 @@ class Worker:
                 exclude={"processingProfile", "mode", "searchProfileId"})
             common["cacheScope"] = metadata.cacheScope
 
-            async def search(mode, payload, mime):
+            def branch(mode, payload, mime):
                 seconds = 300 if mode == "image" else 30
-                branch = SearchMetadata.model_validate(common | {
-                    "processingProfile": mode + "-v1", "mode": mode, "candidateLimit": 200,
+                query = SearchMetadata.model_validate(common | {
+                    "processingProfile": mode + "-v1", "mode": mode, "candidateLimit": MAX_SEARCH_CANDIDATES,
                     "searchProfileId": self.settings.image_search_profile if mode == "image" else self.settings.search_profile,
                     "deadlineAt": min(metadata.deadlineAt, datetime.now(timezone.utc) + timedelta(seconds=seconds)),
                 })
-                async with asyncio.timeout(branch.remaining()):
-                    return await self.search_candidates(branch, payload, mime, 200)
+                return query, payload, mime
 
-            rankings, offset = [], 0
-            for image in metadata.images:
-                rankings.append(await search("image", body[offset:offset + image.length], image.contentType))
-                offset += image.length
-            if metadata.text:
-                query = Query(text=metadata.text, area=metadata.area, **{"from": metadata.from_}, until=metadata.until)
-                rankings.append(await search("text", query.model_dump_json(by_alias=True).encode(), "application/json"))
+            def requests():
+                offset = 0
+                for image in metadata.images:
+                    yield branch("image", body[offset:offset + image.length], image.contentType)
+                    offset += image.length
+                if metadata.text:
+                    query = Query(text=metadata.text, area=metadata.area, **{"from": metadata.from_}, until=metadata.until)
+                    yield branch("text", query.model_dump_json(by_alias=True).encode(), "application/json")
+
+            rankings, preferred_ids = await self.search_rankings(requests(), text_index=len(metadata.images) if metadata.text else None)
             weights = [1.0] * len(rankings)
             if metadata.text:
                 weights[-1] = 0.5
             metadata.remaining()
             return {"candidates": fuse_rankings(rankings, metadata.candidateLimit, weights=weights,
-                text_index=len(metadata.images) if metadata.text else None)}
+                text_index=len(metadata.images) if metadata.text else None, preferred_ids=preferred_ids)}
         if kind == "image.embed":
             if sha256(body).hexdigest() != metadata.sourceSha256:
                 raise ValueError("source_hash_mismatch")
@@ -239,7 +272,10 @@ class Worker:
         if kind in {"search.hybrid", "search.hybrid.image"}:
             if metadata.mode != ("text" if kind == "search.hybrid" else "image"):
                 raise ValueError("search_modality_mismatch")
-            return {"candidates": await self.search_candidates(metadata, body, content_type, metadata.candidateLimit)}
+            rankings, _ = await self.search_rankings([(metadata, body, content_type)],
+                text_index=0 if metadata.mode == "text" else None)
+            metadata.remaining()
+            return {"candidates": rankings[0]}
         snapshot = self.snapshot(kind, metadata, body)
         if kind == "index.upsert":
             if any(source.kind == "image" for source in snapshot.sources):

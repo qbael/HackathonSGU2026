@@ -4,12 +4,15 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Findie.Api.Repositories;
 
+public sealed record SearchItem(Item Item, bool CanManage);
+
 public interface IRecoveryRepository
 {
     Task<IDbContextTransaction> BeginAsync(CancellationToken ct);
     Task LockRequestAsync(Guid actor, Guid key, CancellationToken ct);
     Task<IdempotencyKey?> ReplayAsync(Guid actor, Guid key, CancellationToken ct);
     Task<Item?> ItemAsync(Guid id, bool forUpdate, CancellationToken ct);
+    Task<List<SearchItem>> SearchItemsAsync(Guid actor, IReadOnlyCollection<Guid> ids, CancellationToken ct);
     Task<(List<Item> Items, int TotalCount)> ItemsAsync(Guid actor, ItemFilter filter, CancellationToken ct);
     Task<ReceptionPoint?> PointAsync(Guid id, CancellationToken ct);
     Task<bool> PointPermissionAsync(Guid actor, Guid point, bool receive, CancellationToken ct);
