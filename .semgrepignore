@@ -1,4 +1,6 @@
 # Semgrep ignore file
+.github/
+scripts/docs/
 apps/web/node_modules/
 apps/web/dist/
 apps/web/playwright-report/

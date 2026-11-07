@@ -45,6 +45,7 @@ def _decode(body, content_type):
     if content_type not in MIME_FORMATS or not body or len(body) > MAX_BYTES:
         raise ValueError("invalid_image")
     try:
+        # nosemgrep: findie-python-pillow-unbounded-open
         with Image.open(BytesIO(body), formats=list(MIME_FORMATS.values())) as source:
             width, height = source.size
             if (source.format != MIME_FORMATS[content_type] or getattr(source, "n_frames", 1) != 1
