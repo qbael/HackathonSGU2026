@@ -21,6 +21,20 @@ from findie_ai.worker import Worker
 SETTINGS = Settings(service_token='test', revision='a' * 64, redaction_revision='b' * 64, dimensions=2)
 
 
+@pytest.fixture
+def embedding_cache(monkeypatch):
+    entries = {}
+
+    async def save(key, value, *, ex):
+        assert ex == 300
+        entries[key] = value
+
+    client = SimpleNamespace(get=AsyncMock(side_effect=entries.get), set=AsyncMock(side_effect=save),
+                             aclose=AsyncMock())
+    monkeypatch.setattr("findie_ai.search_cache.Redis.from_url", lambda *_args, **_kwargs: client)
+    return entries
+
+
 def encode(value):
     return json.dumps(value, separators=(',', ':'), ensure_ascii=False).encode()
 
@@ -752,7 +766,7 @@ def test_image_query_keeps_raw_bytes_out_of_storage_and_redaction_returns_only_o
             await worker.handle(message, "image")
             assert message.events == ["ack"] and message.body == b""
             assert worker.store.search.await_args.args[0] == ""
-            assert worker.store.search.await_args.kwargs == {"modality": "image"}
+            assert worker.store.search.await_args.kwargs == {"modality": "image", "include_similarity": True}
             assert worker.ollama.embed_image.await_args.kwargs == {}
             worker.ollama.read_text.assert_not_awaited()
             worker.store.upsert.assert_not_awaited()
@@ -909,17 +923,25 @@ def test_reconnect_keeps_inflight_byte_reservations_until_each_callback_finishes
     asyncio.run(run())
 
 
-def test_image_search_cache_is_separate_from_upload_and_requires_matching_input(monkeypatch):
+@pytest.mark.parametrize("search_first", [False, True])
+def test_upload_and_search_reuse_normalized_image_vectors_without_caching_ocr(monkeypatch, embedding_cache, search_first):
     from findie_ai import images
+    from PIL.PngImagePlugin import PngInfo
 
     async def run():
-        worker = Worker(replace(SETTINGS, image_search_enabled=True))
+        worker = Worker(replace(SETTINGS, image_search_enabled=True, redis_url="redis://127.0.0.1/0"))
         normalize = AsyncMock(wraps=images.normalize)
         monkeypatch.setattr(images, "normalize", normalize)
         worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
         worker.ollama.read_text = AsyncMock(return_value={"text": "MSSV 001234", "hasUnclearText": False})
         worker.store.search = AsyncMock(return_value=[])
         raw = png()
+        output, chunks = BytesIO(), PngInfo()
+        chunks.add_text("description", "different metadata, same pixels")
+        with Image.open(BytesIO(raw)) as image:
+            image.save(output, format="PNG", pnginfo=chunks)
+        alternate = output.getvalue()
+        assert raw != alternate
         scope = uuid4()
         upload = ImageEmbeddingMetadata.model_validate(metadata(
             imageId=uuid4(), itemId=uuid4(), sourceVersion=1, sourceSha256=hashlib.sha256(raw).hexdigest(),
@@ -928,39 +950,120 @@ def test_image_search_cache_is_separate_from_upload_and_requires_matching_input(
             mode="image", processingProfile="image-v1", searchProfileId=SETTINGS.image_search_profile,
             cacheScope=scope))
         try:
+            if search_first:
+                await worker.execute("search.hybrid.image", query, alternate, "image/png")
+                worker.ollama.read_text.assert_not_awaited()
             posted = await worker.execute("image.embed", upload, raw, "image/png")
             assert posted["vector"] == [0, 1] and posted["ocr"]["text"] == "MSSV 001234"
-            assert not worker.embeddings
-            for area in ("Quận 1", "Quận 5"):
-                await worker.execute("search.hybrid.image", query.model_copy(update={"area": area}), raw, "image/png")
-                worker.store.search.assert_awaited_with("", [0, 1], area, None, None, 15, modality="image")
-            assert worker.store.search.await_count == 2
-            assert worker.ollama.embed_image.await_count == normalize.await_count == 2
+            if not search_first:
+                await worker.execute("search.hybrid.image", query, alternate, "image/png")
             worker.ollama.read_text.assert_awaited_once()
 
-            await worker.execute("image.embed", upload, raw, "image/png")
-            assert worker.ollama.embed_image.await_count == 3
+            duplicate = upload.model_copy(update={"imageId": uuid4(), "itemId": uuid4(), "sourceVersion": 2,
+                "sourceSha256": hashlib.sha256(alternate).hexdigest()})
+            repeated = await worker.execute("image.embed", duplicate, alternate, "image/png")
+            assert repeated["sourceSha256"] == duplicate.sourceSha256 and repeated["vector"] == [0, 1]
+            without_ocr = await worker.execute("image.embed", upload.model_copy(update={"omitOcr": True}), raw, "image/png")
+            assert "ocr" not in without_ocr and worker.ollama.read_text.await_count == 2
+            await worker.execute("search.hybrid.image", query.model_copy(update={"area": "Quận 5"}), raw, "image/png")
+            worker.store.search.assert_awaited_with("", [0, 1], "Quận 5", None, None, 15, modality="image", include_similarity=True, outside_area=True)
+            assert worker.store.search.await_count == 3
+            worker.ollama.embed_image.assert_awaited_once()
+            assert normalize.await_count == 5 and len(embedding_cache) == 1
+            assert "MSSV" not in " ".join(embedding_cache.values())
+        finally:
+            await worker.close()
+    asyncio.run(run())
 
-            with pytest.raises(ValueError, match="invalid_image"):
-                await worker.execute("search.hybrid.image", query, raw, "image/jpeg")
-            bad_hash = upload.model_copy(update={"sourceSha256": "f" * 64})
-            with pytest.raises(ValueError, match="source_hash_mismatch"):
-                await worker.execute("image.embed", bad_hash, raw, "image/png")
-            assert worker.store.search.await_count == 2
-            assert worker.ollama.embed_image.await_count == 3
 
+def test_image_cache_hits_keep_input_validation_and_isolate_pixels_and_accounts(embedding_cache):
+    async def run():
+        worker = Worker(replace(SETTINGS, image_search_enabled=True, redis_url="redis://127.0.0.1/0"))
+        worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
+        worker.ollama.read_text = AsyncMock()
+        worker.store.search = AsyncMock(return_value=[])
+        output = BytesIO()
+        with Image.new("RGB", (256, 256), (255, 0, 0)) as image:
+            image.save(output, format="PNG")
+        raw, scope = output.getvalue(), uuid4()
+        query = SearchMetadata.model_validate(query_metadata(
+            mode="image", processingProfile="image-v1", searchProfileId=SETTINGS.image_search_profile,
+            cacheScope=scope))
+        upload = ImageEmbeddingMetadata.model_validate(metadata(
+            imageId=uuid4(), itemId=uuid4(), sourceVersion=1, sourceSha256=hashlib.sha256(raw).hexdigest(),
+            dimensions=2, processingProfile="image-v1", cacheScope=scope, omitOcr=True))
+        try:
+            await worker.execute("search.hybrid.image", query, raw, "image/png")
+            invalid_uploads = [(upload.model_copy(update={"sourceSha256": "f" * 64}), raw, "image/png", "source_hash_mismatch"),
+                (upload, raw, "image/jpeg", "invalid_image"),
+                (upload.model_copy(update={"coarsePreview": True}), raw, "image/png", "invalid_coarse_preview"),
+                (upload.model_copy(update={"sourceSha256": hashlib.sha256(b"invalid").hexdigest()}),
+                 b"invalid", "image/png", "invalid_image")]
+            for meta, body, mime, error in invalid_uploads:
+                with pytest.raises(ValueError, match=error):
+                    await worker.execute("image.embed", meta, body, mime)
+            for body, mime in ((raw, "image/jpeg"), (b"invalid", "image/png")):
+                with pytest.raises(ValueError, match="invalid_image"):
+                    await worker.execute("search.hybrid.image", query, body, mime)
+            worker.ollama.embed_image.assert_awaited_once()
+            worker.store.search.assert_awaited_once()
+            worker.ollama.read_text.assert_not_awaited()
+            assert len(embedding_cache) == 1
+
+            output = BytesIO()
+            with Image.new("RGB", (12, 12), (0, 0, 255)) as image:
+                image.save(output, format="PNG")
+            await worker.execute("search.hybrid.image", query, output.getvalue(), "image/png")
+            assert worker.ollama.embed_image.await_count == 2
             other_account = query.model_copy(update={"cacheScope": uuid4()})
             await worker.execute("search.hybrid.image", other_account, raw, "image/png")
-            assert worker.ollama.embed_image.await_count == 4
+            assert worker.ollama.embed_image.await_count == 3 and len(embedding_cache) == 3
+        finally:
+            await worker.close()
+    asyncio.run(run())
+
+
+def test_legacy_index_reuses_duplicate_image_vectors_for_later_upload_and_search(embedding_cache):
+    async def run():
+        worker = Worker(replace(SETTINGS, image_search_enabled=True, redis_url="redis://127.0.0.1/0"))
+        worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
+        worker.ollama.embed = AsyncMock(return_value=[1, 0])
+        worker.ollama.read_text = AsyncMock()
+        worker.store.search = AsyncMock(return_value=[])
+        worker.store.upsert = AsyncMock(return_value=True)
+        worker.reply = AsyncMock()
+        value, manifest, parts = image_job(image_count=2)
+        raw, scope = png(), uuid4()
+        for message in [manifest, *parts]:
+            message.headers["metadata"] = encode(json.loads(message.headers["metadata"]) | {"cacheScope": str(scope)})
+        try:
+            await worker.handle(parts[0], "index")
+            await worker.handle(manifest, "index")
+            await worker.handle(parts[1], "index")
+            assert worker.reply.await_args.args[2] is True
+            vectors = worker.store.upsert.await_args.args[2]
+            assert all(vectors[source["id"]] == [0, 1] for source in value["sources"][1:])
+            assert all(message.events == ["ack"] for message in [manifest, *parts])
+
+            upload = ImageEmbeddingMetadata.model_validate(metadata(
+                imageId=uuid4(), itemId=uuid4(), sourceVersion=1, sourceSha256=hashlib.sha256(raw).hexdigest(),
+                dimensions=2, processingProfile="image-v1", cacheScope=scope, omitOcr=True))
+            assert (await worker.execute("image.embed", upload, raw, "image/png"))["vector"] == [0, 1]
+            query = SearchMetadata.model_validate(query_metadata(
+                mode="image", processingProfile="image-v1", searchProfileId=SETTINGS.image_search_profile,
+                cacheScope=scope))
+            await worker.execute("search.hybrid.image", query, raw, "image/png")
+            worker.ollama.embed_image.assert_awaited_once()
+            worker.ollama.read_text.assert_not_awaited()
         finally:
             await worker.close()
     asyncio.run(run())
 
 
 @pytest.mark.parametrize("instruction", ["", SETTINGS.query_instruction])
-def test_text_embedding_cache_respects_the_index_and_search_model_inputs(instruction):
+def test_text_embedding_cache_respects_the_index_and_search_model_inputs(instruction, embedding_cache):
     async def run():
-        worker = Worker(replace(SETTINGS, query_instruction=instruction))
+        worker = Worker(replace(SETTINGS, query_instruction=instruction, redis_url="redis://127.0.0.1/0"))
         worker.ollama.embed = AsyncMock(return_value=[1, 0])
         worker.store.upsert = AsyncMock(return_value=True)
         worker.reply = AsyncMock()
@@ -984,45 +1087,10 @@ def test_text_embedding_cache_respects_the_index_and_search_model_inputs(instruc
             for area in ("Quận 1", "Quận 5"):
                 query = SearchMetadata.model_validate(query_metadata(area=area, cacheScope=scope))
                 await worker.execute("search.hybrid", query, encode({"text": text, "area": area}))
-            assert [call.args[2] for call in worker.store.search.await_args_list] == ["Quận 1", "Quận 5"]
+            assert [call.args[2] for call in worker.store.search.await_args_list] == ["Quận 1", "Quận 1", "Quận 5", "Quận 5"]
             assert worker.ollama.embed.await_count == (2 if instruction else 1)
             if instruction:
                 worker.ollama.embed.assert_awaited_with(text, query=True)
-        finally:
-            await worker.close()
-    asyncio.run(run())
-
-
-def test_embedding_cache_bounds_retention_and_does_not_cache_failures(monkeypatch):
-    from findie_ai import worker as worker_module
-
-    async def run():
-        worker = Worker(SETTINGS)
-        scope = uuid4()
-        embed = AsyncMock(side_effect=[ModelUnavailable("unavailable"), [1, 0], [0, 1], [1, 1], [1, 0]])
-        loop = asyncio.get_running_loop()
-        clock = [loop.time()]
-        monkeypatch.setattr(loop, "time", lambda: clock[0])
-        monkeypatch.setattr(worker_module, "EMBEDDING_CACHE_MAX_ENTRIES", 2)
-        try:
-            with pytest.raises(ModelUnavailable, match="unavailable"):
-                await worker.cached_embedding(scope, "first", embed)
-            assert not worker.embeddings
-            assert await worker.cached_embedding(scope, "first", embed) == [1, 0]
-            assert await worker.cached_embedding(scope, "first", embed) == [1, 0]
-            assert embed.await_count == 2
-
-            await worker.cached_embedding(scope, "second", embed)
-            await worker.cached_embedding(scope, "third", embed)
-            assert len(worker.embeddings) == 2
-            assert (scope, "first") not in worker.embeddings
-
-            clock[0] += worker_module.EMBEDDING_CACHE_TTL_SECONDS + 1
-            await asyncio.sleep(0)
-            await asyncio.sleep(0)
-            assert not worker.embeddings
-            assert await worker.cached_embedding(scope, "third", embed) == [1, 0]
-            assert embed.await_count == 5
         finally:
             await worker.close()
     asyncio.run(run())
@@ -1068,14 +1136,14 @@ def batch_metadata(*, count=2, text="ví đen", **extra):
     {"text": "x" * 2001}, {"text": " ", "mode": "combined", "searchProfileId": "multimodal-fusion-v1"},
     {"mode": "text"}, {"processingProfile": "text-v1"},
     {"searchProfileId": "image-fusion-v1"}, {"from": "2026-11-02", "until": "2026-11-01"},
-    {"candidateLimit": 801}, {"limit": 11},
+    {"candidateLimit": 31}, {"limit": 11},
 ])
 def test_batch_search_contract_rejects_invalid_framing_modes_and_filters(extra):
     with pytest.raises(ValueError):
         BatchSearchMetadata.model_validate(batch_metadata(**extra))
 
 
-@pytest.mark.parametrize("limit", [0, 201, True])
+@pytest.mark.parametrize("limit", [0, 31, True])
 def test_single_search_contract_rejects_candidate_limits_outside_pool(limit):
     with pytest.raises(ValueError):
         SearchMetadata.model_validate(query_metadata(candidateLimit=limit))
@@ -1093,9 +1161,9 @@ def test_batch_deadlines_and_private_query_fields_are_bounded():
     assert BatchSearchMetadata.model_validate(batch_metadata(text=" ")).text is None
 
 
-def test_batch_search_reuses_image_and_hybrid_text_paths_then_fuses_before_reply(monkeypatch):
+def test_batch_search_reuses_image_and_hybrid_text_paths_then_fuses_before_reply(monkeypatch, embedding_cache):
     async def run():
-        worker = Worker(replace(SETTINGS, image_search_enabled=True))
+        worker = Worker(replace(SETTINGS, image_search_enabled=True, redis_url="redis://127.0.0.1/0"))
         worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
         worker.ollama.embed = AsyncMock(return_value=[1, 0])
         worker.ollama.read_text = AsyncMock()
@@ -1104,7 +1172,7 @@ def test_batch_search_reuses_image_and_hybrid_text_paths_then_fuses_before_reply
         image = {"itemId": item_id, "documentVersion": 2, "sourceId": image_id,
                  "sourceKind": "image", "sourceVersion": 1, "sourceSha256": "a" * 64}
         text = image | {"sourceId": item_id, "sourceKind": "text"}
-        rankings = iter([[image], [image], [text]])
+        rankings = iter([[image | {"similarity": 0.8}], [image | {"similarity": 0.8}], [text | {"similarity": 0.8}]])
 
         async def search(*_args, **kwargs):
             if "embed" in kwargs:
@@ -1136,8 +1204,9 @@ def test_batch_search_reuses_image_and_hybrid_text_paths_then_fuses_before_reply
             worker.ollama.embed_image.assert_awaited_once()
             worker.ollama.embed.assert_awaited_once_with("ví đen", query=True)
             worker.ollama.read_text.assert_not_awaited()
-            assert len(timeouts) == 4 and all(299 < seconds <= 300 for seconds in timeouts[1:3])
-            assert 29 < timeouts[3] <= 30
+            budgets = [seconds for seconds in timeouts if seconds > 1]
+            assert len(budgets) == 4 and all(299 < seconds <= 300 for seconds in budgets[1:3])
+            assert 29 < budgets[3] <= 30
         finally:
             await worker.close()
     asyncio.run(run())
@@ -1196,7 +1265,7 @@ def test_batch_image_branch_timeout_cancels_inference(monkeypatch):
 
 
 @pytest.mark.parametrize("mode", ["text", "image"])
-@pytest.mark.parametrize("candidate_limit", [15, 200])
+@pytest.mark.parametrize("candidate_limit", [1, 30])
 def test_single_search_returns_requested_bounded_candidate_pool(mode, candidate_limit):
     async def run():
         worker = Worker(replace(SETTINGS, image_search_enabled=True))
@@ -1221,7 +1290,7 @@ def test_single_search_returns_requested_bounded_candidate_pool(mode, candidate_
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("reply_limit", [15, 400])
+@pytest.mark.parametrize("reply_limit", [15, 30])
 def test_batch_limits_reply_after_fusion_without_truncating_internal_rankings(reply_limit):
     async def run():
         worker = Worker(replace(SETTINGS, image_search_enabled=True))
@@ -1236,7 +1305,7 @@ def test_batch_limits_reply_after_fusion_without_truncating_internal_rankings(re
         text_hits = [candidate(str(uuid4()), "text") for _ in range(15)] + [candidate(shared_id, "text")]
 
         async def search(*args, **kwargs):
-            assert args[5] == 200
+            assert args[5] == 30
             return image_hits if kwargs.get("modality") == "image" else text_hits
 
         worker.store.search = AsyncMock(side_effect=search)
@@ -1252,6 +1321,107 @@ def test_batch_limits_reply_after_fusion_without_truncating_internal_rankings(re
             assert hits[0]["imageScore"] == pytest.approx(1 / 76)
             assert hits[0]["textScore"] == pytest.approx(0.5 / 76)
             assert len(hits[0]["sources"]) == 2
+        finally:
+            await worker.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("mode", ["text", "image"])
+@pytest.mark.parametrize(("score", "threshold", "expand"), [(0.59, 0.6, True), (0.6, 0.6, False),
+                                                          (0.7, 0.8, True), (None, 0.6, True)])
+def test_single_area_search_expands_only_below_cosine_threshold(mode, score, threshold, expand):
+    async def run():
+        worker = Worker(replace(SETTINGS, image_search_enabled=True,
+                               min_image_similarity=threshold, min_text_similarity=threshold))
+        worker.ollama.embed = AsyncMock(return_value=[1, 0])
+        worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
+        local = [{"itemId": "local", "similarity": score}] if score is not None else []
+        async def search(*args, **kwargs):
+            assert args[2] == "Quang Trung" and tuple(str(value) for value in args[3:5]) == ("2026-01-01", "2026-01-02")
+            if mode == "text":
+                assert await kwargs["embed"]() == [1, 0]
+            else:
+                assert args[1] == [0, 1]
+            return [{"itemId": "remote", "similarity": 0.99}] if kwargs.get("outside_area") else local.copy()
+        worker.store.search = AsyncMock(side_effect=search)
+        query = SearchMetadata.model_validate(query_metadata(mode=mode, processingProfile=mode + "-v1",
+            searchProfileId=SETTINGS.search_profile if mode == "text" else SETTINGS.image_search_profile,
+            area="Quang Trung", **{"from": "2026-01-01"}, until="2026-01-02"))
+        body = Query(text="bình trắng", area=query.area, **{"from": query.from_}, until=query.until).model_dump_json(by_alias=True).encode() if mode == "text" else png()
+        try:
+            result = await worker.execute("search.hybrid" if mode == "text" else "search.hybrid.image", query, body,
+                                          "application/json" if mode == "text" else "image/png")
+            expected = ([{"itemId": "local"}] if local else []) + ([{"itemId": "remote"}] if expand else [])
+            assert result["candidates"] == expected
+            assert worker.store.search.await_count == 1 + expand
+            (worker.ollama.embed if mode == "text" else worker.ollama.embed_image).assert_awaited_once()
+        finally:
+            await worker.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(("image_score", "text_score", "same_item", "expand"), [
+    (0.6, 0.6, True, False), (0.9, 0.59, True, True), (0.59, 0.9, True, True),
+    (0.1, 0.2, True, True), (0.9, 0.9, False, True),
+])
+def test_combined_area_search_requires_one_item_to_match_both_inputs(image_score, text_score, same_item, expand):
+    async def run():
+        worker = Worker(replace(SETTINGS, image_search_enabled=True))
+        worker.ollama.embed = AsyncMock(return_value=[1, 0])
+        worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
+        def candidate(item_id, kind, similarity):
+            return {"itemId": item_id, "documentVersion": 1, "sourceId": item_id + kind,
+                    "sourceKind": kind, "sourceVersion": 1, "sourceSha256": "a" * 64, "similarity": similarity}
+        async def search(*args, **kwargs):
+            if "embed" in kwargs:
+                assert await kwargs["embed"]() == [1, 0]
+            kind = "image" if kwargs.get("modality") == "image" else "text"
+            if kwargs.get("outside_area"):
+                assert worker.store.search.await_count >= 3
+                return [candidate("remote", kind, 0.99)]
+            return [candidate("local" if same_item or kind == "image" else "other-local", kind,
+                              image_score if kind == "image" else text_score)]
+        worker.store.search = AsyncMock(side_effect=search)
+        try:
+            query = BatchSearchMetadata.model_validate(batch_metadata(count=1, text="bình trắng", area="Quang Trung"))
+            hits = (await worker.execute("search.hybrid.images", query, png(), "application/octet-stream"))["candidates"]
+            assert any(hit["itemId"] == "remote" for hit in hits) is expand
+            assert worker.store.search.await_count == (4 if expand else 2)
+            assert len({hit["itemId"] for hit in hits}) == len(hits)
+            assert all("similarity" not in hit and all("similarity" not in ref for ref in hit["sources"]) for hit in hits)
+            worker.ollama.embed.assert_awaited_once()
+            worker.ollama.embed_image.assert_awaited_once()
+        finally:
+            await worker.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("with_area", [False, True])
+def test_batch_union_caps_at_thirty_and_preserves_a_local_text_only_match(with_area):
+    async def run():
+        worker = Worker(replace(SETTINGS, image_search_enabled=True))
+        worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
+        def hit(item_id, kind):
+            return {"itemId": item_id, "documentVersion": 1, "sourceId": item_id + kind,
+                    "sourceKind": kind, "sourceVersion": 1, "sourceSha256": "a" * 64, "similarity": 0.2}
+        async def search(*args, **kwargs):
+            assert args[5] == 30
+            kind = "image" if kwargs.get("modality") == "image" else "text"
+            if with_area and not kwargs.get("outside_area"):
+                return [] if kind == "image" else [hit("local", kind)]
+            prefix = "remote" if with_area else str(worker.store.search.await_count)
+            return [hit(prefix + str(index), kind) for index in range(30)]
+        worker.store.search = AsyncMock(side_effect=search)
+        count = 1 if with_area else 3
+        query = BatchSearchMetadata.model_validate(batch_metadata(count=count, candidateLimit=30,
+            area="Quang Trung" if with_area else None))
+        try:
+            hits = (await worker.execute("search.hybrid.images", query, png() * count, "application/octet-stream"))["candidates"]
+            assert len(hits) == len({hit["itemId"] for hit in hits}) == 30
+            assert worker.store.search.await_count == 4
+            if with_area:
+                assert hits[-1]["itemId"] == "local" and hits[-1]["imageScore"] == 0
+                assert all(hit["imageScore"] > 0 and hit["textScore"] > 0 for hit in hits[:-1])
         finally:
             await worker.close()
     asyncio.run(run())

@@ -11,7 +11,7 @@ Findie là nền tảng tìm và trao trả đồ thất lạc. Hướng dẫn n
 | Python AI worker + FastAPI | Máy local — `http://127.0.0.1:8000` | Nhận job qua RabbitMQ, xử lý ảnh, lập chỉ mục và tìm kiếm |
 | PostgreSQL 17 + pgvector | Docker — `127.0.0.1:5432` | Database nghiệp vụ `findie` và database tìm kiếm `findie_search` |
 | RabbitMQ | Docker — AMQP `127.0.0.1:5672`; [trang quản trị cổng 15672](http://127.0.0.1:15672) | Chuyển job và kết quả giữa .NET/Python |
-| Redis | Docker — `127.0.0.1:6379` | Cache ứng viên từ khóa và vị trí, TTL mặc định 60 giây |
+| Redis | Docker — `127.0.0.1:6379` | Cache ứng viên từ khóa/vị trí (mặc định 60 giây) và embedding theo tài khoản (300 giây) |
 | Model embedding và vision | GPU Colab, qua gateway HTTPS ngrok có token | Tạo vector văn bản/ảnh và nhận diện vùng cần che |
 | Cloudflare R2 | Bucket private trên tài khoản Cloudflare của bạn | Lưu ảnh đầu ra đã xử lý |
 | Google OAuth | Google Cloud project của bạn | Đăng nhập ứng dụng |

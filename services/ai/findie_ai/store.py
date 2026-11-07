@@ -8,7 +8,7 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 
-from findie_ai.ranking import location_tokens, normalize_text, rank_candidates
+from findie_ai.ranking import MAX_SEARCH_CANDIDATES, location_tokens, normalize_text, rank_candidates
 
 
 class SnapshotConflict(ValueError):
@@ -140,9 +140,10 @@ class Store:
                 await connection.execute("UPDATE ai_search_state SET version = gen_random_uuid() WHERE singleton")
             return True
 
-    async def search(self, text, vector, area=None, from_date=None, until=None, limit=200, *, strategy="hybrid", modality="text", include_images=False, embed=None):
-        if not 1 <= limit <= 200:
-            raise ValueError("Candidate limit must be between 1 and 200.")
+    async def search(self, text, vector, area=None, from_date=None, until=None, limit=MAX_SEARCH_CANDIDATES, *, strategy="hybrid",
+                     modality="text", include_images=False, embed=None, outside_area=False, include_similarity=False):
+        if not 1 <= limit <= MAX_SEARCH_CANDIDATES:
+            raise ValueError(f"Candidate limit must be between 1 and {MAX_SEARCH_CANDIDATES}.")
         if strategy not in {"hybrid", "semantic", "lexical"}:
             raise ValueError("Unknown evaluation strategy.")
         if modality not in {"text", "image"}:
@@ -160,7 +161,7 @@ class Store:
         tokens = location_tokens(text) if modality == "text" else []
         lexical_query = " | ".join(dict.fromkeys(normalize_text(text).split())) if modality == "text" else ""
         # Retrieve a bounded pool before the requested output limit so fusion keeps both ranks.
-        pool_limit = 200
+        pool_limit = MAX_SEARCH_CANDIDATES
         profiles = ["image-v1"] if modality == "image" else ["text-v1", "image-v1"] if include_images else ["text-v1"]
         channels = {"semantic": [], "lexical": [], "locations": []}
         need_semantic = modality == "image" or strategy != "lexical"
@@ -171,8 +172,8 @@ class Store:
             if self.cache and need_keyword:
                 cursor = await connection.execute("SELECT version FROM ai_search_state WHERE singleton")
                 version = str((await cursor.fetchone())["version"])
-                identity = (sha256(self.dsn.encode()).hexdigest(), version, self.identity, profiles,
-                            first.isoformat() if first else None, last.isoformat() if last else None)
+                identity = (sha256(self.dsn.encode()).hexdigest(), version, self.identity, profiles, pool_limit,
+                            area, outside_area, first.isoformat() if first else None, last.isoformat() if last else None)
                 keyword_key = self.cache.key((*identity, lexical_query, tokens))
                 cached = await self.cache.get(keyword_key)
                 if cached is not None:
@@ -181,30 +182,38 @@ class Store:
             if need_semantic and vector is None:
                 vector = self._vector(await embed())
             if need_semantic or need_keyword:
-                fresh = await self._search_channels(connection, profiles, first, start, last, end,
+                fresh = await self._search_channels(connection, profiles, area, outside_area, first, start, last, end,
                     vector, lexical_query, tokens, need_semantic, need_keyword, pool_limit)
                 channels.update(fresh)
                 if keyword_key and need_keyword:
                     await self.cache.put(keyword_key, {name: channels[name] for name in ("lexical", "locations")})
         if modality == "image":
-            return rank_candidates(channels["semantic"], [], [], [], limit)
-        if strategy != "hybrid":
-            return rank_candidates(channels[strategy], [], [], [], limit)
-        return rank_candidates(channels["semantic"], channels["lexical"], channels["locations"], tokens, limit,
-                               semantic_weight=self.semantic_weight)
+            hits = rank_candidates(channels["semantic"], [], [], [], limit)
+        elif strategy != "hybrid":
+            hits = rank_candidates(channels[strategy], [], [], [], limit)
+        else:
+            hits = rank_candidates(channels["semantic"], channels["lexical"], channels["locations"], tokens, limit,
+                                   semantic_weight=self.semantic_weight)
+        if include_similarity:
+            similarities = {str(row["item_id"]): row["similarity"] for row in channels["semantic"]}
+            for hit in hits:
+                hit["similarity"] = similarities.get(hit["itemId"], -1.0)
+        return hits
 
-    async def _search_channels(self, connection, profiles, first, start, last, end, vector,
+    async def _search_channels(self, connection, profiles, area, outside_area, first, start, last, end, vector,
                                lexical_query, tokens, need_semantic, need_keyword, pool_limit):
         cursor = await connection.execute(
             """WITH eligible AS MATERIALIZED (
                 SELECT d.* FROM ai_documents d JOIN ai_items i USING (item_id)
-                WHERE NOT i.tombstone AND d.document_version = i.document_version
+                WHERE (%s::text IS NULL OR (strpos(lower(d.found_area), lower(%s)) > 0) <> %s)
+                  AND NOT i.tombstone AND d.document_version = i.document_version
                   AND (d.model_id, d.model_revision, d.dimensions) = (%s, %s, %s)
                   AND d.processing_profile = ANY(%s::text[])
                   AND (%s::date IS NULL OR d.found_on >= %s OR coalesce(d.found_until, d.found_from) >= %s)
                   AND (%s::date IS NULL OR d.found_on <= %s OR d.found_from < %s)
             ), nearest_source AS (
-                SELECT *, row_number() OVER (PARTITION BY item_id ORDER BY embedding <=> %s::vector, source_id) AS source_rank
+                SELECT *, 1 - (embedding <=> %s::vector) AS similarity,
+                    row_number() OVER (PARTITION BY item_id ORDER BY embedding <=> %s::vector, source_id) AS source_rank
                 FROM eligible WHERE %s
             ), semantic AS (
                 SELECT *, row_number() OVER (ORDER BY embedding <=> %s::vector, item_id) AS rank
@@ -220,14 +229,14 @@ class Store:
                 SELECT *, row_number() OVER (ORDER BY ts_rank_cd(search_terms, to_tsquery('simple', %s)) DESC, item_id) AS rank
                 FROM eligible WHERE %s AND processing_profile = 'text-v1' AND location_tokens && %s::text[] ORDER BY rank LIMIT %s
             )
-            SELECT 'semantic' AS channel, item_id, document_version, source_id, source_version, source_sha256, processing_profile, location_tokens, rank FROM semantic
+            SELECT 'semantic' AS channel, item_id, document_version, source_id, source_version, source_sha256, processing_profile, location_tokens, similarity, rank FROM semantic
             UNION ALL
-            SELECT 'lexical', item_id, document_version, source_id, source_version, source_sha256, processing_profile, location_tokens, rank FROM lexical
+            SELECT 'lexical', item_id, document_version, source_id, source_version, source_sha256, processing_profile, location_tokens, NULL::double precision, rank FROM lexical
             UNION ALL
-            SELECT 'locations', item_id, document_version, source_id, source_version, source_sha256, processing_profile, location_tokens, rank FROM locations
+            SELECT 'locations', item_id, document_version, source_id, source_version, source_sha256, processing_profile, location_tokens, NULL::double precision, rank FROM locations
             ORDER BY channel, rank""",
-            (*self.identity[:3], profiles,
-             first, first, start, last, last, end, vector, need_semantic, vector, pool_limit,
+            (area, area, outside_area, *self.identity[:3], profiles,
+             first, first, start, last, last, end, vector, vector, need_semantic, vector, pool_limit,
              lexical_query, lexical_query, need_keyword, lexical_query, pool_limit, lexical_query, need_keyword, tokens, pool_limit),
         )
         channels = {name: [] for name in (("semantic",) if need_semantic else ())

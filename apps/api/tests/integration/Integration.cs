@@ -153,6 +153,7 @@ await ItemDeletionChecks.RunAsync(factory, aiGateway, async (browser, subject) =
     await GoogleLogin(browser, subject, subject + "@example.test", true, HttpStatusCode.Redirect));
 await ImageSearchChecks.RunAsync(factory, aiGateway, storage, async (browser, subject) =>
     await GoogleLogin(browser, subject, subject + "@example.test", true, HttpStatusCode.Redirect));
+await SearchQueryChecks.RunAsync(factory);
 await AdminChecks.RunAsync(factory, async (browser, subject) =>
     await GoogleLogin(browser, subject, subject + "@example.test", true, HttpStatusCode.Redirect));
 await BrokerChecks.RunAsync(factory.Services.GetRequiredService<IServiceScopeFactory>());

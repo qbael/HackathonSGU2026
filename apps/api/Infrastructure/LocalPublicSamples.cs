@@ -70,7 +70,7 @@ public static class LocalPublicSamples
                 || (sample.SyntheticScenario && !sample.Payload.Content.PublicDescription.Contains("KỊCH BẢN GIẢ ĐỊNH"))
                 || !sample.Payload.Content.PublicDescription.Contains("DỮ LIỆU MẪU")
                 || !sample.Payload.Content.PublicDescription.Contains(sample.SourceUrl) || sample.Photos.Count is < 1 or > 3
-                || !File.Exists(sample.Path)) throw new ArgumentException("Run scripts/import_facebook_samples.py --prepare-json first.");
+                || !File.Exists(sample.Path)) throw new ArgumentException("Prepared sample input is invalid or its source file is missing.");
             if (sample.CoarsePreviewSourceSha256 is { } originalHash && (!sample.SyntheticScenario || sample.Photos.Count != 1
                 || originalHash.Length != 64 || originalHash.Any(c => c is not (>= '0' and <= '9' or >= 'a' and <= 'f'))
                 || sample.Photos[0].Mime != "image/png" || System.IO.Path.GetFileName(sample.Photos[0].Path) != "publication-preview.png"

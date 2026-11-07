@@ -61,9 +61,11 @@ Colab có quota/thời lượng và hạn chế proxy/web services, nhất là t
 | `AI_SERVICE_TOKEN` / `Ai__ServiceToken` | Token riêng local .NET↔FastAPI, không gửi lên Colab |
 | `AI_SEARCH_DSN` | Role runtime `findie_search_app`, không có quyền DB nghiệp vụ |
 | `AI_SEARCH_MIGRATION_DSN` | Role migration riêng cho bước DDL; không dùng cho worker |
-| `AI_REDIS_URL` | Redis cache ứng viên từ khóa/vị trí; mặc định local `redis://127.0.0.1:6379/0`, để rỗng để tắt; ngoài loopback cần `rediss://` |
+| `AI_REDIS_URL` | Redis cache ứng viên từ khóa/vị trí và embedding; mặc định local `redis://127.0.0.1:6379/0`, để rỗng để tắt cả hai cache; ngoài loopback cần `rediss://` |
 | `AI_SEARCH_CACHE_TTL_SECONDS` | TTL cho cache từ khóa/vị trí, mặc định 60 giây, hợp lệ 1–3600 |
 | `AI_SEARCH_SEMANTIC_WEIGHT` | Tỷ trọng ngữ nghĩa của hybrid search, mặc định `0.6` (60% ngữ nghĩa / 40% từ khóa), hợp lệ 0–1; từ khóa bằng `1 - giá trị`. Sửa trong `.env` rồi khởi động lại worker. |
+| `AI_SEARCH_MIN_IMAGE_SIMILARITY` | Ngưỡng cosine ảnh để giữ phạm vi trong khu vực, mặc định `0.6`, hợp lệ 0–1; cần hiệu chỉnh theo model/dữ liệu. |
+| `AI_SEARCH_MIN_TEXT_SIMILARITY` | Ngưỡng cosine mô tả, mặc định `0.6`, hợp lệ 0–1. Có cả ảnh và mô tả thì cùng một tin phải đạt cả hai; nhiều ảnh dùng điểm ảnh cao nhất. |
 | `REDIS_PORT` | Cổng Redis Compose chỉ bind loopback, mặc định 6379 |
 | `AI_RABBITMQ_URL` / `RabbitMq__Uri` | Hai tài khoản runtime broker tách biệt |
 | `OLLAMA_BASE_URL` / `OLLAMA_API_KEY` | HTTPS gateway ngrok và token riêng của phiên |
@@ -98,13 +100,17 @@ Các giới hạn này dành cho health, không thay deadline của upload, tìm
 
 ## Cache từ khóa bằng Redis
 
-Python dùng khóa `findie:search:v1:keyword:<sha256>` để lưu ứng viên FTS và vị trí trước khi hợp nhất thứ hạng bằng RRF. Khóa dùng từ khóa tiếng Việt đã chuẩn hóa và tách theo database, model, phiên bản chỉ mục, bộ lọc ngày và nguồn text/image được phép. Cache lưu tối đa 200 ứng viên cho mỗi danh sách FTS và vị trí, kể cả kết quả rỗng. Mỗi lượt tra cache đọc UUID phiên bản chỉ mục từ PostgreSQL.
+Python dùng khóa `findie:search:v1:keyword:<sha256>` để lưu ứng viên FTS và vị trí trước khi hợp nhất thứ hạng bằng RRF. Khóa dùng từ khóa tiếng Việt đã chuẩn hóa và tách theo database, model, phiên bản chỉ mục, bộ lọc ngày, khu vực, phạm vi trong/ngoài khu vực, kích thước pool 30 và nguồn text/image được phép. Cache lưu tối đa 30 ứng viên cho mỗi danh sách FTS và vị trí, kể cả kết quả rỗng. Mỗi lượt tra cache đọc UUID phiên bản chỉ mục từ PostgreSQL.
 
 Khi trúng cache từ khóa, worker dùng lại hai danh sách này và vẫn chạy truy vấn xếp hạng vector cho nhánh ngữ nghĩa. Tìm bằng ảnh đi thẳng qua nhánh vector.
 
+Cache embedding dùng Redis với khóa `findie:search:v1:embedding:<sha256>` và TTL cố định 300 giây. Khóa tách theo database, tài khoản (`cacheScope`), model/revision/số chiều, profile tìm text/ảnh và đầu vào thực tế của model, gồm instruction cho text. Redis lưu danh sách số JSON, giữ độ chính xác của vector hiện có. Upload `image.embed`, tìm ảnh và lập chỉ mục ảnh dùng chung cache vector theo SHA-256 của PNG đã chuẩn hóa sau khi kiểm ảnh/MIME; cùng đầu vào model trong cùng tài khoản có thể dùng lại vector. Đây là so khớp chính xác bytes chuẩn hóa, không phải nhận diện ảnh tương tự. `sourceSha256` trong biên nhận vẫn là hash đầu vào gốc. OCR và redaction vẫn xử lý riêng, không cache trong Redis. Cache vector giúp giảm lượt gọi model, còn truy vấn xếp hạng vector trong PostgreSQL vẫn chạy.
+
+Worker chỉ giữ embedding trong bộ nhớ của một request để dùng lại khi mở rộng khu vực; cache qua các request nằm ở Redis. Thiếu `cacheScope` hoặc để `AI_REDIS_URL` rỗng thì không cache embedding; Redis lỗi, timeout hoặc vector cache không hợp lệ thì tạo embedding lại. Chỉ cache kết quả hợp lệ, không cache lỗi AI. Khởi động lại worker có thể dùng lại các khóa Redis còn TTL; khởi động lại Redis local làm mất cache vì đã tắt persistence. Khóa embedding không phụ thuộc phiên bản chỉ mục vì chỉ tái sử dụng kết quả model cho cùng đầu vào/cấu hình, không tái sử dụng kết quả tìm kiếm.
+
 `ai_search_state` giữ một UUID, thay trong cùng transaction với mỗi upsert/remove chỉ mục, kể cả replay bổ sung vector ảnh. Khóa cũ mất hiệu lực sau commit và tự hết TTL; rollback giữ phiên bản cũ. Cách này vẫn vô hiệu hóa đúng khi Redis bị ngắt, khi nhiều worker dùng chung cache hoặc khi truy vấn cũ hoàn thành sau một lần cập nhật. Không dùng `FLUSHDB` hay quét xóa khóa toàn Redis.
 
-Redis chỉ giữ ID/phiên bản/hash nguồn và tín hiệu vị trí cần cho RRF; không giữ câu tìm kiếm gốc, vector truy vấn, ảnh, OCR, mô tả hay DTO riêng từng người dùng. .NET luôn đọc và kiểm điều kiện hiển thị/quyền hiện tại. Không cache lỗi AI/DB. Redis lỗi, timeout hoặc payload sai thì bỏ qua cache và tìm trong PostgreSQL; cache không quyết định readiness của AI. Client async dùng kết nối chung, timeout hữu hạn và đóng lúc worker dừng theo [hướng dẫn redis-py](https://redis.io/docs/latest/develop/clients/redis-py/async/).
+Redis giữ ID/phiên bản/hash nguồn, tín hiệu vị trí cần cho RRF và vector embedding theo tài khoản; không giữ câu tìm kiếm gốc, ảnh, plaintext OCR, mô tả hay DTO riêng từng người dùng. Hash đầu vào nằm trong danh tính khóa; nội dung đầu vào không được ghi vào Redis hay log. .NET luôn đọc và kiểm điều kiện hiển thị/quyền hiện tại. Không cache lỗi AI/DB. Redis lỗi, timeout hoặc payload sai thì bỏ qua cache và dùng luồng model/PostgreSQL; cache không quyết định readiness của AI. Client async dùng kết nối chung, timeout hữu hạn và đóng lúc worker dừng theo [hướng dẫn redis-py](https://redis.io/docs/latest/develop/clients/redis-py/async/).
 
 Compose dùng Redis 8.2.3, giới hạn RAM 128 MiB với `allkeys-lru`, tắt snapshot/AOF và không mount volume. Cấu hình này dành cho local; không mở cổng Redis ra Internet.
 
@@ -122,11 +128,11 @@ Sau đó khởi động lại worker (`make ai` hoặc dừng/chạy lại `make
 Kiểm thử cache nhanh và tích hợp hạ tầng thật:
 
 ```sh
-uv run --project services/ai --locked pytest services/ai/tests/test_search_cache.py -q
+uv run --project services/ai --locked pytest services/ai/tests/test_search_cache.py services/ai/tests/test_embedding_cache.py -q
 make ai-integration
 ```
 
-Runner tích hợp tự tạo/dọn PostgreSQL, RabbitMQ và Redis riêng với cổng ngẫu nhiên; kiểm TTL thật, hit/miss của cache từ khóa, xếp hạng vector khi trúng cache từ khóa, vô hiệu hóa sau update/tombstone, rollback và Redis mất kết nối. Model là HTTP stub.
+Runner tích hợp tự tạo/dọn PostgreSQL, RabbitMQ và Redis riêng với cổng ngẫu nhiên; kiểm TTL thật, chia sẻ cache embedding giữa hai worker, hết hạn/cache hỏng, hit/miss của cache từ khóa, xếp hạng vector khi trúng cache từ khóa, vô hiệu hóa sau update/tombstone, rollback và Redis mất kết nối. Model là HTTP stub.
 
 ## Luồng ảnh và tìm kiếm
 
@@ -138,7 +144,8 @@ Bước này giảm tải truyền ảnh; API trực tiếp và kiểm tra serve
 
 1. .NET kiểm quyền/byte rồi gửi ảnh chưa che qua `image.embed` tạm, nonpersistent, có TTL,
    không DLQ raw. Khi capability ảnh bật, Python chuẩn hóa, OCR bằng model vision và
-   tạo vector riêng từ ảnh chưa che. OCR profile `ocr-v1` trả text tối đa 3000
+   lấy hoặc tạo vector từ ảnh chưa che qua cache SHA-256 dùng chung với tìm ảnh.
+   OCR vẫn chạy riêng; profile `ocr-v1` trả text tối đa 3000
    ký tự cùng `hasUnclearText`; giữ nguyên số 0 đầu, bỏ chữ không rõ thay vì đoán, không
    giải QR/barcode hoặc làm theo lệnh in trên ảnh.
 2. .NET gửi cùng ảnh chưa che qua `image.redact`. Python kiểm JPEG/PNG/WebP, MIME thật,
@@ -170,18 +177,29 @@ Bước này giảm tải truyền ảnh; API trực tiếp và kiểm tra serve
    vector từ ảnh truy vấn. Mô tả tìm kiếm bổ sung vẫn là một nhánh text riêng.
    Với nhóm 1–3 ảnh và mô tả tùy chọn, Python gộp các danh sách bằng weighted RRF:
    mỗi nhánh ảnh hệ số 1, nhánh mô tả hệ số 0.5, nhánh text bên trong vẫn ngữ nghĩa/từ khóa
-   mặc định 60/40. Món được cả nhánh ảnh và mô tả tìm thấy xếp trước, rồi chỉ ảnh,
+   mặc định 60/40. Khi có `area`, tất cả nhánh lọc và tìm trong khu vực trước.
+   Nếu không có cùng một tin đạt ngưỡng cosine ở mọi loại đầu vào đã cung cấp
+   (nhiều ảnh lấy điểm cao nhất), worker mới tìm phần ngoài khu vực với cùng embedding.
+   Ngưỡng mặc định `0.6` cho ảnh và text, không phải xác suất hay điểm RRF, cần hiệu
+   chỉnh trên dữ liệu có nhãn. Khi mở rộng, món trong khu vực vẫn xếp trước mọi món ngoài khu vực.
+   Trong mỗi phần đó, món được cả nhánh ảnh và mô tả tìm thấy xếp trước, rồi chỉ ảnh,
    cuối cùng chỉ mô tả; từng nhóm xếp giảm dần theo tổng điểm/điểm ảnh/điểm mô tả tương ứng.
+   Không có `area` thì giữ nhóm truy vấn rồi điểm.
    Phân nhóm theo nhánh truy vấn, không phải loại nguồn tài liệu; mỗi món chỉ xuất hiện một lần.
-   Python giữ tối đa 200 ứng viên mỗi nhánh và trả toàn bộ pool đã gộp, tối đa
-   `200 * số nhánh` (không quá 800), cùng ba điểm nội bộ và toàn bộ nguồn góp điểm;
-   text/ảnh đơn trả tối đa 200 ứng viên. Body ứng viên AMQP giới hạn 1 MiB.
-   API nhận đủ pool để cộng ưu tiên khu vực trước khi cắt kết quả cuối còn tối đa 10 món.
-   .NET kiểm nghiệp vụ, bộ lọc ngày và document/source version/hash của từng nguồn;
-   nguồn nào không hợp lệ thì loại cả ứng viên. `area` là khu vực ưu tiên cho tìm text/ảnh,
-   không lọc cứng: món khớp chuỗi khu vực không phân biệt hoa thường được cộng 5% điểm một lần.
-   Bonus khu vực và `lostAt` chỉ đổi thứ tự trong nhóm bằng hệ số `(1 + bonusKhuVuc) * (1 + bonusThoiGian)`.
-   HTTP giữ DTO chỉ có rank; `filtersRelaxed:true` khi có món hiển thị ngoài khu vực ưu tiên.
+   Mỗi kênh và mỗi nhánh giữ tối đa 30 ứng viên. Python hợp nhất, loại trùng và
+   chọn tối đa 30 món cho toàn bộ request, ưu tiên khu vực trước nhóm và điểm;
+   text/ảnh đơn cũng dùng cùng giới hạn 30. Pool đã chọn được gửi theo nhóm/điểm
+   để kiểm hợp đồng, kèm ba điểm nội bộ và toàn bộ nguồn góp điểm; body AMQP tối đa 1 MiB.
+   .NET chỉ xử lý pool này: một truy vấn SQL JOIN tải toàn bộ món và ảnh công khai,
+   kèm quyền quản lý Hub bằng correlated `EXISTS`, thay cho truy vấn riêng mỗi món.
+   API kiểm nghiệp vụ, bộ lọc ngày và document/source version/hash của từng nguồn;
+   nguồn nào không hợp lệ thì loại cả ứng viên. `area` khớp chuỗi con của `foundArea`,
+   không phân biệt hoa thường. Món ngoài khu vực vẫn đủ điều kiện nhưng luôn đứng sau
+   mọi món trong khu vực đã truy hồi. Bonus `lostAt` chỉ đổi thứ tự trong cùng khu vực
+   và nhóm bằng hệ số `1 + bonusThoiGian`.
+   API xếp khu vực trước nhóm và điểm, rồi trả tối đa `limit=1..10` món. Không refill
+   ngoài pool 30 nếu có tin stale hoặc không còn quyền hiển thị. Không thêm trường
+   HTTP hay migration DB; `filtersRelaxed:true` khi có món hiển thị ngoài khu vực ưu tiên.
    Khoảng ngày luôn lọc cứng; `GET /api/items?area=...` vẫn lọc cứng khu vực.
    Chưa có điều kiện đối chiếu chính xác toàn bộ số hoặc đuôi CCCD/MSSV: OCR có thể sai,
    và thứ hạng semantic không chứng minh số giấy tờ trùng khớp.
@@ -198,7 +216,7 @@ gateway Colab chỉ để đổi cách che. Ảnh đã xử lý giữ nguyên pr
 không tự thay đổi output đã che. Ẩn tin hoặc thu hồi duyệt bỏ cả vector/từ khóa OCR khỏi
 chỉ mục; không công khai plaintext OCR trong API, log hay lịch sử query.
 
-Ảnh query và vector query chỉ tồn tại trong RAM/transport tạm, không R2/search DB. OCR của ảnh bài đăng là dữ liệu dẫn xuất nội bộ trong cache và chỉ mục đủ điều kiện, không phải trường mô tả công khai. Broker có thể page message xuống đĩa; TTL/ACK không phải bảo đảm xóa forensic. Chỉ model inference ra khỏi máy local; ảnh gửi model đi qua gateway ngrok/Colab của bạn. Nén JPEG có thể mất chi tiết chữ nhỏ; chưa có benchmark chứng minh tiền xử lý tăng độ chính xác. 1600px và model có thể bỏ sót vùng nhạy cảm nhỏ: phải kiểm output trước duyệt; chưa có cam kết PII recall.
+Ảnh query chỉ tồn tại trong RAM/transport tạm; vector query có thể được cache Redis theo tài khoản tối đa 300 giây, không ghi R2/search DB. Redis không giữ bytes ảnh hoặc plaintext OCR. OCR của ảnh bài đăng là dữ liệu dẫn xuất nội bộ trong cache DB và chỉ mục đủ điều kiện, không phải trường mô tả công khai. Broker có thể page message xuống đĩa; TTL/ACK không phải bảo đảm xóa forensic. Chỉ model inference ra khỏi máy local; ảnh gửi model đi qua gateway ngrok/Colab của bạn. Nén JPEG có thể mất chi tiết chữ nhỏ; chưa có benchmark chứng minh tiền xử lý tăng độ chính xác. 1600px và model có thể bỏ sót vùng nhạy cảm nhỏ: phải kiểm output trước duyệt; chưa có cam kết PII recall.
 
 ## Hub và nghiệm thu thủ công
 

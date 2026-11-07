@@ -142,7 +142,7 @@ nhị phân, nonpersistent, không R2/job/outbox/vector query bền vững.
 Text có deadline 30 giây; ảnh có deadline 300 giây để tạo vector chỉ từ ảnh truy vấn.
 
 Metadata: `schemaVersion,modelId,modelRevision,processingProfile,searchProfileId,
-searchProfileVersion:1,mode,area,from,until,limit,candidateLimit:200,deadlineAt`.
+searchProfileVersion:1,mode,area,from,until,limit,candidateLimit:30,deadlineAt`.
 Processing profile `text-v1|image-v1`; cấu hình text-only giữ `qwen3-embedding:4b`/2048. Notebook full mode chọn `Qwen/Qwen3-VL-Embedding-2B`/2048, nhận ảnh native qua Transformers sau gateway tương thích Ollama. `modelRevision` là SHA-256 fingerprint của commit model/processor, mã inference, profile và gói đã ghim; không phải manifest Ollama. `modelId`, revision và số chiều phải đồng bộ hai service; không dùng model text cho ảnh.
 Gateway full mode cần công bố `embedding,vision` cho model embedding và `completion,vision` cho model OCR.
 Text profile mặc định `text-description-v1`, image `image-only-v1`. Đây là baseline,
@@ -152,8 +152,13 @@ hợp nhất với từ khóa trên nguồn văn bản. Tìm ảnh dùng vector 
 thêm điều kiện chính xác theo số hoặc đuôi số. OCR/embedding vẫn có thể nhận sai ký tự.
 Hybrid text dùng weighted RRF `weight / (60 + rank)` với hệ số mặc định 1.2 ngữ nghĩa,
 0.8 từ khóa (tỷ trọng 60/40, cấu hình `AI_SEARCH_SEMANTIC_WEIGHT`) và 0.03 vị trí.
-`area` là ưu tiên, không lọc ứng viên trong Python. .NET cộng 5% điểm một lần cho món
-có `foundArea` chứa khu vực yêu cầu, không phân biệt hoa thường; `from/until` vẫn lọc cứng.
+Có `area`: Python lọc `foundArea` chứa khu vực yêu cầu, không phân biệt hoa thường,
+và chỉ tìm trong khu vực ở lượt đầu. Nếu không có tin đạt ngưỡng cosine theo loại đầu
+vào, worker mới truy vấn phần ngoài khu vực với cùng embedding và bộ lọc ngày.
+`AI_SEARCH_MIN_IMAGE_SIMILARITY` và `AI_SEARCH_MIN_TEXT_SIMILARITY` mặc định `0.6`,
+hợp lệ 0–1, cần hiệu chỉnh theo model/dữ liệu. Cosine là `1 - cosine_distance`, chỉ dùng
+nội bộ worker; điểm RRF không đo được chất lượng tuyệt đối. Không có `area` thì tìm
+toàn bộ một lần. .NET vẫn xếp khu vực trước nhóm truy vấn và điểm; ngày luôn lọc cứng.
 
 Response metadata echo model/profile, thêm kind/succeeded. Body tối đa 1 MiB:
 
@@ -172,14 +177,17 @@ Response metadata echo model/profile, thêm kind/succeeded. Body tối đa 1 MiB
 }
 ```
 
-Tối đa 200 candidate trả cho .NET, thứ tự là rank đã tính tại Python; không trả vector.
-`candidateLimit` hợp lệ từ 1–200; API yêu cầu 200 để cộng ưu tiên khu vực trước khi cắt
-kết quả cuối còn `limit=1..10`. Các pool truy hồi nội bộ cũng tối đa 200 mỗi kênh.
+Tối đa 30 món duy nhất trả cho .NET, thứ tự là rank đã tính tại Python; không trả vector.
+`candidateLimit` hợp lệ từ 1–30; API yêu cầu 30 cho cả ba endpoint tìm kiếm. Mỗi kênh
+truy hồi và mỗi nhánh giữ tối đa 30; sau hợp nhất, toàn bộ request vẫn chỉ có tối đa
+30 ứng viên để .NET kiểm và cắt kết quả cuối còn `limit=1..10`.
 Python có thể thêm hạng/điểm dense/keyword/RRF để chẩn đoán, API hiện chỉ xuất rank.
-.NET kiểm lại toàn bộ eligibility, document/source version/hash và bộ lọc ngày trước DTO;
+.NET đọc toàn bộ pool trong một truy vấn SQL JOIN tới database nghiệp vụ, kèm ảnh
+công khai và quyền Hub tính bằng correlated `EXISTS`, rồi kiểm eligibility,
+document/source version/hash và bộ lọc ngày trước DTO;
 `sourceKind:"text"|"image"` xác định nguồn thật, độc lập với chế độ query, để text query
 trúng OCR vẫn được đối chiếu hash/phiên bản ảnh đã duyệt. Không tự nới ngày hoặc refill
-vô hạn. HTTP `filtersRelaxed:true` chỉ khi kết quả hiển thị có món ngoài `area` đã yêu cầu.
+ngoài pool 30 món. HTTP `filtersRelaxed:true` chỉ khi kết quả hiển thị có món ngoài `area` đã yêu cầu.
 Không coi RRF/cosine là xác suất sở hữu.
 
 ## search.hybrid.images
@@ -202,7 +210,7 @@ Không base64, tệp tạm, R2 hoặc outbox. Metadata bổ sung:
   "from": null,
   "until": null,
   "limit": 10,
-  "candidateLimit": 400,
+  "candidateLimit": 30,
   "deadlineAt": "<UTC timestamp>",
   "cacheScope": "<actor UUID>",
   "text": "Ví màu đen",
@@ -211,8 +219,8 @@ Không base64, tệp tạm, R2 hoặc outbox. Metadata bổ sung:
 ```
 
 Không có mô tả: `mode:image`, `searchProfileId:image-fusion-v1`. `candidateLimit` hợp lệ
-1–800; API yêu cầu `200 * (số ảnh + số nhánh text)` để giữ toàn bộ pool đã gộp trước bonus.
-Ví dụ trên có một ảnh và một nhánh text nên yêu cầu 400. Worker kiểm số ảnh,
+1–30; API yêu cầu 30, độc lập với số ảnh hoặc việc có mô tả. Đây là giới hạn chung
+của toàn bộ request sau hợp nhất và loại trùng, không phải 30 nhân số nhánh. Worker kiểm số ảnh,
 MIME/length từng phần và tổng length khớp body trước suy luận. Python tìm từng ảnh
 tuần tự với deadline 300 giây/ảnh, chạy text hybrid tối đa 30 giây nếu có mô tả,
 rồi gộp weighted RRF: mỗi ảnh có hệ số 1, nhánh text có hệ số 0.5, đóng góp
@@ -222,15 +230,24 @@ danh sách và xuất hiện một lần trong kết quả. Một nhánh lỗi l
 nhánh truy vấn text; `score = imageScore + textScore`. Phân nhóm theo nhánh truy vấn,
 độc lập với `sourceKind` của nguồn đã trúng.
 
-Thứ tự nhóm: có cả `imageScore > 0` và `textScore > 0` trước, chỉ ảnh tiếp theo,
-chỉ text cuối cùng. Trong từng nhóm xếp giảm dần theo `score`, `imageScore` hoặc
-`textScore` tương ứng. .NET giữ thứ tự nhóm, chỉ điều chỉnh điểm trong nhóm bằng
-bonus khu vực và thời điểm mất trước khi giới hạn kết quả.
+Trước fusion, tất cả nhánh tìm trong khu vực. Có ảnh và text thì cần cùng một món
+đạt cả ngưỡng cosine text và ngưỡng của ít nhất một ảnh; chỉ có ảnh thì cần ít nhất
+một ảnh đạt ngưỡng. Không đạt hoặc không có tin thì mới tìm ngoài khu vực ở tất cả
+nhánh. Kết quả trong khu vực nối trước kết quả ngoài khu vực, mỗi nhánh vẫn tối đa
+30 ứng viên. Embedding được dùng lại, không chạy model lần hai khi mở rộng.
+
+Python chọn tối đa 30 món duy nhất sau fusion, ưu tiên khu vực trước nhóm và điểm.
+Pool đã chọn được gửi theo thứ tự nhóm/điểm để .NET kiểm hợp đồng: có cả
+`imageScore > 0` và `textScore > 0` trước, chỉ ảnh
+tiếp theo, chỉ text cuối cùng; trong từng nhóm xếp giảm dần theo `score`, `imageScore`
+hoặc `textScore` tương ứng. Khi có `area`, .NET xếp mọi món trong khu vực trước mọi
+món ngoài khu vực, rồi giữ thứ tự nhóm và điểm trong từng phần. Bonus thời điểm mất
+chỉ điều chỉnh điểm trong cùng khu vực và nhóm. Không có `area` thì giữ nhóm rồi điểm.
 
 Response metadata echo cấu hình, thêm `kind:search.hybrid.images,succeeded`; không
-echo `text`, `images` hoặc `cacheScope`. Body JSON tối đa 1 MiB; mỗi danh sách truy hồi
-nội bộ giữ tối đa 200 ứng viên, nên union sau fusion tối đa `200 * số nhánh`, không quá
-800. Trả toàn bộ pool này để cộng ưu tiên khu vực trước khi cắt kết quả cuối ở .NET:
+echo `text`, `images` hoặc `cacheScope`. Body JSON tối đa 1 MiB; mỗi kênh/nhánh giữ
+tối đa 30 ứng viên và union được cắt chung còn tối đa 30 món duy nhất trước khi trả.
+.NET chỉ đọc và xử lý pool này; kết quả HTTP cuối vẫn giới hạn 1–10 món:
 
 ```json
 {
@@ -253,11 +270,13 @@ nội bộ giữ tối đa 200 ứng viên, nên union sau fusion tối đa `200
 `sources` chứa mọi nguồn đã góp điểm, được bỏ ref trùng, tối đa số nhánh (4).
 Mỗi ref giữ cả document version để không dùng đóng góp từ snapshot cũ. .NET kiểm
 các điểm hữu hạn/không âm, tổng điểm dương bằng điểm ảnh cộng điểm text, thứ tự nhóm
-và provenance, rồi đọc dữ liệu nghiệp vụ để kiểm từng nguồn. Nếu bất kỳ nguồn góp
-điểm không còn hợp lệ, loại cả ứng viên. .NET không tính lại RRF; điểm Python được
-nhân với `(1 + bonusKhuVuc) * (1 + bonusThoiGian)` trong từng nhóm, sau đó giới hạn 1–10 kết quả
-và dựng DTO HTTP chỉ chứa rank. Bonus khu vực tối đa 5%, áp dụng một lần mỗi món;
-ngày vẫn lọc cứng. Không refill; input bị bỏ khi thành công, lỗi hoặc hủy.
+và provenance, rồi đọc cả pool bằng một truy vấn SQL JOIN có ảnh công khai và
+quyền Hub tính bằng correlated `EXISTS` để kiểm từng nguồn. Nếu bất kỳ nguồn góp
+điểm không còn hợp lệ, loại cả ứng viên. .NET không tính lại RRF; xếp khu vực trước,
+rồi nhóm truy vấn và điểm Python nhân với `1 + bonusThoiGian` trong từng nhóm.
+Sau đó giới hạn 1–10 kết quả và dựng DTO HTTP chỉ chứa rank. Ngày vẫn lọc cứng.
+Không refill ngoài pool 30 món khi có ứng viên stale hoặc không còn quyền hiển thị;
+không có migration DB hay trường HTTP mới. Input bị bỏ khi thành công, lỗi hoặc hủy.
 
 ## index.upsert, index.source.vector, index.source.image và index.remove
 

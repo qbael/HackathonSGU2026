@@ -63,7 +63,7 @@ public sealed class ImageService(IRecoveryRepository repository, RecoveryWorkflo
                 var embeddingRequest = JsonSerializer.SerializeToNode(new { schemaVersion = 1, imageId, itemId, sourceVersion = 1,
                     sourceSha256 = request.sha256, modelId = AiProtocol.Setting(configuration, "EmbeddingModelId"),
                     modelRevision = AiProtocol.Setting(configuration, "EmbeddingRevision"), dimensions = AiProtocol.EmbeddingDimensions(configuration),
-                    processingProfile = "image-v1", deadlineAt = DateTimeOffset.UtcNow.AddMinutes(5) }, RecoveryWorkflow.Json)!.AsObject();
+                    processingProfile = "image-v1", cacheScope = actor, deadlineAt = DateTimeOffset.UtcNow.AddMinutes(5) }, RecoveryWorkflow.Json)!.AsObject();
                 if (omitOcr) embeddingRequest["omitOcr"] = true;
                 if (coarsePreview) embeddingRequest["coarsePreview"] = true;
                 var embeddingMetadata = JsonSerializer.SerializeToElement(embeddingRequest);

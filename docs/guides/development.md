@@ -120,7 +120,7 @@ Authentication__Google__ClientSecret='YOUR_CLIENT_SECRET'
 Mở đúng `http://127.0.0.1:5173` để đăng nhập; Vite chuyển toàn bộ `/api` tới .NET.
 Trang `/` là giao diện tìm đồ; `/search`, `/post`, `/posts`, `/requests`, `/messages`,
 `/hubs` và các màn hình chi tiết kết nối với API nghiệp vụ hiện có. Giao diện dùng
-Tailwind CSS, font Be Vietnam Pro lưu cục bộ và [bộ màn hình Stitch](../design/stitch/README.md).
+Tailwind CSS, font Be Vietnam Pro lưu cục bộ và [bộ màn hình Stitch](../design/stitch/README.md); mã giao diện hiện hành nằm trong `apps/web/src/`.
 Đăng nhập tại `/signin` vẫn chỉ dùng Google; không có OTP hoặc định danh công dân giả lập.
 Các màn hình nghiệp vụ yêu cầu phiên đăng nhập. Sau OAuth, ứng dụng quay lại đường dẫn
 nội bộ đã yêu cầu; menu tài khoản có nút đăng xuất. Trang chủ không cần đăng nhập.

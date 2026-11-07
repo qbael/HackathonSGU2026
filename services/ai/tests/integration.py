@@ -233,7 +233,7 @@ async def checks(broker_url, dsn, ollama_url):
 
         candidates = await search("ví da đen tại phòng E.205")
         assert candidates and candidates[0]["itemId"] == room_id, "exact classroom must rank before a different location"
-        assert other_id in {hit["itemId"] for hit in candidates}, "area preference must retain another university"
+        assert other_id not in {hit["itemId"] for hit in candidates}, "a strong local match must not search another university"
         requests = OllamaStub.embedding_requests
         assert await search("ví da đen tại phòng E.205") == candidates
         assert OllamaStub.embedding_requests == requests + 1, "Redis keyword hits must still rank vector candidates"
@@ -244,6 +244,18 @@ async def checks(broker_url, dsn, ollama_url):
             assert hit["sourceVersion"] == source["version"] and hit["sourceSha256"] == source["sha256"]
         assert (await search("ví da đen tại sảnh hội trường A"))[0]["itemId"] == hall_id
         assert await search("ví da đen", area="Khu vực không tồn tại"), "a mistaken area must not hide relevant items"
+        async with await psycopg.AsyncConnection.connect(dsn) as db:
+            await db.execute("UPDATE ai_documents SET embedding = %s::vector WHERE found_area = %s",
+                             (json.dumps([0.0, 1.0] + [0.0] * (DIMENSIONS - 2)), CAMPUS))
+        requests = OllamaStub.embedding_requests
+        expanded = await search("ví da đen tại phòng E.205")
+        assert [hit["itemId"] for hit in expanded[:2]] == [hit["itemId"] for hit in candidates]
+        assert expanded[-1]["itemId"] == other_id, "low cosine must expand beyond the area despite high local RRF ranks"
+        assert OllamaStub.embedding_requests == requests + 1, "fallback must reuse the query embedding"
+        assert all("similarity" not in hit for hit in expanded), "cosine gating stays inside the worker"
+        async with await psycopg.AsyncConnection.connect(dsn) as db:
+            await db.execute("UPDATE ai_documents SET embedding = %s::vector WHERE found_area = %s",
+                             (json.dumps([1.0] + [0.0] * (DIMENSIONS - 1)), CAMPUS))
         assert not await search("ví da đen", **{"from": "2026-10-25"}), "date filters must run before candidate limits"
 
         from findie_ai.config import Settings
@@ -271,12 +283,16 @@ async def checks(broker_url, dsn, ollama_url):
             image.save(buffer, format="PNG", pnginfo=info)
         raw_image = buffer.getvalue()
         image_id = str(uuid4())
+        image_scope = str(uuid4())
         embed_metadata = {"itemId": room_id, "imageId": image_id, "sourceVersion": 1,
-                          "sourceSha256": digest(raw_image), "processingProfile": "image-v1", "dimensions": DIMENSIONS}
+                          "sourceSha256": digest(raw_image), "processingProfile": "image-v1", "dimensions": DIMENSIONS,
+                          "cacheScope": image_scope}
         response, original_embedding = await request("image.embed", raw_image, embed_metadata, content_type="image/png")
         assert response["succeeded"]
         for field, expected in embed_metadata.items():
-            assert response[field] == expected, f"original embedding receipt must echo {field}"
+            if field != "cacheScope":
+                assert response[field] == expected, f"original embedding receipt must echo {field}"
+        assert "cacheScope" not in response
         cached = json.loads(original_embedding)
         assert cached == {"modelId": MODEL, "modelRevision": REVISION, "dimensions": DIMENSIONS,
                           "sourceSha256": digest(raw_image), "vector": [0.0, 1.0] + [0.0] * (DIMENSIONS - 2),
@@ -284,6 +300,14 @@ async def checks(broker_url, dsn, ollama_url):
                                   "modelRevision": REDACTION_REVISION, "processingProfile": "ocr-v1"}}
         assert OllamaStub.ocr_requests >= 1 and OllamaStub.image_requests >= 1
         assert private_note.encode() not in original_embedding
+        image_requests, ocr_requests = OllamaStub.image_requests, OllamaStub.ocr_requests
+        next_image_id = str(uuid4())
+        response, repeated_embedding = await request("image.embed", raw_image,
+            embed_metadata | {"imageId": next_image_id, "itemId": hall_id}, content_type="image/png")
+        assert response["succeeded"] and response["imageId"] == next_image_id
+        assert repeated_embedding == original_embedding
+        assert OllamaStub.image_requests == image_requests, "duplicate uploads reuse the cached image vector"
+        assert OllamaStub.ocr_requests == ocr_requests + 1, "vector cache hits must not bypass OCR"
         response, _ = await request("image.embed", raw_image,
                                     embed_metadata | {"sourceSha256": "0" * 64}, content_type="image/png")
         assert not response["succeeded"], "original embedding rejects source hash mismatches"
@@ -313,11 +337,13 @@ async def checks(broker_url, dsn, ollama_url):
         async def image_search(**filters):
             response, body = await request("search.hybrid.image", raw_image,
                 search_metadata | {"mode": "image", "processingProfile": "image-v1",
-                    "searchProfileId": "image-only-v1"} | filters, content_type="image/png")
+                    "searchProfileId": "image-only-v1", "cacheScope": image_scope} | filters, content_type="image/png")
             assert response["succeeded"]
             return json.loads(body)["candidates"]
 
+        image_requests = OllamaStub.image_requests
         hits = await image_search()
+        assert OllamaStub.image_requests == image_requests, "image search reuses the original upload vector"
         assert len(hits) == 1 and hits[0]["itemId"] == room_id
         assert hits[0]["sourceId"] in {source["id"] for source, _, _ in parts}
         assert hits[0]["sourceKind"] == "image"
@@ -424,7 +450,8 @@ def run():
             "PYTHONPATH": str(ROOT / "services/ai")}
         subprocess.run([sys.executable, "-m", "findie_ai.migrate"], cwd=ROOT,
             env=environment | {"AI_SEARCH_MIGRATION_DSN": dsn}, check=True)
-        subprocess.run([sys.executable, "-m", "pytest", "services/ai/tests/test_store.py", "-q"], cwd=ROOT,
+        subprocess.run([sys.executable, "-m", "pytest", "services/ai/tests/test_store.py",
+            "services/ai/tests/test_embedding_cache.py", "-q"], cwd=ROOT,
             env=environment | {"AI_TEST_DATABASE_URL": dsn, "AI_TEST_REDIS_URL": redis_url}, check=True)
         worker = subprocess.Popen([sys.executable, "-m", "uvicorn", "findie_ai.main:app", "--host", "127.0.0.1",
             "--port", str(worker_port), "--log-level", "warning", "--no-access-log"], cwd=ROOT,

@@ -111,15 +111,15 @@ def test_inflight_old_generation_cannot_repopulate_the_current_cache(cached_stor
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("changed", ["from_date", "until", "include_images", "model", "revision",
+@pytest.mark.parametrize("changed", ["area", "from_date", "until", "include_images", "model", "revision",
                                     "dimensions", "database", "generation"])
 def test_cache_identity_isolates_filters_models_modalities_and_index_versions(cached_store, changed):
     async def run():
         store, _, entries, state = cached_store
         await store.search("ví", [1, 0])
         kwargs, vector = {}, [1, 0]
-        if changed in {"from_date", "until", "include_images"}:
-            kwargs[changed] = {"from_date": "2026-10-25", "until": "2026-10-25", "include_images": True}[changed]
+        if changed in {"area", "from_date", "until", "include_images"}:
+            kwargs[changed] = {"area": "Quang Trung", "from_date": "2026-10-25", "until": "2026-10-25", "include_images": True}[changed]
         elif changed in {"model", "revision", "dimensions"}:
             identity = list(store.identity)
             index = {"model": 0, "revision": 1, "dimensions": 2}[changed]
@@ -143,7 +143,7 @@ def test_output_limit_and_date_representation_reuse_full_candidate_pool(cached_s
         expected = await store.search("ví", [1, 0], from_date="2026-10-25", limit=1)
         assert await store.search("ví", [1, 0], from_date=date(2026, 10, 25), limit=10) == expected
         assert store._search_channels.await_args.args[-3:-1] == (True, False)
-        assert store._search_channels.await_args.args[-1] == 200
+        assert store._search_channels.await_args.args[-1] == 30
     asyncio.run(run())
 
 
@@ -206,7 +206,7 @@ def test_invalid_inputs_still_fail_on_cache_hit(cached_store):
     async def run():
         store, _, _, _ = cached_store
         await store.search("ví", [1, 0])
-        for vector, kwargs in (([float("nan"), 0], {}), ([0, 0], {}), ([1, 0], {"limit": 201}),
+        for vector, kwargs in (([float("nan"), 0], {}), ([0, 0], {}), ([1, 0], {"limit": 31}),
                                ([1, 0], {"strategy": "invalid"}), ([1, 0], {"modality": "invalid"}),
                                ([1, 0], {"from_date": "2026-10-26", "until": "2026-10-25"})):
             with pytest.raises(ValueError):
@@ -245,11 +245,40 @@ def test_cache_configuration_validation(kwargs):
 
 
 
-def test_area_preference_reuses_global_keyword_candidates(cached_store):
+def test_area_priority_has_separate_keyword_candidates(cached_store):
     async def run():
         store, _, entries, _ = cached_store
         first = await store.search("ví", [1, 0], area="Quang Trung")
         assert await store.search("ví", [1, 0], area="Chợ Quán") == first
+        assert store._search_channels.await_args.args[-3:-1] == (True, True)
+        assert len(entries) == 2
+        assert await store.search("ví", [1, 0], area="Quang Trung") == first
         assert store._search_channels.await_args.args[-3:-1] == (True, False)
-        assert len(entries) == 1
+    asyncio.run(run())
+
+
+
+def test_inside_and_outside_area_keyword_pools_have_separate_cache_entries(cached_store):
+    async def run():
+        store, _, entries, _ = cached_store
+        first = await store.search("ví", [1, 0], area="quang trung")
+        await store.search("ví", [1, 0], area="quang trung", outside_area=True)
+        assert len(entries) == 2
+        assert store._search_channels.await_args.args[3] is True
+        assert await store.search("ví", [1, 0], area="quang trung") == first
+        assert store._search_channels.await_args.args[3] is False
+        assert store._search_channels.await_args.args[-3:-1] == (True, False)
+    asyncio.run(run())
+
+
+def test_legacy_cache_pool_larger_than_thirty_is_rejected(cached_store):
+    async def run():
+        store, cache, entries, _ = cached_store
+        await store.search("ví", [1, 0])
+        payload = json.loads(next(iter(entries.values())))
+        payload["lexical"] *= 31
+        cache.client.get.side_effect = None
+        cache.client.get.return_value = json.dumps(payload)
+        await store.search("ví", [1, 0])
+        assert store._search_channels.await_args.args[-3:-1] == (True, True)
     asyncio.run(run())

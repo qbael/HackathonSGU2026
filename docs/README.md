@@ -18,7 +18,7 @@ demo/           Ảnh, video và tóm tắt demo
 
 - [Kế hoạch Tối ưu hóa UI/UX & Tinh gọn Mã nguồn](KE_HOACH_TOI_UU_UI_UX.md): Đánh giá chi tiết trải nghiệm người dùng, loại bỏ dev/test artifacts, chuẩn hóa thông báo lỗi và lộ trình cải tiến giao diện Findie.
 - Đặc tả ứng dụng: [Markdown](product/DAC_TA_FINDIE.md), [Word](product/DAC_TA_FINDIE.docx), [PDF](product/DAC_TA_FINDIE.pdf).
-- [Kiến trúc hệ thống](architecture/system-architecture.md): v1.4.0 ngày 23/10/2026; .NET nghiệp vụ/R2/quyền/DTO cuối ↔ RabbitMQ lâu dài ↔ Python AI/ảnh, lưu embedding và hybrid search theo profile. Đã có schema `findie` (.NET) với role runtime riêng; adapter AMQP/R2 và API .NET đã có; worker Python/database tìm kiếm/hybrid search văn bản đã có qua Ollama; phần ảnh chưa triển khai. Ảnh gốc chỉ tạm để xử lý, không lưu R2; R2 chỉ giữ ảnh đầu ra đã che/mờ hoặc ảnh sạch chuẩn hóa khi không có PII, phải duyệt trước công khai.
+- [Kiến trúc hệ thống](architecture/system-architecture.md): .NET xử lý nghiệp vụ, quyền và R2; RabbitMQ chuyển lệnh/kết quả; Python xử lý ảnh, embedding và hybrid search. Redis cache embedding và ứng viên từ khóa/vị trí. Ảnh gốc chỉ xử lý tạm; R2 giữ đầu ra đã xử lý và được duyệt trước khi công khai.
 - [Thiết kế cơ sở dữ liệu đích](database/database-design.md): phân quyền hai database logic cho .NET và Python. Runtime .NET có EF Core/Identity, outbox và migration có bảo vệ dữ liệu bootstrap cũ; xem [API](api/README.md).
 - Snapshot bootstrap: [từ điển cột](database/database-column-dictionary.md), [DDL](database/database-schema.sql), [SQL kiểm tra](database/database-check.sql), [ERD draw.io](database/findie-erd.drawio), [ảnh ERD](assets/findie-erd-overview.png). Các tệp này vẫn mô tả 16 bảng/164 cột và liên kết ảnh gốc/bản xử lý cũ; chưa phải schema hybrid search hai database hoặc chính sách chỉ lưu ảnh đầu ra. Giữ nguyên để đối chiếu migration, không dùng luồng lưu ảnh gốc cũ làm kiến trúc đích.
 - [Hiến chương dự án](../.specify/memory/constitution.md) được giữ tại vị trí cấu hình của Spec Kit.
@@ -29,7 +29,8 @@ demo/           Ảnh, video và tóm tắt demo
 - [API .NET](api/README.md): Google cookie/CSRF, hồ sơ/điểm, món đồ, claim/chat, tiếp nhận/trao trả, ảnh/search; tài liệu từng endpoint, AMQP và kiểm thử.
 - [Python AI service với Ollama](guides/ai-service.md): tìm bằng mô tả tiếng Việt, vị trí phòng/hội trường, đổi model và cấu hình chỉ mục.
 - [Thử AI trên Google Colab](guides/colab.md).
-- Hồ sơ khởi tạo: [phạm vi](specs/001-project-bootstrap/spec.md), [kế hoạch](specs/001-project-bootstrap/plan.md), [nhiệm vụ](specs/001-project-bootstrap/tasks.md), [đánh giá sẵn sàng](specs/001-project-bootstrap/readiness-review.md).
+- Hồ sơ khởi tạo: [phạm vi](specs/001-project-bootstrap/spec.md), [kế hoạch](specs/001-project-bootstrap/plan.md), [nhiệm vụ](specs/001-project-bootstrap/tasks.md).
+- [Kiểm thử E2E](guides/e2e-testing-guide.md): cấu hình và cách chạy Playwright hiện hành.
 
 ## Tư liệu demo
 
@@ -37,6 +38,8 @@ demo/           Ảnh, video và tóm tắt demo
 - Các luồng: [đăng đồ nhặt được](demo/findie-dang-bai/01-dang-do-nhat-duoc.png), [tìm đồ](demo/findie-dang-bai/02-tim-do-that-lac.png), [yêu cầu và hẹn trả](demo/findie-dang-bai/03-yeu-cau-va-hen-trao-tra.png), [nhận tại điểm tiếp nhận](demo/findie-dang-bai/04-nhan-tai-diem-tiep-nhan.png).
 
 ## Tạo lại sơ đồ
+
+Nguồn sơ đồ được giữ trong `docs/database/findie-erd.drawio` và `docs/assets/kien-truc-he-thong.svg`; các ảnh minh họa hiện có nằm trong `docs/assets/`.
 
 Chạy từ thư mục gốc dự án. Các script render dùng Playwright của runtime Codex và Google Chrome trên máy hiện tại.
 

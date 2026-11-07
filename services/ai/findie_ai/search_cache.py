@@ -1,4 +1,4 @@
-"""Short-lived keyword and location candidates for text search."""
+"""Short-lived search candidates and account-scoped embeddings in Redis."""
 
 import asyncio
 from hashlib import sha256
@@ -14,6 +14,9 @@ from redis.backoff import NoBackoff
 from redis.exceptions import RedisError
 
 
+from .ranking import MAX_SEARCH_CANDIDATES
+
+
 log = logging.getLogger(__name__)
 
 
@@ -27,7 +30,9 @@ class Candidate(BaseModel):
     location_tokens: Annotated[list[Annotated[str, Field(max_length=200)]], Field(max_length=200)]
 
 
-ROWS = TypeAdapter(Annotated[list[Candidate], Field(max_length=200)])
+ROWS = TypeAdapter(Annotated[list[Candidate], Field(max_length=MAX_SEARCH_CANDIDATES)])
+EMBEDDING = TypeAdapter(Annotated[list[Annotated[float, Field(strict=True, allow_inf_nan=False)]],
+                                Field(min_length=1, max_length=16000)])
 
 
 class SearchCache:
@@ -37,9 +42,9 @@ class SearchCache:
         self.ttl = ttl
 
     @staticmethod
-    def key(identity):
+    def key(identity, *, namespace="keyword"):
         digest = sha256(json.dumps(identity, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
-        return f"findie:search:v1:keyword:{digest}"
+        return f"findie:search:v1:{namespace}:{digest}"
 
     async def get(self, key):
         try:
@@ -63,6 +68,34 @@ class SearchCache:
                 await self.client.set(key, json.dumps(value, default=str, separators=(",", ":")), ex=self.ttl)
         except (RedisError, TimeoutError):
             log.warning("Search cache write unavailable; returning PostgreSQL results.")
+
+    @staticmethod
+    def _embedding(value, dimensions):
+        vector = EMBEDDING.validate_python(value)
+        if len(vector) != dimensions or not any(vector):
+            raise ValueError("Invalid cached embedding")
+        return vector
+
+    async def get_embedding(self, key, dimensions):
+        try:
+            async with asyncio.timeout(0.3):
+                value = await self.client.get(key)
+            if value is None:
+                return None
+            if len(value) > 1024 * 1024:
+                raise ValueError("Oversized cache entry")
+            return self._embedding(json.loads(value), dimensions)
+        except (RedisError, TimeoutError, ValueError, RecursionError):
+            log.warning("Embedding cache read unavailable or invalid; using model inference.")
+            return None
+
+    async def put_embedding(self, key, vector, dimensions):
+        try:
+            value = json.dumps(self._embedding(vector, dimensions), allow_nan=False, separators=(",", ":"))
+            async with asyncio.timeout(0.3):
+                await self.client.set(key, value, ex=300)
+        except (RedisError, TimeoutError, ValueError):
+            log.warning("Embedding cache write unavailable or invalid; returning model output.")
 
     async def close(self):
         await self.client.aclose()

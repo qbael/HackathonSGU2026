@@ -125,14 +125,16 @@ public sealed class RecoveryWorkflow(IRecoveryRepository repository)
     }
     public static bool PublicImage(ItemImage image) => image.RetiredAt is null && image.ProcessingState == "ready"
         && image.ReviewState == "approved" && image.ProcessedObject is { ObjectKind: "processed", ObjectState: "validated" };
-    public async Task<ItemResponse> ResponseAsync(Item item, Guid actor, CancellationToken ct) => new(item.Id, item.Title, item.PublicDescription, item.FoundArea,
+    public async Task<ItemResponse> ResponseAsync(Item item, Guid actor, CancellationToken ct) =>
+        Response(item, actor, await CanManageAsync(item, actor, ct));
+    public ItemResponse Response(Item item, Guid actor, bool canManage) => new(item.Id, item.Title, item.PublicDescription, item.FoundArea,
         item.FoundTimePrecision, item.FoundOn, item.FoundFrom, item.FoundUntil, item.FoundTimezone, Custody(item),
         item.Lifecycle, item.PublicationState, item.RowVersion, item.DocumentVersion, item.CreatedAt,
         item.Images.Where(PublicImage).OrderBy(image => image.Position)
             .Select(image => new ImageSummary(image.Id, image.Position, image.ContentVersion,
                 $"/api/items/{item.Id}/images/{image.Id}/content")).ToList(),
         Public(item) && item.CustodyKind == "person" && item.PostedBy != actor && item.HolderUserId != actor,
-        await CanManageAsync(item, actor, ct));
+        canManage);
 
     public void Changed(Item item, bool content = false, bool custody = false)
     {
