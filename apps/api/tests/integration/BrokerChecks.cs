@@ -1,0 +1,121 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using Findie.Api.Infrastructure;
+using Findie.Api.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
+
+static class BrokerChecks
+{
+    public static async Task RunAsync(IServiceScopeFactory scopes)
+    {
+        var uri = Environment.GetEnvironmentVariable("FINDIE_TEST_BROKER_URI")
+            ?? throw new InvalidOperationException("Use integration.py to provide a disposable RabbitMQ broker.");
+        if (!new Uri(uri).IsLoopback) throw new InvalidOperationException("Broker tests require loopback.");
+        var prefix = "findie-test-" + Guid.NewGuid().ToString("N");
+        var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["RabbitMq:Uri"] = uri, ["RabbitMq:IndexQueue"] = prefix + "-index",
+            ["RabbitMq:ImageQueue"] = prefix + "-image", ["RabbitMq:QueryQueue"] = prefix + "-query",
+            ["RabbitMq:ResultQueue"] = prefix + "-results"
+        }).Build();
+        var connectionFactory = new ConnectionFactory { Uri = new Uri(uri) };
+        await using var connection = await connectionFactory.CreateConnectionAsync();
+        await using var worker = await connection.CreateChannelAsync(new CreateChannelOptions(true, true));
+        foreach (var suffix in new[] { "index", "image", "query", "results" })
+            await worker.QueueDeclareAsync(prefix + "-" + suffix, suffix is "index" or "results", suffix is "image" or "query", suffix is "image" or "query",
+                new Dictionary<string, object?> { ["x-message-ttl"] = suffix == "image" ? 940000 : 30000, ["x-max-length"] = 64 });
+        var errors = new ConcurrentQueue<Exception>();
+        var transientQueues = new ConcurrentBag<string>();
+        var imageSeen = false;
+        var batchSeen = false;
+        var indexSeen = false;
+        var consumer = new AsyncEventingBasicConsumer(worker);
+        consumer.ReceivedAsync += async (_, command) =>
+        {
+            try
+            {
+                var metadata = JsonDocument.Parse((byte[])command.BasicProperties.Headers!["metadata"]!).RootElement.Clone();
+                if (command.BasicProperties.Type is "image.embed" or "image.redact" or "search.hybrid.image")
+                {
+                    Check(!command.BasicProperties.Persistent && command.Body.Span.SequenceEqual("private raw input"u8), "raw image is binary and nonpersistent");
+                    Check(command.BasicProperties.Expiration == "300000", "image OCR, embedding and redaction have a five-minute TTL");
+                    imageSeen = true;
+                }
+                else if (command.BasicProperties.Type == "search.hybrid.images")
+                {
+                    Check(!command.BasicProperties.Persistent && command.BasicProperties.ContentType == "application/octet-stream"
+                        && command.RoutingKey == prefix + "-image" && command.Body.Length == 3 * BoundedImage.MaxBytes,
+                        "a complete 30 MiB raw image batch reaches the image queue through transient transport");
+                    Check(command.BasicProperties.Expiration == "940000", "multimodal fusion has the complete request TTL");
+                    batchSeen = true;
+                }
+                else Check(command.BasicProperties.Expiration == "30000", "other AI requests keep their thirty-second TTL");
+                if (command.BasicProperties.Type == "index.upsert")
+                {
+                    Check(command.BasicProperties.Persistent && command.BasicProperties.ReplyTo == prefix + "-results", "index receipt uses durable result queue");
+                    indexSeen = true;
+                }
+                else transientQueues.Add(command.BasicProperties.ReplyTo!);
+                if (command.BasicProperties.Type == "test.cancel") await Task.Delay(200);
+                var properties = new BasicProperties { CorrelationId = command.BasicProperties.CorrelationId,
+                    Type = command.BasicProperties.Type, Persistent = command.BasicProperties.Persistent,
+                    Headers = new Dictionary<string, object?> { ["metadata"] = JsonSerializer.SerializeToUtf8Bytes(metadata) } };
+                if (command.BasicProperties.Type == "test.invalid") properties.Headers["metadata"] = "invalid-json"u8.ToArray();
+                await worker.BasicPublishAsync("", command.BasicProperties.ReplyTo!, true, properties, "{\"ok\":true}"u8.ToArray());
+                if (command.BasicProperties.Type == "test.duplicate")
+                    await worker.BasicPublishAsync("", command.BasicProperties.ReplyTo!, true, properties, "{\"duplicate\":true}"u8.ToArray());
+                await worker.BasicAckAsync(command.DeliveryTag, false);
+            }
+            catch (Exception error) { errors.Enqueue(error); }
+        };
+        foreach (var suffix in new[] { "index", "image", "query" })
+            await worker.BasicConsumeAsync(prefix + "-" + suffix, false, consumer);
+        using var gateway = new RabbitMqGateway(settings, NullLogger<RabbitMqGateway>.Instance, scopes);
+        await gateway.StartAsync(default);
+        try
+        {
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+            while (!gateway.Ready && DateTimeOffset.UtcNow < deadline) await Task.Delay(50);
+            Check(gateway.Ready, "long-lived AMQP connection and consumers start");
+            await Query("image.redact", "private raw input"u8.ToArray(), "image/png");
+            await Query("image.embed", "private raw input"u8.ToArray(), "image/png");
+            await Query("search.hybrid.image", "private raw input"u8.ToArray(), "image/png");
+            await Query("search.hybrid.images", new byte[3 * BoundedImage.MaxBytes], "application/octet-stream");
+            await Query("index.upsert", "{}"u8.ToArray(), "application/json", true);
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Query("search.hybrid", "{}"u8.ToArray(), "application/json")));
+            await Query("test.duplicate", [], "application/json");
+            try { await Query("test.invalid", [], "application/json"); throw new InvalidOperationException("Invalid metadata should fail."); }
+            catch (ApiException error) when (error.StatusCode == 502) { }
+            using (var cancelled = new CancellationTokenSource(50))
+            {
+                try { await gateway.RequestAsync(new AiCommand("test.cancel", JsonSerializer.SerializeToElement(new { schemaVersion = 1 }), [], "application/json"), cancelled.Token); throw new InvalidOperationException("Cancellation should interrupt waiter."); }
+                catch (OperationCanceledException) { }
+            }
+            await Task.Delay(300);
+            await Query("search.hybrid", [], "application/json");
+            Check(imageSeen && batchSeen && indexSeen && transientQueues.Distinct().Count() == 1, "temporary reply queue is reused across requests, duplicates and late replies are discarded");
+            await worker.QueueDeleteAsync(prefix + "-query");
+            try { await Query("search.hybrid", [], "application/json"); throw new InvalidOperationException("Unroutable publish should fail."); }
+            catch (ApiException error) when (error.StatusCode == 503) { }
+            if (errors.TryDequeue(out var failure)) throw failure;
+            Console.WriteLine("PASS: real RabbitMQ request/reply, binary raw input, TTL, confirms/mandatory, durable receipts, concurrent requests, cancellation and duplicate/late replies");
+        }
+        finally { await gateway.StopAsync(default); }
+
+        async Task Query(string kind, byte[] body, string mime, bool persistent = false)
+        {
+            await using var reply = await gateway.RequestAsync(new AiCommand(kind,
+                JsonSerializer.SerializeToElement(new { schemaVersion = 1 }), body, mime, persistent), default);
+            Check(reply.Body.AsSpan().SequenceEqual("{\"ok\":true}"u8), "reply matches the live correlation waiter");
+            await reply.CompleteAsync();
+        }
+    }
+    static void Check(bool condition, string description)
+    {
+        if (!condition) throw new InvalidOperationException("FAIL: " + description);
+    }
+}
