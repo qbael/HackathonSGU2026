@@ -1,0 +1,42 @@
+#!/usr/bin/env sh
+# Findie Security Gatekeeper Pre-commit Hook
+# Prevents secret leaks, raw image disk write patterns, and unstaged env files.
+
+echo "[Security Hook] Checking staged files..."
+
+# 1. Block any attempt to stage .env or secret env files
+staged_env=$(git diff --cached --name-only | grep -E '^(\.env|\.env\.local|\.env\..*\.local|\.env\.backup)$')
+if [ -n "$staged_env" ]; then
+    echo "❌ ERROR: Attempting to commit private environment file(s):"
+    echo "$staged_env"
+    echo "Findie policy strictly forbids committing .env files! Commit rejected."
+    exit 1
+fi
+
+# 2. Run Gitleaks on staged files if installed
+if command -v gitleaks >/dev/null 2>&1; then
+    echo "🔍 Running Gitleaks secret scan on staged files..."
+    gitleaks git --staged --verbose --config=.gitleaks.toml
+    if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Gitleaks detected potential secrets in staged files! Commit rejected."
+        exit 1
+    fi
+    echo "✅ Gitleaks scan passed."
+else
+    echo "⚠️ Warning: 'gitleaks' binary not found on PATH. Secret scan skipped locally."
+fi
+
+# 3. Check for raw image disk persistence patterns in apps/api/Services and apps/api/Controllers
+staged_api=$(git diff --cached --name-only | grep -E '^apps/api/(Services|Controllers)/.*\.cs$')
+if [ -n "$staged_api" ]; then
+    for f in $staged_api; do
+        if git show ":$f" | grep -E '(File\.WriteAllBytes|new FileStream\(.*FileMode\.Create)' >/dev/null 2>&1; then
+            echo "❌ ERROR: Forbidden raw image disk write pattern found in staged file: $f"
+            echo "Findie policy strictly prohibits persisting raw images to disk! Commit rejected."
+            exit 1
+        fi
+    done
+fi
+
+echo "✅ Pre-commit security checks passed."
+exit 0

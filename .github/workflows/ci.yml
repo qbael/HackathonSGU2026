@@ -28,6 +28,9 @@ jobs:
       - name: Install web dependencies
         run: npm ci --prefix apps/web
 
+      - name: Frontend Security Lint
+        run: npm run lint --prefix apps/web
+
       - name: TypeScript typecheck
         run: npm run typecheck --prefix apps/web
 
@@ -164,3 +167,73 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report/
           retention-days: 7
+
+  security-audit:
+    name: Security Scan (Gitleaks, Semgrep, SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.18.4"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/
+          gitleaks version
+
+      - name: Secret Scan (Gitleaks)
+        run: gitleaks detect --verbose --config=.gitleaks.toml
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: 'apps/web/package-lock.json'
+
+      - name: Install web dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Frontend Dependency Vulnerability Scan (NPM Audit)
+        run: npm audit --prefix apps/web --audit-level=high
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: .NET Dependency Vulnerability Scan (dotnet list --vulnerable)
+        run: dotnet list apps/api/Findie.Api.csproj package --vulnerable --include-transitive
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Python Dependency Audit (SCA - pip-audit)
+        run: uv run --project services/ai --with pip-audit pip-audit
+
+      - name: Install Semgrep SAST
+        run: pip install semgrep
+
+      - name: Run Semgrep SAST Analysis
+        run: >-
+          semgrep scan
+          --config .semgrep/findie-rules.yml
+          --config "p/csharp"
+          --config "p/owasp-top-ten"
+          --config "p/python"
+          --config "p/fastapi"
+          --config "p/typescript"
+          --config "p/react"
+          --config "p/dockerfile"
+          --config "p/docker-compose"
+          --error

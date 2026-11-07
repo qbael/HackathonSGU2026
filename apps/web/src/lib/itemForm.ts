@@ -115,7 +115,7 @@ export function itemContent(draft: ItemDraft, now = Date.now()) {
 export function itemCustody(draft: ItemDraft) {
   if (draft.kind === "person") return { kind: "person" };
   if (draft.kind === "point") {
-    if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(draft.pointId))
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(draft.pointId))
       throw new Error("Vui lòng chọn một điểm tiếp nhận.");
     return {
       kind: "point",

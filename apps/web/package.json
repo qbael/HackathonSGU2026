@@ -11,19 +11,27 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test 'src/**/*.test.ts'",
     "test:e2e": "node ./node_modules/@playwright/test/cli.js test",
-    "build": "npm run typecheck && vite build"
+    "build": "npm run typecheck && npm run lint && vite build",
+    "lint": "eslint src"
   },
   "dependencies": {
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@babel/core": "^8.1.0",
+    "@babel/eslint-parser": "^8.0.7",
+    "@babel/preset-react": "^8.0.1",
+    "@babel/preset-typescript": "^8.0.7",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "4.3.3",
     "@types/node": "24.10.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
+    "eslint": "^10.14.0",
+    "eslint-plugin-security": "^4.2.1",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vite": "8.3.5"

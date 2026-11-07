@@ -52,6 +52,10 @@ export class AdminPage extends BasePage {
     });
     const actionBtn = row.locator('button.btn-sm');
     await actionBtn.click();
+    const modalBtn = this.page.locator('.hub-modal-card button').filter({ hasText: 'Xác nhận' });
+    if (await modalBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await modalBtn.click();
+    }
   }
 
   async toggleItemPublication(itemTitle: string) {
@@ -62,5 +66,9 @@ export class AdminPage extends BasePage {
     });
     const toggleBtn = row.locator('button.btn-warning, button.btn-success');
     await toggleBtn.click();
+    const modalBtn = this.page.locator('.hub-modal-card button').filter({ hasText: 'Xác nhận' });
+    if (await modalBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await modalBtn.click();
+    }
   }
 }

@@ -1,0 +1,17 @@
+# Semgrep ignore file
+.github/
+scripts/docs/
+apps/web/node_modules/
+apps/web/dist/
+apps/web/playwright-report/
+apps/web/test-results/
+apps/api/bin/
+apps/api/obj/
+services/ai/.venv/
+services/ai/__pycache__/
+.cache/
+.idea/
+notebooks/colab/outputs/
+*.min.js
+*.bundle.js
+package-lock.json

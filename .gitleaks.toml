@@ -1,0 +1,26 @@
+# Gitleaks configuration for Findie
+title = "Findie Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for benign matches and test placeholders"
+paths = [
+  '''\.env\.example$''',
+  '''apps/web/node_modules/''',
+  '''apps/web/dist/''',
+  '''apps/api/bin/''',
+  '''apps/api/obj/''',
+  '''services/ai/\.venv/''',
+  '''\.cache/''',
+  '''tests/fixtures/'''
+]
+
+stopwords = [
+  "dummy",
+  "placeholder",
+  "example",
+  "test_secret",
+  "GENERATE_"
+]

@@ -7,6 +7,7 @@ product/        Đặc tả sản phẩm: Markdown, Word và PDF
 architecture/   Kiến trúc hệ thống
 database/       Thiết kế dữ liệu, từ điển cột, SQL và ERD
 api/            Tổng quan API, endpoint, AMQP và kiểm thử
+security/       Kế hoạch an ninh, SAST/Semgrep, Gitleaks và quy trình audit
 guides/         Hướng dẫn phát triển, AI service và Colab
 design/         Thiết kế giao diện Stitch
 specs/          Phạm vi, kế hoạch và nhiệm vụ theo tính năng
@@ -25,6 +26,7 @@ demo/           Ảnh, video và tóm tắt demo
 
 ## Phát triển và kiểm thử
 
+- [Kế hoạch An ninh & Review Code](security/SECURITY_PLAN.md): Tích hợp Semgrep, Gitleaks, quy tắc bảo vệ PII, Zero Raw Image và quy trình kiểm duyệt code.
 - [Cài đặt và chạy local](guides/development.md), gồm cấu hình OAuth Google; ứng dụng hiện chỉ hỗ trợ đăng nhập Google.
 - [API .NET](api/README.md): Google cookie/CSRF, hồ sơ/điểm, món đồ, claim/chat, tiếp nhận/trao trả, ảnh/search; tài liệu từng endpoint, AMQP và kiểm thử.
 - [Python AI service với Ollama](guides/ai-service.md): tìm bằng mô tả tiếng Việt, vị trí phòng/hội trường, đổi model và cấu hình chỉ mục.
