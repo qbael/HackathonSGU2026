@@ -1,0 +1,11 @@
+{
+  "OLLAMA_BASE_URL": "https://virtuous-chaps-uncrown.ngrok-free.dev",
+  "AI_EMBEDDING_MODEL": "Qwen/Qwen3-VL-Embedding-2B",
+  "AI_EMBEDDING_REVISION": "e5d83173bdf40ce6edd7c2241548cf0edc76d2b11b4435c429407ae29b7b0c33",
+  "AI_EMBEDDING_DIMENSIONS": 2048,
+  "AI_EMBEDDING_QUERY_INSTRUCTION": "",
+  "AI_REDACTION_MODEL": "qwen3-vl:4b-instruct",
+  "AI_REDACTION_REVISION": "84f7ed8042fa7cdbd902f7dcb7d0370e032095047cc3244179f263b77b5bc318",
+  "AI_IMAGE_SEARCH_ENABLED": true,
+  "AI_IMAGE_SEARCH_PROFILE": "image-only-v1"
+}

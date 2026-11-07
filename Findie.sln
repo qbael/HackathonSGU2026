@@ -1,0 +1,63 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "apps", "apps", "{1787FE1D-075E-9E68-7218-25F1BD1BBEAB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api", "api", "{BC2D172B-13BC-136C-CDB1-4B1A687208C4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Findie.Api", "apps\api\Findie.Api.csproj", "{13ABF737-CB93-4138-8344-171F1B4CB380}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{858C69E3-D23F-514B-EBEF-81CDB591EF58}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "integration", "integration", "{C1F56576-6E68-A8D6-E739-92BBD89F3F5C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Findie.Api.Integration", "apps\api\tests\integration\Findie.Api.Integration.csproj", "{694F3815-48F7-4A5F-B6FA-4747698B310C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Debug|x64.Build.0 = Debug|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Debug|x86.Build.0 = Debug|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Release|Any CPU.Build.0 = Release|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Release|x64.ActiveCfg = Release|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Release|x64.Build.0 = Release|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Release|x86.ActiveCfg = Release|Any CPU
+		{13ABF737-CB93-4138-8344-171F1B4CB380}.Release|x86.Build.0 = Release|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Debug|x64.Build.0 = Debug|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Debug|x86.Build.0 = Debug|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Release|x64.ActiveCfg = Release|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Release|x64.Build.0 = Release|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Release|x86.ActiveCfg = Release|Any CPU
+		{694F3815-48F7-4A5F-B6FA-4747698B310C}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{BC2D172B-13BC-136C-CDB1-4B1A687208C4} = {1787FE1D-075E-9E68-7218-25F1BD1BBEAB}
+		{13ABF737-CB93-4138-8344-171F1B4CB380} = {BC2D172B-13BC-136C-CDB1-4B1A687208C4}
+		{858C69E3-D23F-514B-EBEF-81CDB591EF58} = {BC2D172B-13BC-136C-CDB1-4B1A687208C4}
+		{C1F56576-6E68-A8D6-E739-92BBD89F3F5C} = {858C69E3-D23F-514B-EBEF-81CDB591EF58}
+		{694F3815-48F7-4A5F-B6FA-4747698B310C} = {C1F56576-6E68-A8D6-E739-92BBD89F3F5C}
+	EndGlobalSection
+EndGlobal

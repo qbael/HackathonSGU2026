@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="870" viewBox="0 0 1800 870">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8" fill="#68879a"/></marker></defs>
+<rect width="1800" height="870" fill="white"/>
+<g font-family="DejaVu Sans,Arial,sans-serif" fill="#183b50">
+<text x="45" y="45" font-size="31" font-weight="bold">Findie · Kiến trúc đích đề xuất v1.4.0</text>
+<text x="45" y="80" font-size="23">.NET nghiệp vụ và quyền truy cập · Python AI, lưu vector và hybrid search · RabbitMQ lâu dài</text>
+<text x="45" y="113" font-size="20">Ảnh gốc chỉ tạm trong RAM .NET/Python để xử lý, không lưu R2; mất payload phải tải lại. Outbox không chứa bytes gốc.</text>
+
+<rect x="40" y="230" width="300" height="180" rx="12" fill="#edf3f6" stroke="#8da7b6" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="190" y="274" font-size="29" font-weight="bold">React</text>
+<text x="190" y="313" font-size="24">TypeScript · Vite</text>
+<text x="190" y="347" font-size="24">Giao diện web</text>
+</g>
+
+<rect x="480" y="165" width="580" height="260" rx="12" fill="#183b50" stroke="#8da7b6" stroke-width="2"/>
+<g text-anchor="middle" fill="white">
+<text x="770" y="209" font-size="29" font-weight="bold">.NET / ASP.NET Core</text>
+<text x="770" y="248" font-size="24">API · OIDC + cookie · SignalR</text>
+<text x="770" y="282" font-size="23">Nghiệp vụ · quyền hiện tại · DTO cuối</text>
+<text x="770" y="316" font-size="23">Business DB · R2 · job / outbox</text>
+<text x="770" y="350" font-size="23">Kiểm điều kiện trước trả kết quả</text>
+</g>
+
+<rect x="1240" y="125" width="515" height="330" rx="12" fill="#edf3f6" stroke="#8da7b6" stroke-width="2"/>
+<text x="1497.5" y="165" font-size="25" font-weight="bold" text-anchor="middle">PostgreSQL · cùng một instance</text>
+<rect x="1260" y="183" width="475" height="105" rx="8" fill="white" stroke="#8da7b6" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="1497.5" y="216" font-size="23" font-weight="bold">findie · database nghiệp vụ</text>
+<text x="1497.5" y="251" font-size="22">Chỉ .NET · dữ liệu / job / outbox</text>
+</g>
+<rect x="1260" y="305" width="475" height="125" rx="8" fill="white" stroke="#8da7b6" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="1497.5" y="338" font-size="22" font-weight="bold">findie_search · pgvector + FTS</text>
+<text x="1497.5" y="371" font-size="21">Chỉ Python · vector 2048 chiều</text>
+<text x="1497.5" y="402" font-size="21">Bản chiếu công khai, lọc tìm kiếm</text>
+</g>
+
+<rect x="40" y="535" width="340" height="210" rx="12" fill="#edf3f6" stroke="#8da7b6" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="210" y="577" font-size="25" font-weight="bold">Cloudflare R2 riêng tư</text>
+<text x="210" y="609" font-size="21">Chỉ ảnh đầu ra Python</text>
+<text x="210" y="635" font-size="19">Đã che / mờ hoặc không PII</text>
+<text x="210" y="661" font-size="21">Chỉ .NET đọc / ghi</text>
+<text x="210" y="687" font-size="21">Con người duyệt ảnh</text>
+<text x="210" y="713" font-size="21">trước khi công khai</text>
+</g>
+
+<rect x="480" y="555" width="500" height="210" rx="12" fill="#edf3f6" stroke="#8da7b6" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="730" y="599" font-size="29" font-weight="bold">RabbitMQ</text>
+<text x="730" y="638" font-size="24">AMQP 0-9-1 · lệnh / kết quả</text>
+<text x="730" y="670" font-size="22">Lập / xóa chỉ mục · hybrid search</text>
+<text x="730" y="702" font-size="22">Trả ứng viên cho .NET kiểm tra</text>
+<text x="730" y="734" font-size="21">Kết nối lâu dài · heartbeat / reconnect</text>
+</g>
+
+<rect x="1130" y="555" width="625" height="210" rx="12" fill="#edf3f6" stroke="#8da7b6" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="1442.5" y="593" font-size="29" font-weight="bold">Python · AI và hybrid search</text>
+<text x="1442.5" y="631" font-size="21">Qwen3-VL-Embedding-2B · Qwen3-VL-4B-Instruct</text>
+<text x="1442.5" y="659" font-size="21">PII / OCR · OpenCV / Pillow chuẩn hóa, che / mờ</text>
+<text x="1442.5" y="687" font-size="21">Lưu vector · FTS + cosine exact · weighted RRF</text>
+<text x="1442.5" y="715" font-size="21">Profile theo ca · cấu hình ngưỡng / trọng số</text>
+<text x="1442.5" y="743" font-size="21">FastAPI: chỉ health / vận hành nội bộ</text>
+</g>
+
+<g fill="none" stroke="#68879a" stroke-width="3" marker-end="url(#arrow)">
+<path d="M340,320 H480"/>
+<path d="M1060,230 H1260"/>
+<path d="M480,360 H420 V640 H380"/>
+<path d="M770,425 V555" marker-start="url(#arrow)"/>
+<path d="M980,655 H1130" marker-start="url(#arrow)"/>
+<path d="M1442.5,555 V430"/>
+</g>
+<text x="410" y="299" font-size="20" text-anchor="middle">HTTPS</text>
+<text x="400" y="480" font-size="20" text-anchor="end">S3 API</text>
+<text x="795" y="478" font-size="20">Lệnh ↔ ứng viên / kết quả</text>
+<text x="795" y="509" font-size="20">AMQP lâu dài</text>
+<text x="1055" y="604" font-size="20" text-anchor="middle">AMQP</text>
+<text x="1055" y="633" font-size="20" text-anchor="middle">lâu dài</text>
+<text x="1467" y="500" font-size="20">SQL · lưu và tìm kiếm</text>
+
+<text x="45" y="806" font-size="23" font-weight="bold">Python chỉ có credential findie_search; .NET giữ database nghiệp vụ / R2 và quyết định kết quả được phép hiển thị.</text>
+<text x="45" y="844" font-size="21">Ngày 23/10/2026 · RabbitMQ, database tìm kiếm và hybrid search chưa triển khai; chất lượng AI chưa được đo.</text>
+</g>
+</svg>
