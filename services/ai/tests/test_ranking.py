@@ -88,13 +88,13 @@ def test_multimodal_rrf_deduplicates_each_ranking_and_keeps_all_contributing_sou
     assert len(fuse_rankings([[first, second]], limit=1)) == 1
 
 
-def test_multimodal_fusion_caps_all_query_branches_at_thirty_candidates():
-    first = rank_candidates([candidate(str(index), "") for index in range(30)], [], [], [])
-    second = rank_candidates([candidate(str(index), "") for index in range(30, 60)], [], [], [])
+def test_multimodal_fusion_caps_all_query_branches_at_twenty_candidates():
+    first = rank_candidates([candidate(str(index), "") for index in range(20)], [], [], [])
+    second = rank_candidates([candidate(str(index), "") for index in range(20, 40)], [], [], [])
     hits = fuse_rankings([first, second])
-    assert len(hits) == 30
-    assert len({hit["itemId"] for hit in hits}) == 30
-    assert len(fuse_rankings([first, second], limit=100)) == 30
+    assert len(hits) == 20
+    assert len({hit["itemId"] for hit in hits}) == 20
+    assert len(fuse_rankings([first, second], limit=100)) == 20
 
 
 
@@ -143,12 +143,12 @@ def test_both_query_branches_with_image_sources_still_form_combined_group():
 
 @pytest.mark.parametrize("local_kind", ["image", "text"])
 def test_area_priority_selects_local_hits_before_global_cap_without_changing_wire_order(local_kind):
-    outside = rank_candidates([candidate(str(index), "") for index in range(30)], [], [], [])
+    outside = rank_candidates([candidate(str(index), "") for index in range(20)], [], [], [])
     local = rank_candidates([candidate("local", "")], [], [], [])[0]
     image, text = ([local], []) if local_kind == "image" else ([], [local])
-    hits = fuse_rankings([outside + image, outside + text], 30, weights=[1.0, 0.5],
+    hits = fuse_rankings([outside + image, outside + text], 20, weights=[1.0, 0.5],
                          text_index=1, preferred_ids={"local"})
-    assert len(hits) == 30 and hits[-1]["itemId"] == "local"
+    assert len(hits) == 20 and hits[-1]["itemId"] == "local"
     assert all(hit["imageScore"] and hit["textScore"] for hit in hits[:-1])
     assert hits[-1]["imageScore" if local_kind == "image" else "textScore"] > 0
     assert {ref["sourceId"] for ref in hits[-1]["sources"]} == {"local"}

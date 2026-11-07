@@ -24,7 +24,7 @@ static class CrossServiceChecks
         var configuration = new ConfigurationBuilder().AddConfiguration(factory.Services.GetRequiredService<IConfiguration>())
             .AddInMemoryCollection(new Dictionary<string, string?> { ["RabbitMq:Uri"] = Environment.GetEnvironmentVariable("FINDIE_TEST_BROKER_URI") }).Build();
         using var gateway = new RabbitMqGateway(configuration, NullLogger<RabbitMqGateway>.Instance, scopes);
-        var storage = new StubStorage();
+        var storage = (StubStorage)factory.Services.GetRequiredService<IProcessedStorage>();
         using var maintenance = new RecoveryMaintenance(scopes, gateway, storage, configuration, NullLogger<RecoveryMaintenance>.Instance);
         var raw = Convert.FromBase64String(Environment.GetEnvironmentVariable("FINDIE_TEST_IMAGE_BASE64")!);
         var actor = await InScope(async services =>
@@ -79,16 +79,17 @@ static class CrossServiceChecks
             await Flush(item.Id, item.DocumentVersion);
             var text = await Text();
             var image = await Image();
-            Check(text.Items.Count == 1 && text.Items[0].Item.Id == item.Id, "real Python text candidate passes .NET provenance checks");
-            Check(image.Items.Count == 1 && image.Items[0].Item.Id == item.Id && image.Items[0].Item.Images.Count == 2,
+            Check(text.RankingMethod == "reranker" && text.Items.Count == 1 && text.Items[0].Item.Id == item.Id,
+                "Python receives public material over RabbitMQ and reranks the text candidate before .NET provenance checks");
+            Check(image.RankingMethod == "reranker" && image.Items.Count == 1 && image.Items[0].Item.Id == item.Id && image.Items[0].Item.Images.Count == 2,
                 "real image vectors retrieve the public item with two approved source versions");
             var combined = await Batch("ví da phòng E.205", 2);
             Check(combined.Mode == "combined" && combined.SearchProfileId == "multimodal-fusion-v1"
-                && combined.Items.Count == 1 && combined.Items[0].Item.Id == item.Id,
+                && combined.RankingMethod == "reranker" && combined.Items.Count == 1 && combined.Items[0].Item.Id == item.Id,
                 "HTTP multipart batches two images and text through real AMQP/Python fusion before .NET validation");
             var imageBatch = await Batch(null, 1);
             Check(imageBatch.Mode == "image" && imageBatch.SearchProfileId == "image-fusion-v1"
-                && imageBatch.Items.Count == 1 && imageBatch.Items[0].Item.Id == item.Id,
+                && imageBatch.RankingMethod == "reranker" && imageBatch.Items.Count == 1 && imageBatch.Items[0].Item.Id == item.Id,
                 "HTTP image-only batch preserves the image fusion contract across services");
             Check(!text.Items[0].Item.CanClaim && !image.Items[0].Item.CanClaim,
                 "search results do not allow the poster to claim their own item");
@@ -100,8 +101,8 @@ static class CrossServiceChecks
             item = await Current();
             Check(item.PublicationState == "published" && item.Images.Count == 1, "removing one of two approved images keeps the item public");
             var staleBatch = await Batch("ví da phòng E.205", 2);
-            Check(staleBatch.Items.Count == 0 && staleBatch.Partial,
-                ".NET rejects fused candidates from the stale search snapshot before the replacement is indexed");
+            Check(staleBatch.Items.Count == 0 && !staleBatch.Partial,
+                "Python drops candidates reported stale by the material provider before .NET receives them");
             await Flush(item.Id, item.DocumentVersion);
             Check((await Text()).Items.Count == 1 && (await Image()).Items.Count == 1,
                 "replacement snapshot retains text and the remaining approved image");
@@ -113,7 +114,7 @@ static class CrossServiceChecks
             await Flush(item.Id, item.DocumentVersion);
             Check((await Text()).Items.Count == 0 && (await Image()).Items.Count == 0,
                 "last-image retirement commits a tombstone removing text and image matches across the real service boundary");
-            Console.WriteLine("PASS: .NET -> RabbitMQ -> Python -> Ollama test double -> processed-output R2 double; HTTP multipart fusion, review, full multi-image manifest, search provenance, retirement and tombstone");
+            Console.WriteLine("PASS: .NET -> RabbitMQ -> Python -> material RPC -> .NET -> processed-output R2 double -> Python reranker; all query modes, provenance, retirement and tombstone");
 
             Task<ItemResponse> Current() => InScope(services => services.GetRequiredService<IItemService>().GetAsync(actor, item.Id, default));
             Task<SearchResponse> Text() => InScope(services => Search(services).TextAsync(actor, new SearchRequest("ví da phòng E.205", "Bridge-only Campus"), default));

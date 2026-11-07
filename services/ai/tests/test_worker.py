@@ -819,6 +819,8 @@ def test_cold_readiness_allows_remote_dependencies_to_complete_within_twelve_sec
         worker = Worker(SETTINGS)
         worker.connection = worker.publisher = worker.consumer = SimpleNamespace(is_closed=False)
         worker.connection.close = AsyncMock()
+        worker.materials.channel = worker.connection
+        worker.materials.queue = object()
         loop = asyncio.get_running_loop()
         clock = [loop.time()]
         completed = []
@@ -848,6 +850,8 @@ def test_readiness_does_not_queue_inference_behind_a_busy_model_after_warmup():
         worker = Worker(SETTINGS)
         worker.connection = worker.publisher = worker.consumer = SimpleNamespace(is_closed=False)
         worker.connection.close = AsyncMock()
+        worker.materials.channel = worker.connection
+        worker.materials.queue = object()
         worker.store.check = AsyncMock()
         worker.ollama.verify_models = AsyncMock()
         worker.ollama.embed = AsyncMock(return_value=[1, 0])
@@ -1136,14 +1140,14 @@ def batch_metadata(*, count=2, text="ví đen", **extra):
     {"text": "x" * 2001}, {"text": " ", "mode": "combined", "searchProfileId": "multimodal-fusion-v1"},
     {"mode": "text"}, {"processingProfile": "text-v1"},
     {"searchProfileId": "image-fusion-v1"}, {"from": "2026-11-02", "until": "2026-11-01"},
-    {"candidateLimit": 31}, {"limit": 11},
+    {"candidateLimit": 21}, {"limit": 11},
 ])
 def test_batch_search_contract_rejects_invalid_framing_modes_and_filters(extra):
     with pytest.raises(ValueError):
         BatchSearchMetadata.model_validate(batch_metadata(**extra))
 
 
-@pytest.mark.parametrize("limit", [0, 31, True])
+@pytest.mark.parametrize("limit", [0, 21, True])
 def test_single_search_contract_rejects_candidate_limits_outside_pool(limit):
     with pytest.raises(ValueError):
         SearchMetadata.model_validate(query_metadata(candidateLimit=limit))
@@ -1151,10 +1155,10 @@ def test_single_search_contract_rejects_candidate_limits_outside_pool(limit):
 
 def test_batch_deadlines_and_private_query_fields_are_bounded():
     query = BatchSearchMetadata.model_validate(batch_metadata(
-        deadlineAt=datetime.now(timezone.utc) + timedelta(seconds=940)))
-    assert 939 < query.remaining() <= 940
+        deadlineAt=datetime.now(timezone.utc) + timedelta(seconds=955)))
+    assert 954 < query.remaining() <= 955
     assert not {"text", "images", "cacheScope"} & query.model_dump().keys()
-    for seconds, error in ((946, ValueError), (-1, TimeoutError)):
+    for seconds, error in ((961, ValueError), (-1, TimeoutError)):
         invalid = query.model_copy(update={"deadlineAt": datetime.now(timezone.utc) + timedelta(seconds=seconds)})
         with pytest.raises(error):
             invalid.remaining()
@@ -1265,12 +1269,12 @@ def test_batch_image_branch_timeout_cancels_inference(monkeypatch):
 
 
 @pytest.mark.parametrize("mode", ["text", "image"])
-@pytest.mark.parametrize("candidate_limit", [1, 30])
+@pytest.mark.parametrize("candidate_limit", [1, 20])
 def test_single_search_returns_requested_bounded_candidate_pool(mode, candidate_limit):
     async def run():
         worker = Worker(replace(SETTINGS, image_search_enabled=True))
         worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
-        candidates = [{"itemId": str(uuid4())} for _ in range(20)]
+        candidates = [{"itemId": str(uuid4()), "similarity": 0.9} for _ in range(20)]
 
         async def search(*args, **kwargs):
             assert args[5] == candidate_limit
@@ -1284,13 +1288,14 @@ def test_single_search_returns_requested_bounded_candidate_pool(mode, candidate_
             body = encode({"text": "ví đen"}) if mode == "text" else png()
             response = await worker.execute("search.hybrid" if mode == "text" else "search.hybrid.image",
                 query, body, "application/json" if mode == "text" else "image/png")
-            assert response["candidates"] == candidates[:candidate_limit]
+            assert [hit["itemId"] for hit in response["candidates"]] == [hit["itemId"] for hit in candidates[:candidate_limit]]
+            assert all(hit["relevanceScore"] == 0.9 for hit in response["candidates"])
         finally:
             await worker.close()
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("reply_limit", [15, 30])
+@pytest.mark.parametrize("reply_limit", [15, 20])
 def test_batch_limits_reply_after_fusion_without_truncating_internal_rankings(reply_limit):
     async def run():
         worker = Worker(replace(SETTINGS, image_search_enabled=True))
@@ -1299,13 +1304,13 @@ def test_batch_limits_reply_after_fusion_without_truncating_internal_rankings(re
 
         def candidate(item_id, kind):
             return {"itemId": item_id, "documentVersion": 1, "sourceId": item_id if kind == "text" else str(uuid4()),
-                    "sourceKind": kind, "sourceVersion": 1, "sourceSha256": "a" * 64}
+                    "sourceKind": kind, "sourceVersion": 1, "sourceSha256": "a" * 64, "similarity": 0.9}
 
         image_hits = [candidate(str(uuid4()), "image") for _ in range(15)] + [candidate(shared_id, "image")]
         text_hits = [candidate(str(uuid4()), "text") for _ in range(15)] + [candidate(shared_id, "text")]
 
         async def search(*args, **kwargs):
-            assert args[5] == 30
+            assert args[5] == 20
             return image_hits if kwargs.get("modality") == "image" else text_hits
 
         worker.store.search = AsyncMock(side_effect=search)
@@ -1351,8 +1356,9 @@ def test_single_area_search_expands_only_below_cosine_threshold(mode, score, thr
         try:
             result = await worker.execute("search.hybrid" if mode == "text" else "search.hybrid.image", query, body,
                                           "application/json" if mode == "text" else "image/png")
-            expected = ([{"itemId": "local"}] if local else []) + ([{"itemId": "remote"}] if expand else [])
-            assert result["candidates"] == expected
+            expected = ["remote"] if expand else ["local"]
+            assert [hit["itemId"] for hit in result["candidates"]] == expected
+            assert result["candidates"][0]["relevanceScore"] == (0.99 if expand else score)
             assert worker.store.search.await_count == 1 + expand
             (worker.ollama.embed if mode == "text" else worker.ollama.embed_image).assert_awaited_once()
         finally:
@@ -1361,10 +1367,10 @@ def test_single_area_search_expands_only_below_cosine_threshold(mode, score, thr
 
 
 @pytest.mark.parametrize(("image_score", "text_score", "same_item", "expand"), [
-    (0.6, 0.6, True, False), (0.9, 0.59, True, True), (0.59, 0.9, True, True),
-    (0.1, 0.2, True, True), (0.9, 0.9, False, True),
+    (0.6, 0.6, True, False), (0.9, 0.59, True, False), (0.59, 0.9, True, False),
+    (0.1, 0.2, True, True), (0.9, 0.9, False, False),
 ])
-def test_combined_area_search_requires_one_item_to_match_both_inputs(image_score, text_score, same_item, expand):
+def test_combined_area_search_keeps_local_results_when_either_input_matches(image_score, text_score, same_item, expand):
     async def run():
         worker = Worker(replace(SETTINGS, image_search_enabled=True))
         worker.ollama.embed = AsyncMock(return_value=[1, 0])
@@ -1397,31 +1403,31 @@ def test_combined_area_search_requires_one_item_to_match_both_inputs(image_score
 
 
 @pytest.mark.parametrize("with_area", [False, True])
-def test_batch_union_caps_at_thirty_and_preserves_a_local_text_only_match(with_area):
+def test_batch_union_caps_at_twenty_and_discards_weak_local_hits(with_area):
     async def run():
         worker = Worker(replace(SETTINGS, image_search_enabled=True))
         worker.ollama.embed_image = AsyncMock(return_value=[0, 1])
         def hit(item_id, kind):
             return {"itemId": item_id, "documentVersion": 1, "sourceId": item_id + kind,
-                    "sourceKind": kind, "sourceVersion": 1, "sourceSha256": "a" * 64, "similarity": 0.2}
+                    "sourceKind": kind, "sourceVersion": 1, "sourceSha256": "a" * 64, "similarity": 0.9}
         async def search(*args, **kwargs):
-            assert args[5] == 30
+            assert args[5] == 20
             kind = "image" if kwargs.get("modality") == "image" else "text"
             if with_area and not kwargs.get("outside_area"):
-                return [] if kind == "image" else [hit("local", kind)]
+                return [] if kind == "image" else [hit("local", kind) | {"similarity": 0.2}]
             prefix = "remote" if with_area else str(worker.store.search.await_count)
-            return [hit(prefix + str(index), kind) for index in range(30)]
+            return [hit(prefix + str(index), kind) for index in range(20)]
         worker.store.search = AsyncMock(side_effect=search)
         count = 1 if with_area else 3
-        query = BatchSearchMetadata.model_validate(batch_metadata(count=count, candidateLimit=30,
+        query = BatchSearchMetadata.model_validate(batch_metadata(count=count, candidateLimit=20,
             area="Quang Trung" if with_area else None))
         try:
             hits = (await worker.execute("search.hybrid.images", query, png() * count, "application/octet-stream"))["candidates"]
-            assert len(hits) == len({hit["itemId"] for hit in hits}) == 30
+            assert len(hits) == len({hit["itemId"] for hit in hits}) == 20
             assert worker.store.search.await_count == 4
             if with_area:
-                assert hits[-1]["itemId"] == "local" and hits[-1]["imageScore"] == 0
-                assert all(hit["imageScore"] > 0 and hit["textScore"] > 0 for hit in hits[:-1])
+                assert all(hit["itemId"] != "local" for hit in hits)
+                assert all(hit["imageRelevant"] and hit["textRelevant"] for hit in hits)
         finally:
             await worker.close()
     asyncio.run(run())

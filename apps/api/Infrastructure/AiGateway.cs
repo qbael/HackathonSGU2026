@@ -58,6 +58,15 @@ public sealed class RabbitMqGateway(IConfiguration configuration, ILogger<Rabbit
                 await using var connected = await factory.CreateConnectionAsync(stoppingToken);
                 await using var send = await connected.CreateChannelAsync(new CreateChannelOptions(true, true), stoppingToken);
                 await using var receive = await connected.CreateChannelAsync(new CreateChannelOptions(false, false, consumerDispatchConcurrency: 8), stoppingToken);
+                await using var materials = await connected.CreateChannelAsync(new CreateChannelOptions(false, false), stoppingToken);
+                var materialsQueue = configuration["RabbitMq:MaterialsQueue"] ?? "findie.api.materials";
+                await materials.QueueDeclareAsync(materialsQueue, durable: false, exclusive: true, autoDelete: true,
+                    arguments: new Dictionary<string, object?> { ["x-message-ttl"] = 15000, ["x-max-length"] = 32,
+                        ["x-max-length-bytes"] = 2 * 1024 * 1024 }, cancellationToken: stoppingToken);
+                await materials.BasicQosAsync(0, 1, false, stoppingToken);
+                var materialsConsumer = new AsyncEventingBasicConsumer(materials);
+                materialsConsumer.ReceivedAsync += (_, message) => HandleMaterialsAsync(materials, send, message, stoppingToken);
+                await materials.BasicConsumeAsync(materialsQueue, false, materialsConsumer, stoppingToken);
                 var queue = await receive.QueueDeclareAsync("", durable: false, exclusive: true, autoDelete: true,
                     arguments: new Dictionary<string, object?> { ["x-message-ttl"] = 60000, ["x-max-length"] = 64,
                         ["x-max-length-bytes"] = 32 * 1024 * 1024 }, cancellationToken: stoppingToken);
@@ -117,7 +126,7 @@ public sealed class RabbitMqGateway(IConfiguration configuration, ILogger<Rabbit
                 await receive.BasicConsumeAsync(resultQueue, false, consumer, stoppingToken);
                 connection = connected; publish = send; replyQueue = queue.QueueName;
                 delay = 1;
-                while (connected.IsOpen && send.IsOpen && receive.IsOpen) await Task.Delay(1000, stoppingToken);
+                while (connected.IsOpen && send.IsOpen && receive.IsOpen && materials.IsOpen) await Task.Delay(1000, stoppingToken);
             }
             catch (Exception error) when (!stoppingToken.IsCancellationRequested)
             {
@@ -144,8 +153,8 @@ public sealed class RabbitMqGateway(IConfiguration configuration, ILogger<Rabbit
         var waiter = new TaskCompletionSource<AiReply>(TaskCreationOptions.RunContinuationsAsynchronously);
         pending[correlation] = waiter;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var timeoutSeconds = command.Kind == "search.hybrid.images" ? 940
-            : command.Kind is "image.embed" or "image.redact" or "search.hybrid.image" ? 300 : 30;
+        var timeoutSeconds = command.Kind == "search.hybrid.images" ? 955 : command.Kind == "search.hybrid.image" ? 315
+            : command.Kind == "search.hybrid" ? 45 : command.Kind is "image.embed" or "image.redact" ? 300 : 30;
         deadline.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
         try
         {
@@ -185,6 +194,58 @@ public sealed class RabbitMqGateway(IConfiguration configuration, ILogger<Rabbit
             pending.TryRemove(correlation, out _);
             capacity.Release();
             if (waiter.Task.IsCompletedSuccessfully && deadline.IsCancellationRequested) await waiter.Task.Result.DisposeAsync();
+        }
+    }
+
+    async Task HandleMaterialsAsync(IChannel consumer, IChannel sender, BasicDeliverEventArgs message, CancellationToken stoppingToken)
+    {
+        var replyTo = configuration["RabbitMq:MaterialsReplyQueue"] ?? "findie.ai.materials.results";
+        var validReply = false;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        try
+        {
+            if (message.BasicProperties.Type != "search.materials" || message.BasicProperties.ContentType != "application/json"
+                || message.BasicProperties.Persistent || message.BasicProperties.ReplyTo != replyTo
+                || !Guid.TryParseExact(message.BasicProperties.CorrelationId, "D", out _)
+                || message.Body.Length is 0 or > SearchMaterialsService.ManifestLimit
+                || message.BasicProperties.Headers?.TryGetValue("metadata", out var value) != true
+                || value is not byte[] header || header.Length > 16384) throw new JsonException();
+            using var metadata = JsonDocument.Parse(header);
+            if (metadata.RootElement.GetProperty("schemaVersion").GetInt32() != 1) throw new JsonException();
+            var remaining = metadata.RootElement.GetProperty("deadlineAt").GetDateTimeOffset() - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero || remaining > TimeSpan.FromSeconds(20)) throw new JsonException();
+            deadline.CancelAfter(remaining);
+            validReply = true;
+            using var scope = scopes.CreateScope();
+            var count = await scope.ServiceProvider.GetRequiredService<SearchMaterialsService>().ProvideAsync(message.Body,
+                (itemId, bytes, ct) => Send(new { schemaVersion = 1, succeeded = true, complete = false, itemId }, bytes,
+                    "application/octet-stream", ct), deadline.Token);
+            await Send(new { schemaVersion = 1, succeeded = true, complete = true },
+                JsonSerializer.SerializeToUtf8Bytes(new { count }), "application/json", deadline.Token);
+        }
+        catch (Exception) when (!stoppingToken.IsCancellationRequested)
+        {
+            if (validReply && !deadline.IsCancellationRequested)
+                try { await Send(new { schemaVersion = 1, succeeded = false, complete = true }, "{}"u8.ToArray(), "application/json", deadline.Token); }
+                catch (Exception) when (!stoppingToken.IsCancellationRequested) { }
+        }
+        finally
+        {
+            // Material requests and replies are transient; failed private payloads never enter a DLQ.
+            if (consumer.IsOpen)
+                try { await consumer.BasicAckAsync(message.DeliveryTag, false, stoppingToken); }
+                catch (Exception error) when (error is OperationCanceledException or RabbitMQ.Client.Exceptions.RabbitMQClientException) { }
+        }
+
+        async Task Send(object metadata, byte[] bytes, string contentType, CancellationToken ct)
+        {
+            if (bytes.Length > BoundedImage.MaxBytes + SearchMaterialsService.ManifestLimit + 4) throw new JsonException();
+            var properties = new BasicProperties { Type = "search.materials", CorrelationId = message.BasicProperties.CorrelationId,
+                ContentType = contentType, Persistent = false, Expiration = "15000",
+                Headers = new Dictionary<string, object?> { ["metadata"] = JsonSerializer.SerializeToUtf8Bytes(metadata) } };
+            await publisher.WaitAsync(ct);
+            try { await sender.BasicPublishAsync("", replyTo, true, properties, bytes, ct); }
+            finally { publisher.Release(); }
         }
     }
 }

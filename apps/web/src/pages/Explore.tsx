@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
   ApiError,
   custodyLabels,
   formatDate,
   foundTime,
-  imageUrl,
   pageNumber,
   type Item,
   type Page,
@@ -32,6 +31,12 @@ import {
   Pagination,
   SafetyNote,
 } from "../components/ui";
+
+function searchOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+  event.preventDefault();
+  event.currentTarget.form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+}
 
 function LostTimeInput({ defaultValue, disabled }: { defaultValue?: string; disabled?: boolean }) {
   return (
@@ -112,6 +117,7 @@ export function Home({ signedIn, onImageSearch }: {
               maxLength={2000}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={searchOnEnter}
               placeholder="Ví dụ: Ví da màu đen, khóa kéo vàng, có một móc khóa nhỏ…"
               rows={3}
             />
@@ -226,6 +232,16 @@ export function Home({ signedIn, onImageSearch }: {
 export type SearchInput = { text: string; files: readonly File[]; filters: SearchFilters };
 
 export function Search({ initialRequest }: { initialRequest?: SearchInput | null }) {
+  const searchButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+      event.preventDefault();
+      searchButton.current?.click();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const query = new URLSearchParams(window.location.search);
   const page = pageNumber(query.get("page"));
   const [mode, setMode] = useState(
@@ -234,10 +250,12 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
   const [files, setFiles] = useState<readonly File[]>(initialRequest?.files ?? []);
   const [from, setFrom] = useState(initialRequest?.filters.from ?? query.get("from") ?? "");
   const [until, setUntil] = useState(initialRequest?.filters.until ?? query.get("until") ?? "");
-  const [request, setRequest] = useState<SearchInput | null>(() => initialRequest ?? (
-    query.get("mode") !== "basic" && query.get("q")?.trim()
+  const [request, setRequest] = useState<SearchInput | null>(() => {
+    if (initialRequest && (initialRequest.text.trim() || initialRequest.files.length)) return initialRequest;
+    const text = query.get("q")?.trim();
+    return query.get("mode") !== "basic" && text
       ? {
-          text: query.get("q")!.trim(),
+          text,
           files: [],
           filters: {
             area: query.get("area")?.trim() || undefined,
@@ -246,44 +264,30 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
             lostAt: query.get("lostAt") || undefined,
           },
         }
-      : null),
-  );
+      : null;
+  });
   const [formError, setFormError] = useState<Error | null>(null);
   const [suggestions, setSuggestions] = useState<SearchResponse | null>(null);
   const [searchError, setSearchError] = useState<Error | null>(null);
   const [searching, setSearching] = useState(Boolean(request));
-  const [searchStep, setSearchStep] = useState("Đang tải ảnh lên và mã hóa dữ liệu…");
   const [attempt, setAttempt] = useState(0);
-  const searchControllerRef = useRef<AbortController | null>(null);
-
-  const cancelSearch = () => {
-    searchControllerRef.current?.abort();
-    setSearching(false);
-    setRequest(null);
-  };
-
   const filter = new URLSearchParams({ page: String(page), pageSize: "12" });
   for (const key of ["q", "area", "from", "until"])
     if (query.get(key)?.trim()) filter.set(key, query.get(key)!.trim());
-  const hasBasicFilters = ["q", "area", "from", "until"].some((key) => filter.has(key));
+  const hasBasicFilters = query.get("mode") === "basic"
+    && ["q", "area", "from", "until"].some((key) => filter.has(key));
   const basic = useResource<Page<Item>>(request || !hasBasicFilters ? null : `/api/items?${filter}`);
+  useEffect(() => {
+    if ((suggestions || basic.data) && window.matchMedia("(max-width: 850px)").matches)
+      document.getElementById("search-results-title")?.focus();
+  }, [suggestions, basic.data]);
   useEffect(() => {
     if (!request) return;
     const controller = new AbortController();
-    searchControllerRef.current = controller;
     let active = true;
     setSearching(true);
     setSearchError(null);
     setSuggestions(null);
-    setSearchStep("Đang tải ảnh lên và mã hóa dữ liệu…");
-
-    const t1 = setTimeout(() => {
-      if (active) setSearchStep("AI đang phân tích đặc trưng hình ảnh…");
-    }, 1500);
-    const t2 = setTimeout(() => {
-      if (active) setSearchStep("Đang so khớp với cơ sở dữ liệu tìm kiếm…");
-    }, 3500);
-
     const signal = AbortSignal.any([
       controller.signal,
       AbortSignal.timeout(request.files.length ? 960000 : 45000),
@@ -297,30 +301,32 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
         if (active) setSuggestions(value);
       })
       .catch((cause) => {
-        if (active) {
-          if (controller.signal.aborted) return;
+        if (active)
           setSearchError(
             cause instanceof Error && !signal.aborted
               ? cause
               : new Error("Máy chủ phản hồi quá lâu. Vui lòng thử lại."),
           );
-        }
       })
       .finally(() => {
         if (active) setSearching(false);
       });
     return () => {
       active = false;
-      clearTimeout(t1);
-      clearTimeout(t2);
       controller.abort();
     };
   }, [request, attempt]);
   function submit(event: FormEvent<HTMLFormElement>) {
-    if (mode === "basic") return;
-    event.preventDefault();
     const form = new FormData(event.currentTarget);
     const text = String(form.get("q") ?? "").trim();
+    if (mode === "basic") {
+      if (!["q", "area", "from", "until"].some((key) => String(form.get(key) ?? "").trim())) {
+        event.preventDefault();
+        setFormError(new Error("Hãy nhập từ khóa, khu vực hoặc khoảng ngày để lọc."));
+      }
+      return;
+    }
+    event.preventDefault();
     if (!text && !files.length) {
       setFormError(new Error("Hãy nhập mô tả hoặc chọn từ 1 đến 3 ảnh để tìm kiếm."));
       return;
@@ -350,20 +356,23 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
       until: query.get("until") ?? undefined,
     },
   );
+  const activeFilters = request?.filters ?? (hasBasicFilters ? {
+    area: query.get("area"), from: query.get("from"), until: query.get("until"),
+  } : null);
   return (
-    <>
+    <div className="search-page">
       <PageHeader
-        eyebrow="Có thể món đồ của bạn đang ở đây"
-        title="Tìm đồ thất lạc"
+        eyebrow="Từng chi tiết, thêm cơ hội tìm lại"
+        title="Cùng tìm lại món đồ của bạn."
       >
-        Tìm bằng mô tả, tối đa 3 ảnh hoặc kết hợp cả hai. Tìm trong khu vực trước;
-        nếu chưa đủ phù hợp sẽ tìm thêm ở nơi khác. Ngày nhặt được vẫn dùng để lọc.
+        Thêm ảnh hoặc vài đặc điểm bạn còn nhớ. Findie sẽ giúp bạn tìm những món đồ phù hợp.
       </PageHeader>
       <div className="search-layout">
         <aside className="panel filter-panel">
           <div className="panel-title">
-            <h2>Bộ lọc tìm kiếm</h2>
+            <h2>Món đồ bạn cần tìm</h2>
             <a className="text-button" href="/search">
+              <Icon name="refresh" size={14} />
               Đặt lại
             </a>
           </div>
@@ -383,16 +392,17 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
             {mode !== "basic" && <SearchImages files={files} onChange={setFiles} />}
             <label>
               {mode === "basic" ? "Từ khóa" : "Mô tả món đồ"}
-              <input
+              <textarea
+                id="search-query"
                 name="q"
                 defaultValue={initialRequest?.text ?? query.get("q") ?? ""}
                 maxLength={mode === "basic" ? 200 : 2000}
-                placeholder={mode === "basic" ? "Ví, chìa khóa, balô…" : "Ví da đen tại phòng E.205…"}
+                rows={3}
+                placeholder={mode === "basic" ? "Ví, chìa khóa, balô…" : "Ví dụ: Ví da đen, khóa kéo vàng, bị mất ở phòng E.205…"}
               />
               {mode === "text" && (
                 <span className="field-hint">
-                  Có thể thêm vị trí cụ thể, như phòng E.205 hoặc sảnh hội trường
-                  A. Nhập Trường Đại học Sài Gòn ở mục khu vực ưu tiên.
+                  Màu sắc, nhãn hiệu, hình dáng hoặc một chi tiết dễ nhận ra.
                 </span>
               )}
             </label>
@@ -404,75 +414,84 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
                 maxLength={200}
                 placeholder="Ví dụ: Trường Đại học Sài Gòn"
               />
-              {mode !== "basic" && <span className="field-hint">Nếu chưa có tin đủ phù hợp trong khu vực, sẽ tìm thêm ở nơi khác; tin cùng khu vực vẫn xếp trước.</span>}
+              {mode !== "basic" && <span className="field-hint">Ưu tiên tìm gần bạn, mở rộng khi chưa có món phù hợp.</span>}
             </label>
-            <label>
-              Nhặt từ ngày
-              <input
-                type="date"
-                name="from"
-                value={from}
-                max={until || undefined}
-                onChange={(event) => setFrom(event.target.value)}
-              />
-            </label>
-            <label>
-              Đến ngày
-              <input
-                type="date"
-                name="until"
-                value={until}
-                min={from || undefined}
-                onChange={(event) => setUntil(event.target.value)}
-              />
-            </label>
-            {mode !== "basic" && (
-              <LostTimeInput defaultValue={initialRequest?.filters.lostAt ?? query.get("lostAt") ?? undefined} />
-            )}
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-              <button className="button" type="submit" disabled={searching}>
-                <Icon name="search" size={17} />
-                {searching ? "Đang tìm kiếm…" : "Tìm kiếm"}
-              </button>
-              {searching && (
-                <button
-                  type="button"
-                  className="button button-secondary button-danger"
-                  onClick={cancelSearch}
-                >
-                  Hủy
-                </button>
+            <details className="search-options" open={Boolean(from || until || initialRequest?.filters.lostAt || query.get("lostAt")) || undefined}>
+              <summary><Icon name="clock" size={16} /> Thu hẹp theo thời gian</summary>
+              <div className="search-date-fields">
+                <label>
+                  Nhặt từ ngày
+                  <input
+                    type="date"
+                    name="from"
+                    value={from}
+                    max={until || undefined}
+                    onChange={(event) => setFrom(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Đến ngày
+                  <input
+                    type="date"
+                    name="until"
+                    value={until}
+                    min={from || undefined}
+                    onChange={(event) => setUntil(event.target.value)}
+                  />
+                </label>
+              </div>
+              {mode !== "basic" && (
+                <LostTimeInput defaultValue={initialRequest?.filters.lostAt ?? query.get("lostAt") ?? undefined} />
               )}
-            </div>
+            </details>
+            <button ref={searchButton} className="button" type="submit" disabled={searching}>
+              <Icon name="search" size={17} />
+              {searching ? "Đang tìm kiếm…" : "Tìm kiếm"}
+            </button>
           </form>
-          <div className="filter-legend">
-            <p className="eyebrow">Ba cách nhận lại đồ</p>
-            {Object.entries(custodyLabels).map(([key, label]) => (
-              <Badge key={key} value={key}>
-                {label}
-              </Badge>
-            ))}
-          </div>
+          <p className="search-privacy"><Icon name="shield" size={16} /> Ảnh tìm kiếm chỉ dùng để đối chiếu, không đăng công khai.</p>
         </aside>
-        <section aria-label="Kết quả tìm kiếm" aria-busy={loading}>
+        <section className="search-results" aria-label="Kết quả tìm kiếm" aria-busy={loading}>
           <div className="results-heading">
-            <h2>
-              {request?.files.length
-                ? request.text ? "Gợi ý theo ảnh và mô tả" : "Gợi ý theo ảnh món đồ"
-                : request?.text || query.get("q")
-                  ? `Kết quả cho “${request?.text || query.get("q")}”`
-                  : "Kết quả tìm kiếm"}
-            </h2>
+            <div>
+              <p className="eyebrow">{request || hasBasicFilters ? "Những món đồ có thể bạn đang tìm" : "Hành trình tìm lại bắt đầu ở đây"}</p>
+              <h2 id="search-results-title" tabIndex={-1}>
+                {request?.files.length
+                  ? request.text ? "Gợi ý theo ảnh và mô tả" : "Gợi ý theo ảnh món đồ"
+                  : request?.text || (hasBasicFilters && query.get("q"))
+                    ? `Kết quả cho “${request?.text || query.get("q")}”`
+                    : "Kết quả tìm kiếm"}
+              </h2>
+            </div>
             {items && (
-              <span className="muted">
-                {items.length} {request ? "gợi ý" : "món trên trang này"}
+              <span className="results-count" role="status">
+                <strong>{items.length}</strong> {request ? "gợi ý" : "món trên trang này"}
               </span>
             )}
           </div>
+          {(request || hasBasicFilters) && <a className="text-button search-edit-link" href="#search-query"><Icon name="search" size={15} /> Sửa tìm kiếm</a>}
+          {activeFilters && (activeFilters.area || activeFilters.from || activeFilters.until) && (
+            <div className="search-filter-chips" aria-label="Điều kiện đã tìm">
+              {activeFilters.area && <span><Icon name="pin" size={14} />{activeFilters.area}</span>}
+              {activeFilters.from && <span>Từ {formatDate(activeFilters.from)}</span>}
+              {activeFilters.until && <span>Đến {formatDate(activeFilters.until)}</span>}
+            </div>
+          )}
           {!request && !hasBasicFilters && (
-            <EmptyState title="Nhập thông tin món đồ cần tìm" icon="search">
-              <p>Thêm mô tả, ảnh, khu vực hoặc khoảng ngày để bắt đầu tìm kiếm.</p>
-            </EmptyState>
+            <div className="search-welcome">
+              <EmptyState title="Bạn còn nhớ điều gì về món đồ?" icon="search">
+                <p>Một bức ảnh hoặc vài dòng mô tả là đủ để bắt đầu. Kết quả phù hợp sẽ xuất hiện tại đây sau khi bạn tìm kiếm.</p>
+                <button className="button button-secondary" type="button" onClick={() => document.getElementById("search-query")?.focus()}>
+                  Thêm mô tả <Icon name="arrow" size={16} />
+                </button>
+              </EmptyState>
+              <div className="search-tips">
+                <h3>Một chút chi tiết, dễ tìm hơn</h3>
+                <p><Icon name="eye" size={18} /><span><strong>Nhớ đặc điểm riêng</strong>Màu sắc, nhãn hiệu và phụ kiện giúp thu hẹp gợi ý.</span></p>
+                <p><Icon name="upload" size={18} /><span><strong>Thêm ảnh nếu có</strong>Dùng tối đa 3 góc chụp để đối chiếu rõ hơn.</span></p>
+                <p><Icon name="pin" size={18} /><span><strong>Bắt đầu từ nơi bạn làm mất</strong>Thêm khu vực hoặc thời gian để kết quả sát hơn.</span></p>
+              </div>
+            </div>
           )}
           <ErrorNotice error={error} retry={retry} />
           {request && error && (
@@ -484,40 +503,13 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
               </strong>
               <p>Hãy thử lại hoặc điều chỉnh mô tả, ảnh và bộ lọc tìm kiếm.</p>
               {fallback && (
-                <a
-                  className="text-button"
-                  href={fallback}
-                  onClick={() => {
-                    setRequest(null);
-                    setSuggestions(null);
-                  }}
-                >
+                <a className="text-button" href={fallback}>
                   Dùng bộ lọc cơ bản <Icon name="arrow" size={15} />
                 </a>
               )}
             </Notice>
           )}
-          {loading && (
-            <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
-              <Loading />
-              {searching && request?.files.length ? (
-                <div style={{ marginTop: "1rem" }}>
-                  <p style={{ fontWeight: 600, color: "#0f172a" }}>{searchStep}</p>
-                  <p style={{ fontSize: "0.875rem", color: "#64748b" }}>
-                    Quá trình phân tích hình ảnh AI có thể mất vài giây...
-                  </p>
-                  <button
-                    type="button"
-                    className="button button-secondary button-danger button-small"
-                    style={{ marginTop: "0.75rem" }}
-                    onClick={cancelSearch}
-                  >
-                    Hủy tìm kiếm
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          )}
+          {loading && <div className="search-loading"><Loading /><p>Đang đối chiếu những đặc điểm bạn cung cấp…</p></div>}
           {suggestions && (
             <Notice>
               <p>
@@ -527,18 +519,14 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
               {suggestions.partial && (
                 <p>Một số gợi ý không còn hợp lệ nên danh sách có thể chưa đầy đủ.</p>
               )}
+              {suggestions.rankingMethod === "similarity_fallback" && (
+                <p>Kết quả đã được lọc theo độ tương đồng; bước chấm lại nâng cao chưa sẵn sàng.</p>
+              )}
               {suggestions.filtersRelaxed && (
                 <p>Chưa có tin đủ phù hợp trong khu vực nên đã tìm thêm ở nơi khác. Tin cùng khu vực vẫn xếp trước; bộ lọc ngày được giữ nguyên.</p>
               )}
               {suggestions.items.length > 0 && fallback && (
-                <a
-                  className="text-button"
-                  href={fallback}
-                  onClick={() => {
-                    setRequest(null);
-                    setSuggestions(null);
-                  }}
-                >
+                <a className="text-button" href={fallback}>
                   Lọc cơ bản theo khu vực và ngày
                 </a>
               )}
@@ -556,15 +544,13 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
                     >
                       <div className="item-card-image">
                         <ItemPhoto item={item} />
+                        {suggestions && <span className="search-rank">Gợi ý {suggestions.items[index].rank}</span>}
                         <Badge value={item.custody.kind}>
                           {custodyLabels[item.custody.kind]}
                         </Badge>
                       </div>
                       <div className="item-card-body">
-                        <span className="eyebrow">
-                          {suggestions && `Gợi ý ${suggestions.items[index].rank} · `}
-                          {formatDate(item.createdAt)}
-                        </span>
+                        <span className="item-found-date"><Icon name="clock" size={14} /> Đăng ngày {formatDate(item.createdAt)}</span>
                         <h3>{item.title}</h3>
                         <p className="clamp-two">{item.publicDescription}</p>
                         <span className="item-location">
@@ -593,43 +579,22 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
           )}
         </section>
       </div>
-    </>
+    </div>
   );
 }
 
 export function ItemDetail({ id }: { id: string }) {
   const resource = useResource<Item>(`/api/items/${id}`);
   const [photo, setPhoto] = useState(0);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
   const item = resource.data;
   const point = useResource<Point>(
     item?.custody.kind === "point" && item.custody.pointId
       ? `/api/reception-points/${item.custody.pointId}`
       : null,
   );
-
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightboxOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [lightboxOpen]);
   if (resource.loading) return <Loading />;
-  if (!item) {
-    if (resource.error instanceof ApiError && resource.error.status === 404) {
-      return (
-        <EmptyState title="Món đồ không tồn tại hoặc đã được gỡ" icon="document">
-          <p>Nội dung này có thể đã được chủ sở hữu gỡ bỏ hoặc liên kết không chính xác.</p>
-          <a className="button" href="/">
-            Quay về trang chủ
-          </a>
-        </EmptyState>
-      );
-    }
+  if (!item)
     return <ErrorNotice error={resource.error} retry={resource.reload} />;
-  }
   const custody = item.custody;
   const address = custody.publicAddress ?? point.data?.publicAddress;
   return (
@@ -660,20 +625,7 @@ export function ItemDetail({ id }: { id: string }) {
               <Icon name="shield" size={15} />
               Chỉ hiển thị ảnh đã được duyệt
             </div>
-            <div
-              style={{
-                cursor: item.images[photo]?.url ? "zoom-in" : "default",
-                position: "relative",
-              }}
-              onClick={() => {
-                if (item.images[photo]?.url) setLightboxOpen(true);
-              }}
-              title={
-                item.images[photo]?.url ? "Bấm để xem ảnh phóng to" : undefined
-              }
-            >
-              <ItemPhoto item={item} large index={photo} />
-            </div>
+            <ItemPhoto item={item} large index={photo} />
             {item.images.length > 1 && (
               <div className="photo-thumbnails">
                 {item.images.map((image, index) => (
@@ -811,35 +763,6 @@ export function ItemDetail({ id }: { id: string }) {
           </a>
         </aside>
       </div>
-
-      {lightboxOpen && item.images[photo]?.url && (
-        <div className="lightbox-backdrop" onClick={() => setLightboxOpen(false)}>
-          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="lightbox-close-btn"
-              onClick={() => setLightboxOpen(false)}
-              aria-label="Đóng ảnh"
-            >
-              ✕
-            </button>
-            <img
-              src={imageUrl(item.images[photo]?.url)}
-              alt={item.title}
-            />
-            <div
-              style={{
-                color: "#e2e8f0",
-                marginTop: "0.75rem",
-                fontSize: "0.875rem",
-                textAlign: "center",
-              }}
-            >
-              {item.title} — Ảnh {photo + 1}/{item.images.length} (Bấm Esc hoặc ngoài ảnh để đóng)
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

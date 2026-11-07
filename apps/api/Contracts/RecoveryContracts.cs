@@ -97,4 +97,4 @@ public sealed class ImageSearchFilter
 }
 public sealed record SearchHit(int Rank, ItemResponse Item);
 public sealed record SearchResponse(IReadOnlyList<SearchHit> Items, string Mode, string SearchProfileId,
-    int SearchProfileVersion, bool Partial, bool FiltersRelaxed, string FallbackUrl);
+    int SearchProfileVersion, bool Partial, bool FiltersRelaxed, string FallbackUrl, string RankingMethod = "similarity_fallback");

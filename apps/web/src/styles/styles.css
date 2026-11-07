@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./admin.css";
 @import "./hub.css";
+@import "./search.css";
 
 @font-face {
   font-family: "Be Vietnam Pro";

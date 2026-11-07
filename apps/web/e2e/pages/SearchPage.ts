@@ -24,7 +24,7 @@ export class SearchPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.queryInput = page.locator('aside.filter-panel input[name="q"]');
+    this.queryInput = page.locator('aside.filter-panel [name="q"]');
     this.areaInput = page.locator('aside.filter-panel input[name="area"]');
     this.modeSelect = page.locator('aside.filter-panel select[name="mode"]');
     this.searchButton = page.locator('aside.filter-panel button[type="submit"]');

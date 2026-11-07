@@ -19,6 +19,9 @@ from .ollama import EmbeddingInputRejected, ModelUnavailable, OCR_PROFILE, Ollam
 from .store import Store
 from .search_cache import SearchCache
 from .ranking import MAX_SEARCH_CANDIDATES, fuse_rankings
+from .materials import MaterialsClient, sources as candidate_sources, thumbnail
+from .quality import select_candidates
+from .reranker import rerank
 
 
 log = logging.getLogger(__name__)
@@ -38,14 +41,17 @@ class Worker:
         self.pending = {}
         self.pending_bytes = 0
         self.last_embedding_success = None
+        self.materials = MaterialsClient(settings)
 
     @property
     def connected(self):
         return bool(self.connection and not self.connection.is_closed and self.publisher
-                    and not self.publisher.is_closed and self.consumer and not self.consumer.is_closed)
+                    and not self.publisher.is_closed and self.consumer and not self.consumer.is_closed
+                    and self.materials.channel and not self.materials.channel.is_closed and self.materials.queue)
 
     async def close(self):
         self.clear_pending()
+        await self.materials.close()
         if self.connection:
             await self.connection.close()
         await self.ollama.close()
@@ -98,15 +104,16 @@ class Worker:
                     await self.consumer.declare_queue(self.settings.result_queue, passive=True)
                     query = await self.consumer.declare_queue(
                         self.settings.query_queue, exclusive=True, auto_delete=True,
-                        arguments={"x-message-ttl": 30000, "x-max-length": 32, "x-max-length-bytes": 2 * 1024 * 1024},
+                        arguments={"x-message-ttl": 45000, "x-max-length": 32, "x-max-length-bytes": 2 * 1024 * 1024},
                     )
                     image = await self.consumer.declare_queue(
                         self.settings.image_queue, exclusive=True, auto_delete=True,
-                        arguments={"x-message-ttl": 940000, "x-max-length": 4, "x-max-length-bytes": 32 * 1024 * 1024},
+                        arguments={"x-message-ttl": 955000, "x-max-length": 4, "x-max-length-bytes": 32 * 1024 * 1024},
                     )
                     await index.consume(lambda message: self.handle(message, "index"))
                     await query.consume(lambda message: self.handle(message, "query"))
                     await image.consume(lambda message: self.handle(message, "image"))
+                    await self.materials.start(self.connection)
                     delay = 1
                     while self.connected:
                         await asyncio.sleep(1)
@@ -117,6 +124,7 @@ class Worker:
                 log.warning("AI broker unavailable; reconnecting.")
             finally:
                 self.clear_pending()
+                await self.materials.close()
                 if self.connection and not self.connection.is_closed:
                     await self.connection.close()
                 self.connection = self.publisher = self.consumer = None
@@ -163,7 +171,7 @@ class Worker:
         if (isinstance(metadata, BatchSearchMetadata) or isinstance(metadata, SearchMetadata) and metadata.mode == "image") and not self.settings.image_search_enabled:
             raise ModelUnavailable("image_search_disabled")
 
-    async def search_rankings(self, requests, *, text_index=None):
+    async def search_rankings(self, requests, *, text_index=None, query_images=None):
         rankings, prepared, vectors, preferred_ids = [], [], {}, set()
         for index, (metadata, body, content_type) in enumerate(requests):
             async with asyncio.timeout(metadata.remaining()):
@@ -182,6 +190,8 @@ class Worker:
                     kwargs.update(include_images=self.settings.image_search_enabled, embed=embed)
                 else:
                     normalized = await images.normalize(body, content_type)
+                    if query_images is not None:
+                        query_images.append(await asyncio.to_thread(thumbnail, normalized, "image/png"))
                     vector = await self.embed_image(normalized, metadata.cacheScope)
                     args = ("", vector, metadata.area, metadata.from_, metadata.until, metadata.candidateLimit)
                     kwargs["modality"] = "image"
@@ -197,18 +207,56 @@ class Worker:
             threshold = self.settings.min_text_similarity if index == text_index else self.settings.min_image_similarity
             matches = {hit["itemId"] for hit in ranking if hit.get("similarity", -1.0) >= threshold}
             (text_matches if index == text_index else image_matches).update(matches)
-        if text_index is None:
-            confident = image_matches
-        elif len(rankings) == 1:
-            confident = text_matches
-        else:
-            confident = image_matches & text_matches
+        confident = image_matches | text_matches
         if metadata.area and not confident:
             for ranking, (args, kwargs) in zip(rankings, prepared):
                 outside = await self.store.search(*args, **kwargs, outside_area=True)
-                ranking.extend(outside[:max(0, args[5] - len(ranking))])
-        return [[{key: value for key, value in hit.items() if key != "similarity"}
-                 for hit in ranking] for ranking in rankings], preferred_ids
+                # Weak local hits must not consume the entire pool before expansion.
+                ranking[:] = outside[:args[5]]
+            preferred_ids.clear()
+        return rankings, preferred_ids
+
+    async def evaluate_search(self, candidates, rankings, metadata, *, text=None, query_images=(),
+                              text_index=None, preferred_ids=()):
+        """Score the complete bounded pool before the API applies its display limit."""
+        scores = {}
+        for index, ranking in enumerate(rankings):
+            kind = "text" if index == text_index else "image"
+            for hit in ranking:
+                values = scores.setdefault(hit["itemId"], {"image": None, "text": None})
+                similarity = hit.get("similarity", -1.0)
+                if values[kind] is None or similarity > values[kind]:
+                    values[kind] = similarity
+        candidates = [{key: value for key, value in hit.items() if key != "similarity"} for hit in candidates]
+        method = "similarity_fallback"
+        minimum_image, minimum_text = self.settings.min_image_similarity, self.settings.min_text_similarity
+        if candidates and self.settings.reranker_revision:
+            deadline = min(metadata.deadlineAt - timedelta(seconds=0.25), datetime.now(timezone.utc) + timedelta(seconds=15))
+            try:
+                async with asyncio.timeout(max(0, (deadline - datetime.now(timezone.utc)).total_seconds())):
+                    materials = await self.materials.fetch(candidates, deadline)
+                    candidates = [hit for hit in candidates if materials[hit["itemId"]].status != "stale"]
+                    if any(value.status == "unavailable" for value in materials.values()):
+                        raise ModelUnavailable("materials_unavailable")
+                    ready = {key: value for key, value in materials.items() if value.status == "ready"}
+                    model_scores = await rerank(self.ollama, self.settings, ready, text, query_images, deadline) if ready else {}
+                    evaluated = []
+                    for candidate in candidates:
+                        refs = list(candidate_sources(candidate))
+                        source = ready[candidate["itemId"]].source
+                        if source not in refs:
+                            refs.append(source)
+                        evaluated.append(candidate | {"sources": refs})
+                    candidates, scores = evaluated, model_scores
+                    minimum_image, minimum_text = self.settings.rerank_min_image_score, self.settings.rerank_min_text_score
+                    method = "reranker"
+            except Exception as error:
+                stale_ids = getattr(error, "stale_ids", ()) or getattr(error.__cause__, "stale_ids", ())
+                candidates = [hit for hit in candidates if hit["itemId"] not in stale_ids]
+                # Never mix an incomplete model batch with cosine scores.
+                log.warning("Search reranking unavailable (%s); using similarity filtering.", type(error).__name__)
+        return {"candidates": select_candidates(candidates, scores, min_image=minimum_image, min_text=minimum_text,
+                    relative_ratio=self.settings.relative_score_ratio, preferred_ids=preferred_ids), "rankingMethod": method}
 
     async def execute(self, kind, metadata, body, content_type="application/json"):
         self.identity(metadata)
@@ -237,13 +285,17 @@ class Worker:
                     query = Query(text=metadata.text, area=metadata.area, **{"from": metadata.from_}, until=metadata.until)
                     yield branch("text", query.model_dump_json(by_alias=True).encode(), "application/json")
 
-            rankings, preferred_ids = await self.search_rankings(requests(), text_index=len(metadata.images) if metadata.text else None)
+            query_images = []
+            text_index = len(metadata.images) if metadata.text else None
+            rankings, preferred_ids = await self.search_rankings(requests(), text_index=text_index, query_images=query_images)
             weights = [1.0] * len(rankings)
             if metadata.text:
                 weights[-1] = 0.5
             metadata.remaining()
-            return {"candidates": fuse_rankings(rankings, metadata.candidateLimit, weights=weights,
-                text_index=len(metadata.images) if metadata.text else None, preferred_ids=preferred_ids)}
+            candidates = fuse_rankings(rankings, metadata.candidateLimit, weights=weights,
+                text_index=text_index, preferred_ids=preferred_ids)
+            return await self.evaluate_search(candidates, rankings, metadata, text=metadata.text,
+                query_images=query_images, text_index=text_index, preferred_ids=preferred_ids)
         if kind == "image.embed":
             if sha256(body).hexdigest() != metadata.sourceSha256:
                 raise ValueError("source_hash_mismatch")
@@ -272,10 +324,14 @@ class Worker:
         if kind in {"search.hybrid", "search.hybrid.image"}:
             if metadata.mode != ("text" if kind == "search.hybrid" else "image"):
                 raise ValueError("search_modality_mismatch")
-            rankings, _ = await self.search_rankings([(metadata, body, content_type)],
-                text_index=0 if metadata.mode == "text" else None)
+            query_images = []
+            text_index = 0 if metadata.mode == "text" else None
+            rankings, preferred_ids = await self.search_rankings([(metadata, body, content_type)],
+                text_index=text_index, query_images=query_images)
             metadata.remaining()
-            return {"candidates": rankings[0]}
+            return await self.evaluate_search(rankings[0], rankings, metadata,
+                text=Query.model_validate_json(body).text if metadata.mode == "text" else None,
+                query_images=query_images, text_index=text_index, preferred_ids=preferred_ids)
         snapshot = self.snapshot(kind, metadata, body)
         if kind == "index.upsert":
             if any(source.kind == "image" for source in snapshot.sources):

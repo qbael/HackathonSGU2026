@@ -58,6 +58,19 @@ def deadline():
     return datetime.now(timezone.utc) + timedelta(seconds=30)
 
 
+def test_keyword_candidate_outside_semantic_twenty_receives_measured_similarity(store):
+    async def run():
+        store.semantic_weight = 0.3
+        for _ in range(20):
+            await put(store, snapshot("Đồ mẫu không có nhãn hiệu", title="Đồ mẫu"))
+        target = snapshot("Tai nghe mẫu ZXMODEL", title="ZXMODEL")
+        await put(store, target, vector=(0.7, 0.714142842854285, 0.0))
+        hits = await store.search("ZXMODEL", [1, 0, 0], include_similarity=True)
+        hit = next(value for value in hits if value["itemId"] == target["itemId"])
+        assert hit["similarity"] == pytest.approx(0.7, abs=1e-6)
+    asyncio.run(run())
+
+
 @pytest.fixture
 def redis_url():
     url = os.environ.get("AI_TEST_REDIS_URL")

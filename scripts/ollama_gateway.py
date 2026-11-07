@@ -3,6 +3,7 @@
 import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 import re
 import threading
 import time
@@ -64,7 +65,7 @@ def check_gateway(base_url, token, revisions):
             raise RuntimeError(f"{endpoint}: model/digest trả về không khớp cấu hình phiên.") from None
 
 
-def gateway(token, models, *, address=("127.0.0.1", 11435), upstream="http://127.0.0.1:11434", embedding=None):
+def gateway(token, models, *, address=("127.0.0.1", 11435), upstream="http://127.0.0.1:11434", embedding=None, reranker=None):
     if not isinstance(token, str) or len(token) < 32 or not token.isascii() or any(c.isspace() for c in token):
         raise ValueError("Use an ASCII token of at least 32 characters without whitespace.")
     if not models or any(not isinstance(m, str) or not m for m in models):
@@ -74,6 +75,8 @@ def gateway(token, models, *, address=("127.0.0.1", 11435), upstream="http://127
     allowed_models = frozenset(models)
     if embedding is not None and embedding.model_id not in allowed_models:
         raise ValueError("The embedding model must be explicitly allowed.")
+    if reranker is not None and reranker.model_id not in allowed_models:
+        raise ValueError("The reranker model must be explicitly allowed.")
     capacity = threading.BoundedSemaphore(1)
     opener = build_opener(ProxyHandler({}))
 
@@ -104,7 +107,7 @@ def gateway(token, models, *, address=("127.0.0.1", 11435), upstream="http://127
             if not hmac.compare_digest(supplied, ("Bearer " + token).encode("ascii")):
                 return self.respond(401, {"error": "unauthorized"})
             if (self.command, self.path) not in {("GET", "/api/tags"), ("POST", "/api/show"),
-                                               ("POST", "/api/embed"), ("POST", "/api/generate")}:
+                                               ("POST", "/api/embed"), ("POST", "/api/generate"), ("POST", "/api/rerank")}:
                 return self.respond(404, {"error": "unsupported_route"})
             if self.headers.get("Transfer-Encoding"):
                 return self.respond(400, {"error": "content_length_required"})
@@ -127,6 +130,14 @@ def gateway(token, models, *, address=("127.0.0.1", 11435), upstream="http://127
                 except (ValueError, TypeError, TimeoutError, OSError):
                     return self.respond(400, {"error": "invalid_request"})
             qwen_request = embedding is not None and self.command == "POST" and payload["model"] == embedding.model_id
+            rerank_request = reranker is not None and self.command == "POST" and payload["model"] == reranker.model_id
+            if self.path == "/api/rerank" and not rerank_request:
+                return self.respond(400, {"error": "operation_not_supported"})
+            if rerank_request:
+                if self.path == "/api/show":
+                    return self.respond(200, {"capabilities": ["rerank", "vision"]})
+                if self.path != "/api/rerank":
+                    return self.respond(400, {"error": "operation_not_supported"})
             if qwen_request:
                 if self.path == "/api/generate":
                     return self.respond(400, {"error": "operation_not_supported"})
@@ -139,12 +150,27 @@ def gateway(token, models, *, address=("127.0.0.1", 11435), upstream="http://127
                                                  or payload["dimensions"] != embedding.dimensions))
                         or payload.get("truncate", False) is not False):
                     return self.respond(400, {"error": "invalid_embedding_options"})
-            inference = self.path in {"/api/embed", "/api/generate"}
+            inference = self.path in {"/api/embed", "/api/generate", "/api/rerank"}
             if inference and not capacity.acquire(blocking=False):
                 return self.respond(429, {"error": "model_busy"})
             status = 200
             try:
-                if qwen_request:
+                if rerank_request:
+                    try:
+                        scores = reranker.rerank(payload)
+                    except ValueError:
+                        status, result = 400, {"error": "invalid_rerank_input"}
+                    else:
+                        requested = {candidate["itemId"] for candidate in payload["candidates"]}
+                        if (not isinstance(scores, list) or len(scores) != len(requested)
+                                or {row.get("itemId") for row in scores if isinstance(row, dict)} != requested
+                                or any(not isinstance(row, dict) or set(row) != {"itemId", "imageScore", "textScore"}
+                                       or any(row[key] is not None and (type(row[key]) not in (float, int)
+                                              or not math.isfinite(row[key]) or not 0 <= row[key] <= 1)
+                                              for key in ("imageScore", "textScore")) for row in scores)):
+                            raise RuntimeError("Invalid reranker response.")
+                        result = {"model": reranker.model_id, "scores": scores}
+                elif qwen_request:
                     try:
                         vector = embedding.embed(payload.get("input"))
                     except ValueError:
@@ -164,15 +190,18 @@ def gateway(token, models, *, address=("127.0.0.1", 11435), upstream="http://127
                         if embedding is not None:
                             result["models"] = [m for m in result["models"] if m.get("name") != embedding.model_id]
                             result["models"].append({"name": embedding.model_id, "digest": "sha256:" + embedding.digest})
+                        if reranker is not None:
+                            result["models"] = [m for m in result["models"] if m.get("name") != reranker.model_id]
+                            result["models"].append({"name": reranker.model_id, "digest": "sha256:" + reranker.digest})
             except HTTPError as error:
                 error.close()
                 status, result = 502, {"error": "ollama_http_error", "upstreamStatus": error.code}
             except TimeoutError:
-                status, result = 502, {"error": "ollama_timeout"}
+                status, result = (504, {"error": "rerank_timeout"}) if rerank_request else (502, {"error": "ollama_timeout"})
             except URLError as error:
                 status, result = 502, {"error": "ollama_timeout" if isinstance(error.reason, TimeoutError) else "ollama_unavailable"}
             except (OSError, ValueError, KeyError, TypeError, RuntimeError, MemoryError):
-                status, result = 502, {"error": "ollama_unavailable"}
+                status, result = 502, {"error": "rerank_unavailable" if rerank_request else "ollama_unavailable"}
             finally:
                 if inference:
                     capacity.release()

@@ -35,6 +35,8 @@ REVISION = "a" * 64
 DIMENSIONS = 8
 REDACTION_MODEL = "qwen3-vl:4b-instruct"
 REDACTION_REVISION = "b" * 64
+RERANKER_MODEL = "Qwen/Qwen3-VL-Reranker-2B"
+RERANKER_REVISION = "c" * 64
 CAMPUS = "Trường Đại học Sài Gòn"
 OCR_TEXT = "MSSV 0012345678\nCCCD 079200001234"
 
@@ -44,21 +46,50 @@ class OllamaStub(BaseHTTPRequestHandler):
     image_requests = 0
     combined_text_requests = 0
     ocr_requests = 0
+    reranker_enabled = False
+    rerank_modes = set()
 
     def log_message(self, *_args):
         pass
 
     def do_GET(self):
         if self.path == "/api/tags":
+            models = [(MODEL, REVISION), (REDACTION_MODEL, REDACTION_REVISION)]
+            if self.reranker_enabled:
+                models.append((RERANKER_MODEL, RERANKER_REVISION))
             self.respond({"models": [{"name": model, "model": model, "digest": revision}
-                for model, revision in ((MODEL, REVISION), (REDACTION_MODEL, REDACTION_REVISION))]})
+                for model, revision in models]})
         else:
             self.respond({}, 404)
 
     def do_POST(self):
         payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         if self.path == "/api/show":
-            self.respond({"capabilities": ["embedding", "vision"] if payload["model"] == MODEL else ["completion", "vision"]})
+            capabilities = (["embedding", "vision"] if payload["model"] == MODEL else
+                            ["rerank", "vision"] if payload["model"] == RERANKER_MODEL else ["completion", "vision"])
+            self.respond({"capabilities": capabilities})
+            return
+        if self.path == "/api/rerank" and self.reranker_enabled:
+            assert payload["model"] == RERANKER_MODEL
+            assert 1 <= len(payload["candidates"]) <= 20
+            assert len({candidate["itemId"] for candidate in payload["candidates"]}) == len(payload["candidates"])
+            text, query_images = payload.get("text"), payload.get("images", [])
+            assert text or query_images
+            type(self).rerank_modes.add("combined" if text and query_images else "text" if text else "image")
+            for encoded_image in query_images:
+                with Image.open(BytesIO(base64.b64decode(encoded_image, validate=True))) as image:
+                    image.load()
+                    assert image.format == "JPEG" and max(image.size) <= 512
+            for candidate in payload["candidates"]:
+                assert candidate["text"] and OCR_TEXT not in candidate["text"]
+                with Image.open(BytesIO(base64.b64decode(candidate["image"], validate=True))) as image:
+                    image.load()
+                    assert image.format == "JPEG" and max(image.size) <= 512
+                    assert "private" not in image.info
+                    assert max(image.convert("RGB").getpixel((4, 4))) < 50, "reranker receives the masked public output"
+            self.respond({"model": RERANKER_MODEL, "scores": [{"itemId": candidate["itemId"],
+                "imageScore": 0.9 if query_images else None, "textScore": 0.9 if text else None}
+                for candidate in payload["candidates"]]})
             return
         if self.path == "/api/generate" and payload.get("model") == REDACTION_MODEL:
             image = base64.b64decode(payload["images"][0], validate=True)
@@ -249,8 +280,7 @@ async def checks(broker_url, dsn, ollama_url):
                              (json.dumps([0.0, 1.0] + [0.0] * (DIMENSIONS - 2)), CAMPUS))
         requests = OllamaStub.embedding_requests
         expanded = await search("ví da đen tại phòng E.205")
-        assert [hit["itemId"] for hit in expanded[:2]] == [hit["itemId"] for hit in candidates]
-        assert expanded[-1]["itemId"] == other_id, "low cosine must expand beyond the area despite high local RRF ranks"
+        assert [hit["itemId"] for hit in expanded] == [other_id], "weak local RRF hits must not block a strong outside-area match"
         assert OllamaStub.embedding_requests == requests + 1, "fallback must reuse the query embedding"
         assert all("similarity" not in hit for hit in expanded), "cosine gating stays inside the worker"
         async with await psycopg.AsyncConnection.connect(dsn) as db:

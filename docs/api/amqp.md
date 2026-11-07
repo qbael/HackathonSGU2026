@@ -1,6 +1,6 @@
 # Hợp đồng .NET ↔ Python qua RabbitMQ
 
-Phiên bản schema 1, cập nhật 05/11/2026. Đây là hợp đồng adapter .NET đã triển khai;
+Phiên bản schema 1, cập nhật 07/11/2026. Đây là hợp đồng adapter .NET đã triển khai;
 worker Python/search database thực thi OCR, embedding riêng cho ảnh và văn bản, image.redact và full manifest/parts theo [hướng dẫn AI](../guides/ai-service.md). FastAPI chỉ health. Receipt chỉ sau kiểm full manifest và commit projection được bật; model/credential thật vẫn cần nghiệm thu.
 Tài liệu nền: [kiến trúc](../architecture/system-architecture.md); API HTTP:
 [nghiệp vụ](recovery.md), [ảnh/tìm kiếm](media-search.md).
@@ -17,17 +17,25 @@ Không log URI/credential, ảnh, query, OCR, answer hoặc message body.
 | --- | --- |
 | `findie.ai.commands` | Ops tạo durable quorum, persistent index commands/vector parts hoặc output parts cũ, TTL 30 giây, DLX/retention hữu hạn |
 | `findie.api.results` | Ops tạo durable quorum, persistent index receipts, TTL hữu hạn và DLX; .NET kiểm queue tồn tại khi kết nối |
-| `findie.ai.image` | Python tạo non-durable/exclusive/auto-delete, nonpersistent raw input/query, TTL queue tối đa 940 giây; TTL từng message 300 giây cho embedding/OCR, che và ảnh đơn, 940 giây cho nhóm ảnh; trần 4 message/32 MiB; **không DLX/alternate routing/tracing body** |
-| `findie.ai.query` | Python tạo queue text query tạm, non-durable/exclusive/auto-delete, TTL hữu hạn |
+| `findie.ai.image` | Python tạo non-durable/exclusive/auto-delete, nonpersistent raw input/query, TTL queue tối đa 955 giây; TTL message 300 giây cho embedding/OCR và che, 315 giây cho tìm ảnh đơn, 955 giây cho nhóm ảnh; trần 4 message/32 MiB; **không DLX/alternate routing/tracing body** |
+| `findie.ai.query` | Python tạo non-durable/exclusive/auto-delete cho tìm text, TTL 45 giây, tối đa 32 message/2 MiB |
+| `findie.api.materials` | .NET tạo non-durable/exclusive/auto-delete cho yêu cầu lấy dữ liệu chấm, TTL 15 giây, tối đa 32 message/2 MiB; không DLX |
+| `findie.ai.materials.results` | Python tạo non-durable/exclusive/auto-delete cho dữ liệu chấm, TTL 15 giây, tối đa 4 message/32 MiB, `x-overflow=reject-publish`; không DLX |
 | Reply queue do broker sinh | .NET tạo exclusive/non-durable/auto-delete cho output ảnh/query; TTL 60 giây, tối đa 64 message/32 MiB; không DLX |
 
-Có thể đổi tên qua `RabbitMq:IndexQueue|ResultQueue|ImageQueue|QueryQueue`; chỉ server
+Có thể đổi tên qua `RabbitMq:IndexQueue|ResultQueue|ImageQueue|QueryQueue|MaterialsQueue|MaterialsReplyQueue`; chỉ server
 cấu hình, không nhận route/reply_to từ HTTP client. Định nghĩa durable queues mẫu tại
 [rabbitmq-definitions.json](rabbitmq-definitions.json), import bằng công cụ quản trị broker
 vào vhost `/` hoặc sửa vhost theo môi trường. File không chứa user/password/permission;
-ops cấp tài khoản triển khai và tài khoản API/Python tách biệt. .NET chỉ publish commands,
-consume results và khai báo/consume reply queue của mình; Python làm chiều ngược lại.
+ops cấp tài khoản triển khai và tài khoản API/Python tách biệt. Ngoài luồng commands/results,
+.NET configure/consume `findie.api.materials`, Python configure/consume `findie.ai.materials.results`.
+Tên hai queue phải đồng bộ với `AI_MATERIALS_QUEUE`/`AI_MATERIALS_REPLY_QUEUE`; chỉ cấp
+thêm quyền đúng hai queue này, không dùng tài khoản admin.
 Không dùng quyền admin cho runtime. Không đưa RabbitMQ ra internet.
+
+Broker đang chạy cần cập nhật ACL cho hai queue materials trước khi khởi động lại API/worker;
+không đổi quyền thành `.*` để khắc phục lỗi khai báo queue. Queue tạm được tạo lại sau khi
+hai service ngắt kết nối, gồm TTL tìm kiếm mới và chính sách overflow của reply materials.
 
 Local có thể chạy `make rabbitmq-up` theo [hướng dẫn Docker](../guides/development.md#rabbitmq-docker):
 Compose tự import topology cùng một admin và hai tài khoản runtime riêng, mật khẩu
@@ -44,16 +52,25 @@ metadata, không original/query image. Vector và OCR từ ảnh gốc chỉ dù
 
 ## Envelope AMQP
 
-`BasicProperties`: `Type` là operation bên dưới, `CorrelationId` UUID do .NET tạo,
-`ReplyTo` queue do .NET chỉ định, `ContentType`, `Persistent`, `Expiration:"300000"` cho
-`image.embed`, `image.redact`, `search.hybrid.image`; `Expiration:"940000"` cho
-`search.hybrid.images`; `Expiration:"30000"` cho các operation khác.
-Header `metadata` là **bytes JSON UTF-8**, tối đa 16 KiB. Body ảnh nhị phân tối đa 10 MiB,
-riêng nhóm ảnh `search.hybrid.images` tối đa 30 MiB;
-body text/snapshot/ứng viên JSON UTF-8, không base64. Body vector JSON tối đa 1 MiB,
-không đưa vector vào header metadata. Tối đa 32 waiter AI đang chờ;
-deadline 300 giây cho ảnh đơn, 940 giây cho nhóm ảnh, 30 giây cho text/index; không giữ DB
-transaction khi gọi broker hoặc model/R2.
+`BasicProperties`: `Type` là operation bên dưới, `CorrelationId` UUID và `ReplyTo`
+do bên yêu cầu tạo/chỉ định (.NET cho index/search, Python cho `search.materials`).
+`ContentType`, `Persistent` và `Expiration` theo operation:
+
+| Operation | Deadline/TTL message |
+| --- | --- |
+| `image.embed`, `image.redact` | 300 giây |
+| `search.hybrid` | 45 giây |
+| `search.hybrid.image` | 315 giây |
+| `search.hybrid.images` | 955 giây |
+| `search.materials` và các part trả về | Tối đa 15 giây, trong ngân sách chấm lại |
+| Index và operation khác | 30 giây |
+
+Header `metadata` là **bytes JSON UTF-8**, tối đa 16 KiB. Body ảnh nhị phân tối đa 10 MiB;
+nhóm query `search.hybrid.images` vẫn tối đa **30 MiB**, độc lập với pool 20 món.
+Body text/snapshot/ứng viên là JSON UTF-8, không base64; vector JSON tối đa 1 MiB.
+Packet `search.materials` có thêm tiền tố 4 byte và manifest tối đa 64 KiB như mô tả bên dưới.
+Không đưa vector, ảnh hoặc mô tả vào header. Tối đa 32 waiter AI đang chờ;
+không giữ DB transaction khi gọi broker hoặc model/R2.
 
 Broker local đặt `max_message_size=33554432` (32 MiB) trong `scripts/rabbitmq.conf`
 để nhận nhóm ảnh 30 MiB; broker triển khai riêng cần cùng giới hạn. RabbitMQ mặc định
@@ -63,9 +80,11 @@ khởi động lại API và worker cùng phiên bản để dùng hợp đồng
 
 Metadata request chung: `schemaVersion:1`, `deadlineAt` ISO UTC, định danh model/version
 và profile tùy operation. Worker kiểm deadline trước suy luận và trước commit.
-Metadata response phải echo định danh/configuration của request, thêm
-`kind:<operation>`, `succeeded:true|false`. .NET chỉ hoàn tất đúng correlation còn sống.
-Lỗi an toàn `succeeded:false` thành HTTP 503; không trả trace/OCR/dữ liệu worker ra client.
+Response index/image/search echo định danh/configuration của request, thêm
+`kind:<operation>`, `succeeded:true|false`; `search.materials` dùng metadata từng part
+và completion như hợp đồng riêng bên dưới. .NET chỉ hoàn tất đúng correlation còn sống.
+Lỗi truy hồi chính báo lỗi dịch vụ; lỗi riêng materials/reranker dùng similarity fallback.
+Không trả trace/OCR/dữ liệu worker ra HTTP client.
 
 ## image.embed
 
@@ -108,23 +127,32 @@ processingProfile:"redact-v4",deadlineAt`. Full mode dùng `qwen3-vl:4b-instruct
 như MSSV, mã nhân viên, số thẻ/tài khoản; giữ khoảng 40% phần cuối để nhận diện.
 Tỷ lệ tính theo chiều rộng bbox, không OCR/đếm ký tự nên không bảo đảm đúng 40% số chữ số.
 Detector vẫn trả khung toàn bộ giá trị; Python cắt phần cần che, không thêm viền ở ranh
-giới nội bộ để tránh che mất phần đuôi. Khuôn mặt, địa chỉ riêng tư/quê quán, QR và mã
-vạch vẫn che toàn bộ theo quy tắc hiện có. Họ tên, ngày sinh, các ngày cấp/hết hạn,
-thông tin học tập khác, bố cục, logo, tên cơ quan và nhãn trường giữ nguyên.
-Nhãn vùng là `face`, `identity_number`, `phone`, `identifier_number`, `address`, `qr_code`, `barcode`.
+giới nội bộ để tránh che mất phần đuôi. Số hộ chiếu (`passport_number`), toàn bộ
+vùng mã đọc máy (`mrz`), chữ ký (`signature`), khuôn mặt, địa chỉ riêng tư/quê quán/nơi sinh,
+QR và mã vạch được che toàn bộ. Họ tên, ngày sinh, các ngày cấp/hết hạn và thông tin
+đối chiếu ngoài MRZ giữ nguyên; dữ liệu lặp trong MRZ vẫn che kín. Bố cục, logo,
+tên cơ quan và nhãn trường giữ nguyên.
+Nhãn vùng là `face`, `identity_number`, `identifier_number`, `passport_number`, `mrz`,
+`signature`, `phone`, `address`, `qr_code`, `barcode`.
 Mỗi `bbox` gồm bốn số nguyên `[x1,y1,x2,y2]` trong khoảng 0–1000 theo toàn ảnh;
 mỗi giá trị nhạy cảm hoặc trường địa chỉ đầy đủ có một khung riêng; trường địa chỉ
 có thể gồm nhãn và các dòng tiếp theo. Chữ/khuôn mặt thêm viền
 2–4 px; QR/mã vạch dùng `max(2, ceil(cạnh_ngắn / 200))`, tức 5–8 px khi cạnh ngắn
 là 1000–1600 px, để che kín mép mã khi khung nhận diện hơi thiếu.
 
-Nếu lượt đầu phát hiện địa chỉ, worker lấy vùng bao các khung địa chỉ từ pixel gốc
+Nếu lượt đầu thấy dấu hiệu giấy tờ qua `face`, `identity_number`, `identifier_number`,
+`passport_number`, `mrz`, `signature`, `qr_code` hoặc `barcode`, worker chạy thêm một
+lượt tìm trường giấy tờ trên toàn ảnh, kể cả khi đã tìm được một số trường ở lượt đầu.
+Gộp kết quả, bỏ khung trùng chính xác theo nhãn/bbox rồi kiểm giới hạn tổng 32 vùng.
+
+Nếu kết quả phát hiện địa chỉ, worker lấy vùng bao các khung địa chỉ từ pixel gốc
 đã chuẩn hóa, mở rộng mỗi bên ngang 50% chiều rộng và trên/dưới một chiều cao vùng,
 để model thấy nhãn trường và ngày tháng lân cận khi xác định ranh giới địa chỉ.
 Lượt nhận diện bổ sung chỉ tìm địa chỉ trong vùng cắt, quy đổi khung về toàn ảnh,
 giữ cả khung cũ lẫn khung bổ sung và bỏ bản trùng chính xác. Không có khung địa chỉ
-thì không gọi lượt bổ sung; hai lượt cùng chịu deadline 300 giây. Lỗi lượt bổ sung
-hoặc tổng quá 32 vùng khiến xử lý thất bại; không trả ảnh che dở.
+thì không gọi lượt tìm địa chỉ bổ sung; mọi lượt cùng chịu deadline 300 giây. Lỗi lượt
+bổ sung hoặc tổng quá 32 vùng sau khi bỏ khung trùng khiến xử lý thất bại; không trả
+ảnh che dở.
 
 Worker luôn decode, kiểm MIME/frame/pixel, phát hiện PII, che/mờ nếu có, bỏ EXIF và encode
 ảnh mới kể cả không có PII. Lỗi model không được coi là ảnh sạch. Response body là output,
@@ -137,65 +165,93 @@ ACK/bỏ; lỗi cuối không đưa original vào DLQ. Crash mất raw thì HTTP
 
 ## search.hybrid và search.hybrid.image
 
-Text: query queue, body `{text,area,from,until}` JSON. Image: image queue, body raw query
-nhị phân, nonpersistent, không R2/job/outbox/vector query bền vững.
-Text có deadline 30 giây; ảnh có deadline 300 giây để tạo vector chỉ từ ảnh truy vấn.
+Text: query queue, body `{text,area,from,until}` JSON, deadline 45 giây.
+Image: image queue, body ảnh query nhị phân, nonpersistent, deadline 315 giây.
+Không lưu query vào R2/job/outbox/vector query bền vững. Các deadline tìm kiếm gồm
+thêm tối đa 15 giây để lấy dữ liệu ứng viên và chấm lại; embedding/che khi đăng ảnh
+vẫn giữ deadline 300 giây riêng.
 
 Metadata: `schemaVersion,modelId,modelRevision,processingProfile,searchProfileId,
-searchProfileVersion:1,mode,area,from,until,limit,candidateLimit:30,deadlineAt`.
-Processing profile `text-v1|image-v1`; cấu hình text-only giữ `qwen3-embedding:4b`/2048. Notebook full mode chọn `Qwen/Qwen3-VL-Embedding-2B`/2048, nhận ảnh native qua Transformers sau gateway tương thích Ollama. `modelRevision` là SHA-256 fingerprint của commit model/processor, mã inference, profile và gói đã ghim; không phải manifest Ollama. `modelId`, revision và số chiều phải đồng bộ hai service; không dùng model text cho ảnh.
-Gateway full mode cần công bố `embedding,vision` cho model embedding và `completion,vision` cho model OCR.
-Text profile mặc định `text-description-v1`, image `image-only-v1`. Đây là baseline,
-chưa có benchmark/phân loại profile theo độ đặc thù query.
-Khi capability ảnh bật, text query xét cả vector mô tả đã ghép OCR và vector ảnh riêng,
-hợp nhất với từ khóa trên nguồn văn bản. Tìm ảnh dùng vector ảnh; không
-thêm điều kiện chính xác theo số hoặc đuôi số. OCR/embedding vẫn có thể nhận sai ký tự.
-Hybrid text dùng weighted RRF `weight / (60 + rank)` với hệ số mặc định 1.2 ngữ nghĩa,
-0.8 từ khóa (tỷ trọng 60/40, cấu hình `AI_SEARCH_SEMANTIC_WEIGHT`) và 0.03 vị trí.
-Có `area`: Python lọc `foundArea` chứa khu vực yêu cầu, không phân biệt hoa thường,
-và chỉ tìm trong khu vực ở lượt đầu. Nếu không có tin đạt ngưỡng cosine theo loại đầu
-vào, worker mới truy vấn phần ngoài khu vực với cùng embedding và bộ lọc ngày.
-`AI_SEARCH_MIN_IMAGE_SIMILARITY` và `AI_SEARCH_MIN_TEXT_SIMILARITY` mặc định `0.6`,
-hợp lệ 0–1, cần hiệu chỉnh theo model/dữ liệu. Cosine là `1 - cosine_distance`, chỉ dùng
-nội bộ worker; điểm RRF không đo được chất lượng tuyệt đối. Không có `area` thì tìm
-toàn bộ một lần. .NET vẫn xếp khu vực trước nhóm truy vấn và điểm; ngày luôn lọc cứng.
+searchProfileVersion:1,mode,area,from,until,limit,candidateLimit:20,deadlineAt`.
+Processing profile `text-v1|image-v1`; cấu hình text-only giữ `qwen3-embedding:4b`/2048.
+Notebook full mode chọn `Qwen/Qwen3-VL-Embedding-2B`/2048, nhận ảnh native qua Transformers.
+`modelRevision` là SHA-256 fingerprint của commit model/processor, mã inference, profile
+và gói đã ghim; không phải manifest Ollama. Hai service phải đồng bộ model/revision/số chiều.
+Gateway công bố `embedding,vision` cho embedding và `completion,vision` cho OCR.
+Text profile mặc định `text-description-v1`, image `image-only-v1`.
 
-Response metadata echo model/profile, thêm kind/succeeded. Body tối đa 1 MiB:
+Khi capability ảnh bật, text query xét cả vector mô tả ghép OCR và vector ảnh riêng,
+hợp nhất với từ khóa trên nguồn văn bản. Tìm ảnh dùng vector ảnh; không thêm điều kiện
+chính xác theo số hoặc đuôi số. OCR/embedding vẫn có thể nhận sai ký tự.
+Hybrid text dùng weighted RRF `weight / (60 + rank)` với hệ số mặc định 1.2 ngữ nghĩa,
+0.8 từ khóa (`AI_SEARCH_SEMANTIC_WEIGHT=0.6`) và 0.03 vị trí. Cosine được đo cho cả
+ứng viên từ khóa/vị trí ngoài semantic top 20; điểm chưa đo không được coi là độ tương đồng.
+
+Có `area`: các nhánh tìm trong khu vực trước. Chỉ khi không có món đạt ngưỡng cosine
+ở **ít nhất một loại đầu vào** thì tìm ngoài khu vực, dùng lại embedding và giữ bộ lọc ngày.
+Nhiều ảnh lấy điểm ảnh tốt nhất; không bắt cùng một món phải khớp cả ảnh lẫn text.
+Các món yếu trong khu vực không chiếm hết pool trước khi mở rộng.
+`AI_SEARCH_MIN_IMAGE_SIMILARITY`/`AI_SEARCH_MIN_TEXT_SIMILARITY` mặc định `0.6`, hợp lệ 0–1.
+
+Sau truy hồi/hợp nhất, **Python chấm và lọc toàn bộ pool tối đa 20 món trước khi trả .NET**.
+Không gửi pool sang .NET để chọn 10 rồi mới gọi lại model. Khi đã cấu hình reranker,
+Python lấy dữ liệu công khai qua `search.materials` và gọi model trên toàn pool trong
+ngân sách bổ sung 15 giây. Điểm ảnh và text được chấm riêng; chỉ cần một loại đạt ngưỡng.
+`AI_RERANK_MIN_IMAGE_SCORE`/`AI_RERANK_MIN_TEXT_SCORE` mặc định `0.5`.
+Điểm liên quan chung `relevanceScore` là điểm cao nhất của các loại đã đạt ngưỡng.
+
+Sau ngưỡng tuyệt đối, giữ món có điểm ít nhất bằng
+`AI_SEARCH_RELATIVE_SCORE_RATIO × điểm tốt nhất` trong cùng phần khu vực và nhóm bằng chứng;
+mặc định ratio `0.75`. Không so cắt đuôi xuyên nhóm. Các ngưỡng này chưa được hiệu chỉnh
+bằng dữ liệu thực tế. RRF, cosine và điểm model không phải xác suất sở hữu.
+
+Khi reranker chưa cấu hình, lỗi, OOM, quá giờ, thiếu part hoặc không chấm xong toàn pool,
+Python bỏ toàn bộ điểm model dở dang và áp dụng cùng bộ lọc bằng cosine trên pool.
+Món đã được xác nhận `stale` không được đưa lại vào phương án dự phòng.
+Lỗi truy hồi/model embedding chính vẫn là lỗi dịch vụ, không biến thành danh sách rỗng.
+
+Response metadata echo model/profile, thêm kind/succeeded. Body tối đa 1 MiB, ví dụ:
 
 ```json
 {
-  "candidates": [
-    {
-      "itemId": "<uuid>",
-      "documentVersion": 5,
-      "sourceId": "<itemId cho text, imageId cho image>",
-      "sourceKind": "image",
-      "sourceVersion": 2,
-      "sourceSha256": "<64 lowercase hex>"
-    }
-  ]
+  "rankingMethod": "similarity_fallback",
+  "candidates": [{
+    "itemId": "<uuid>",
+    "documentVersion": 5,
+    "sourceId": "<itemId cho text, imageId cho image>",
+    "sourceKind": "image",
+    "sourceVersion": 2,
+    "sourceSha256": "<64 lowercase hex>",
+    "relevanceScore": 0.86,
+    "imageRelevant": true,
+    "textRelevant": false
+  }]
 }
 ```
 
-Tối đa 30 món duy nhất trả cho .NET, thứ tự là rank đã tính tại Python; không trả vector.
-`candidateLimit` hợp lệ từ 1–30; API yêu cầu 30 cho cả ba endpoint tìm kiếm. Mỗi kênh
-truy hồi và mỗi nhánh giữ tối đa 30; sau hợp nhất, toàn bộ request vẫn chỉ có tối đa
-30 ứng viên để .NET kiểm và cắt kết quả cuối còn `limit=1..10`.
-Python có thể thêm hạng/điểm dense/keyword/RRF để chẩn đoán, API hiện chỉ xuất rank.
-.NET đọc toàn bộ pool trong một truy vấn SQL JOIN tới database nghiệp vụ, kèm ảnh
-công khai và quyền Hub tính bằng correlated `EXISTS`, rồi kiểm eligibility,
-document/source version/hash và bộ lọc ngày trước DTO;
-`sourceKind:"text"|"image"` xác định nguồn thật, độc lập với chế độ query, để text query
-trúng OCR vẫn được đối chiếu hash/phiên bản ảnh đã duyệt. Không tự nới ngày hoặc refill
-ngoài pool 30 món. HTTP `filtersRelaxed:true` chỉ khi kết quả hiển thị có món ngoài `area` đã yêu cầu.
-Không coi RRF/cosine là xác suất sở hữu.
+`candidateLimit=1..20`; API yêu cầu 20 cho cả ba endpoint, mỗi kênh/nhánh tối đa 20
+và pool toàn request cũng tối đa 20 món duy nhất. Python trả **0–20 món đã qua lọc**,
+không trả vector hoặc nội dung model. Nếu chấm lại dùng thêm ảnh đại diện, candidate
+đơn có thêm `sources` chứa cả nguồn truy hồi và nguồn ảnh đã dùng; .NET kiểm tất cả.
+Wire xếp theo `imageRelevant && textRelevant` trước, chỉ ảnh tiếp theo, chỉ text cuối;
+trong nhóm xếp `relevanceScore` giảm dần. Ưu tiên khu vực được áp dụng khi lọc theo nhóm
+và được .NET áp dụng khi xếp kết quả HTTP.
+
+.NET đọc toàn bộ danh sách đã lọc bằng một SQL JOIN kèm ảnh công khai/quyền Hub,
+kiểm published/active, document/source version/hash và ngày hiện hành. `sourceKind`
+là loại nguồn thật, độc lập với mode query. .NET dùng `relevanceScore`, không thay
+bằng `1/(61+rank)`; bonus thời gian chỉ đổi thứ tự trong cùng khu vực/nhóm, không cứu
+món đã bị Python loại. Sau đó mới `Take(limit=1..10)`; không refill ngoài pool 20.
+`rankingMethod` HTTP là `reranker|similarity_fallback`; giao diện thông báo khi dùng
+phương án dự phòng. Ít kết quả do lọc chất lượng không làm `partial=true`.
+`filtersRelaxed:true` chỉ khi có món hiển thị ngoài khu vực yêu cầu; ngày luôn lọc cứng.
 
 ## search.hybrid.images
 
-Một RPC cho nhóm 1–3 ảnh và mô tả tùy chọn. Route `findie.ai.image`, nonpersistent,
-`ContentType:application/octet-stream`, deadline/TTL 940 giây. Body là bytes các ảnh
-nối liên tiếp theo thứ tự `images`; mỗi ảnh tối đa 10 MiB, tổng tối đa 30 MiB.
-Không base64, tệp tạm, R2 hoặc outbox. Metadata bổ sung:
+Một RPC cho 1–3 ảnh và mô tả tùy chọn, route `findie.ai.image`, nonpersistent,
+`ContentType:application/octet-stream`, deadline/TTL **955 giây**. Body là các ảnh
+nối theo thứ tự `images`; mỗi ảnh tối đa 10 MiB, tổng vẫn tối đa **30 MiB**.
+Không base64, tệp tạm, R2 hoặc outbox cho query. Metadata:
 
 ```json
 {
@@ -210,7 +266,7 @@ Không base64, tệp tạm, R2 hoặc outbox. Metadata bổ sung:
   "from": null,
   "until": null,
   "limit": 10,
-  "candidateLimit": 30,
+  "candidateLimit": 20,
   "deadlineAt": "<UTC timestamp>",
   "cacheScope": "<actor UUID>",
   "text": "Ví màu đen",
@@ -218,44 +274,32 @@ Không base64, tệp tạm, R2 hoặc outbox. Metadata bổ sung:
 }
 ```
 
-Không có mô tả: `mode:image`, `searchProfileId:image-fusion-v1`. `candidateLimit` hợp lệ
-1–30; API yêu cầu 30, độc lập với số ảnh hoặc việc có mô tả. Đây là giới hạn chung
-của toàn bộ request sau hợp nhất và loại trùng, không phải 30 nhân số nhánh. Worker kiểm số ảnh,
-MIME/length từng phần và tổng length khớp body trước suy luận. Python tìm từng ảnh
-tuần tự với deadline 300 giây/ảnh, chạy text hybrid tối đa 30 giây nếu có mô tả,
-rồi gộp weighted RRF: mỗi ảnh có hệ số 1, nhánh text có hệ số 0.5, đóng góp
-`weight / (60 + rank)` với rank bắt đầu từ 1. Một món chỉ góp điểm một lần trong mỗi
-danh sách và xuất hiện một lần trong kết quả. Một nhánh lỗi làm cả request thất bại.
-`imageScore` là tổng đóng góp từ các nhánh truy vấn ảnh, `textScore` là đóng góp từ
-nhánh truy vấn text; `score = imageScore + textScore`. Phân nhóm theo nhánh truy vấn,
-độc lập với `sourceKind` của nguồn đã trúng.
+Không có mô tả: `mode:image`, `searchProfileId:image-fusion-v1`. `candidateLimit=1..20`
+độc lập số ảnh. Worker kiểm số ảnh/MIME/length/tổng body trước suy luận. Mỗi ảnh có
+ngân sách embedding 300 giây, text 30 giây, chấm lại toàn pool thêm tối đa 15 giây.
+Một nhánh truy hồi lỗi làm cả request thất bại; lỗi riêng reranker dùng similarity fallback.
 
-Trước fusion, tất cả nhánh tìm trong khu vực. Có ảnh và text thì cần cùng một món
-đạt cả ngưỡng cosine text và ngưỡng của ít nhất một ảnh; chỉ có ảnh thì cần ít nhất
-một ảnh đạt ngưỡng. Không đạt hoặc không có tin thì mới tìm ngoài khu vực ở tất cả
-nhánh. Kết quả trong khu vực nối trước kết quả ngoài khu vực, mỗi nhánh vẫn tối đa
-30 ứng viên. Embedding được dùng lại, không chạy model lần hai khi mở rộng.
+Fusion vẫn dùng weighted RRF: mỗi ảnh hệ số 1, text hệ số 0.5, đóng góp
+`weight/(60+rank)` với rank từ 1. Mỗi món góp một lần mỗi danh sách và chỉ xuất hiện một lần.
+`imageScore`/`textScore` là đóng góp **RRF**, `score=imageScore+textScore`;
+chúng độc lập với `relevanceScore` dùng để lọc/xếp cuối. Group sau đánh giá dựa trên
+`imageRelevant`/`textRelevant`, không dựa vào việc RRF của một nhánh có lớn hơn 0.
+Quy tắc OR khi mở rộng khu vực và toàn bộ bước chấm/lọc 20 món giống tìm đơn.
 
-Python chọn tối đa 30 món duy nhất sau fusion, ưu tiên khu vực trước nhóm và điểm.
-Pool đã chọn được gửi theo thứ tự nhóm/điểm để .NET kiểm hợp đồng: có cả
-`imageScore > 0` và `textScore > 0` trước, chỉ ảnh
-tiếp theo, chỉ text cuối cùng; trong từng nhóm xếp giảm dần theo `score`, `imageScore`
-hoặc `textScore` tương ứng. Khi có `area`, .NET xếp mọi món trong khu vực trước mọi
-món ngoài khu vực, rồi giữ thứ tự nhóm và điểm trong từng phần. Bonus thời điểm mất
-chỉ điều chỉnh điểm trong cùng khu vực và nhóm. Không có `area` thì giữ nhóm rồi điểm.
-
-Response metadata echo cấu hình, thêm `kind:search.hybrid.images,succeeded`; không
-echo `text`, `images` hoặc `cacheScope`. Body JSON tối đa 1 MiB; mỗi kênh/nhánh giữ
-tối đa 30 ứng viên và union được cắt chung còn tối đa 30 món duy nhất trước khi trả.
-.NET chỉ đọc và xử lý pool này; kết quả HTTP cuối vẫn giới hạn 1–10 món:
+Response metadata echo cấu hình, thêm `kind:search.hybrid.images,succeeded`, không echo
+`text`, `images` hoặc `cacheScope`. Body tối đa 1 MiB:
 
 ```json
 {
+  "rankingMethod": "reranker",
   "candidates": [{
     "itemId": "<uuid>",
     "score": 0.02459016393442623,
     "imageScore": 0.01639344262295082,
     "textScore": 0.00819672131147541,
+    "relevanceScore": 0.91,
+    "imageRelevant": true,
+    "textRelevant": false,
     "sources": [{
       "documentVersion": 5,
       "sourceId": "<itemId hoặc imageId>",
@@ -267,16 +311,88 @@ tối đa 30 ứng viên và union được cắt chung còn tối đa 30 món d
 }
 ```
 
-`sources` chứa mọi nguồn đã góp điểm, được bỏ ref trùng, tối đa số nhánh (4).
-Mỗi ref giữ cả document version để không dùng đóng góp từ snapshot cũ. .NET kiểm
-các điểm hữu hạn/không âm, tổng điểm dương bằng điểm ảnh cộng điểm text, thứ tự nhóm
-và provenance, rồi đọc cả pool bằng một truy vấn SQL JOIN có ảnh công khai và
-quyền Hub tính bằng correlated `EXISTS` để kiểm từng nguồn. Nếu bất kỳ nguồn góp
-điểm không còn hợp lệ, loại cả ứng viên. .NET không tính lại RRF; xếp khu vực trước,
-rồi nhóm truy vấn và điểm Python nhân với `1 + bonusThoiGian` trong từng nhóm.
-Sau đó giới hạn 1–10 kết quả và dựng DTO HTTP chỉ chứa rank. Ngày vẫn lọc cứng.
-Không refill ngoài pool 30 món khi có ứng viên stale hoặc không còn quyền hiển thị;
-không có migration DB hay trường HTTP mới. Input bị bỏ khi thành công, lỗi hoặc hủy.
+`sources` gồm mọi nguồn truy hồi và ảnh đại diện đã dùng để chấm, bỏ ref trùng, tối đa
+6 ref với response đã đánh giá. .NET kiểm mọi nguồn; một nguồn stale làm loại cả món.
+Điểm RRF vẫn được kiểm hữu hạn, không âm, không vượt tổng trọng số nhánh và tổng
+`score=imageScore+textScore`; relevance phải hữu hạn trong `[0,1]`, ít nhất một cờ relevant
+phải true và phù hợp mode. Không đem giới hạn số học của RRF áp vào relevance.
+.NET kiểm wire theo nhóm đạt ngưỡng/relevance, ưu tiên khu vực, cộng bonus thời gian
+trên relevance rồi giới hạn hiển thị 10. Không pad/refill khi không đủ món đạt chất lượng.
+
+## search.materials — Python lấy dữ liệu chấm qua RabbitMQ
+
+Python tạo correlation UUID riêng và gửi một request JSON **cho cả pool 1–20 món** tới
+`findie.api.materials`, `Type:search.materials`, `ContentType:application/json`,
+`Persistent:false`, `Expiration:15000`, `ReplyTo:findie.ai.materials.results`.
+Header metadata `{schemaVersion:1,deadlineAt:<UTC>}`; body tối đa 64 KiB:
+
+```json
+{
+  "candidates": [{
+    "itemId": "<uuid>",
+    "sources": [{
+      "documentVersion": 5,
+      "sourceId": "<itemId hoặc imageId>",
+      "sourceVersion": 2,
+      "sourceSha256": "<64 lowercase hex>",
+      "sourceKind": "image"
+    }]
+  }]
+}
+```
+
+.NET có channel/consumer riêng cho yêu cầu này, nên vẫn xử lý được trong lúc RPC tìm
+kiếm ban đầu đang chờ Python. Đây chỉ là cấp dữ liệu; .NET không chọn shortlist 10
+hoặc chấm relevance. Provider tải batch, bắt buộc món published/active và mọi nguồn
+đúng version/hash; không dùng quyền quản lý để cấp ảnh chưa công khai.
+Chọn ảnh nguồn đã duyệt trong refs, nếu không có thì ảnh đã duyệt đầu tiên theo vị trí.
+.NET đọc R2, kiểm MIME/signature/length/SHA-256 và kiểm lại nguồn hiện hành sau khi đọc.
+Python không nhận credential R2, object key, ảnh gốc hoặc plaintext OCR.
+
+Mỗi món có một reply `Type:search.materials`, cùng correlation, `Persistent:false`,
+TTL tối đa 15 giây, `ContentType:application/octet-stream`. Header metadata:
+`{schemaVersion:1,succeeded:true,complete:false,itemId:<uuid>}`. Body gồm:
+
+1. 4 byte số nguyên big-endian chỉ độ dài manifest JSON.
+2. Manifest JSON UTF-8 tối đa 64 KiB.
+3. Bytes ảnh đã xử lý tối đa 10 MiB, chỉ có khi `status:ready`.
+
+Ví dụ manifest (không nằm trong header):
+
+```json
+{
+  "itemId": "<uuid>",
+  "status": "ready",
+  "title": "Ví màu đen",
+  "publicDescription": "Ví khóa kéo vàng",
+  "image": {
+    "sourceId": "<imageId>",
+    "sourceVersion": 2,
+    "sourceSha256": "<SHA-256 của bytes ảnh>",
+    "documentVersion": 5,
+    "contentType": "image/png",
+    "length": 12345
+  }
+}
+```
+
+`stale`: món/nguồn không còn công khai hoặc sai phiên bản/hash, không có text/ảnh và
+bị loại khỏi cả đường reranker lẫn fallback. `unavailable`: đọc output lỗi hoặc kiểm
+integrity thất bại, không có ảnh; toàn pool chuyển sang similarity fallback.
+Python kiểm lại ID, provenance, độ dài/hash/MIME, chuẩn hóa ảnh trong RAM rồi ACK từng
+part. Dùng callback nhận part riêng, không giữ semaphore inference để xử lý reply.
+
+Sau các part, .NET gửi reply JSON `{count:N}` với metadata
+`{schemaVersion:1,succeeded:true,complete:true}`. Python chỉ dùng model scores khi đã
+nhận đủ và chấm xong toàn pool. Lỗi provider có thể gửi `succeeded:false,complete:true`;
+part trùng/sai, thiếu completion, reply muộn hoặc timeout đều chuyển sang fallback.
+Các ID đã nhận `stale` vẫn bị loại nếu phần còn lại lỗi/quá giờ.
+
+Không gom cả pool ảnh vào một message lớn. Reply queue dùng `x-overflow=reject-publish`
+và publisher confirms để quá tải gây lỗi rõ ràng thay vì âm thầm bỏ part đầu. Cả hai
+queue tạm không DLX/alternate routing/body tracing; lỗi được ACK/bỏ, không lưu lại dữ liệu
+chấm. .NET và Python chỉ giữ ảnh trong RAM, không cache hoặc tạo bản sao trên đĩa.
+Broker vẫn có giới hạn paging transient message đã nêu ở phần bảo vệ dữ liệu.
 
 ## index.upsert, index.source.vector, index.source.image và index.remove
 

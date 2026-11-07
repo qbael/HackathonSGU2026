@@ -1,4 +1,5 @@
 import importlib.util
+from io import BytesIO
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -6,6 +7,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +31,32 @@ class ConfigTests(unittest.TestCase):
                        {"OLLAMA_API_KEY": "secret in public export"}):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 module.settings(self.config() | change, "s" * 40)
+
+    def test_optional_reranker_public_configuration_is_validated(self):
+        config = self.config() | {"AI_RERANKER_MODEL": "Qwen/Qwen3-VL-Reranker-2B", "AI_RERANKER_REVISION": "c" * 64}
+        self.assertEqual(module.settings(config, "s" * 40)["AI_RERANKER_REVISION"], "c" * 64)
+        self.assertEqual(module.settings(self.config(), "s" * 40)["AI_RERANKER_REVISION"], "")
+        self.assertEqual(module.settings(config | {"AI_RERANKER_REVISION": ""}, "s" * 40)["AI_RERANKER_REVISION"], "")
+        for change in ({"AI_RERANKER_MODEL": "$(unsafe)"}, {"AI_RERANKER_REVISION": "short"},
+                       {"AI_RERANKER_REVISION": None}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                module.settings(config | change, "s" * 40)
+        with self.assertRaises(ValueError):
+            module.settings(self.config() | {"AI_RERANKER_REVISION": "c" * 64}, "s" * 40)
+
+    def test_verification_checks_optional_reranker_revision(self):
+        config = self.config() | {"AI_RERANKER_MODEL": "Qwen/Qwen3-VL-Reranker-2B", "AI_RERANKER_REVISION": "c" * 64}
+        values = module.settings(config, "s" * 40)
+        catalog = {"models": [{"name": config[prefix + "_MODEL"], "digest": "sha256:" + config[prefix + "_REVISION"]}
+                              for prefix in ("AI_EMBEDDING", "AI_REDACTION")]}
+        opener = Mock()
+        with patch.object(module, "build_opener", return_value=opener):
+            opener.open.return_value = BytesIO(json.dumps(catalog).encode())
+            with self.assertRaises(ValueError):
+                module.verify(values)
+            catalog["models"].append({"name": config["AI_RERANKER_MODEL"], "digest": "sha256:" + "c" * 64})
+            opener.open.return_value = BytesIO(json.dumps(catalog).encode())
+            module.verify(values)
 
     def test_atomic_import_preserves_secrets_and_shell_quotes_token(self):
         token = "test'$`$(bad)" + "s" * 40

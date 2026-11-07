@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Data.Common;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -66,7 +67,7 @@ static class SearchQueryChecks
         object[] candidates = [];
         ai.Handler = command =>
         {
-            Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 30, "all search commands request at most thirty candidates");
+            Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 20, "all search commands request at most twenty candidates");
             return Task.FromResult(new AiReply(JsonSerializer.SerializeToElement(StubAiGateway.ReplyMetadata(command)),
                 JsonSerializer.SerializeToUtf8Bytes(new { candidates })));
         };
@@ -85,9 +86,9 @@ static class SearchQueryChecks
 
         Check((await Text([])).Items.Count == 0, "an empty candidate reply does not query the database");
         Check((await Text([Source(items[0])])).Items.Single().Item.CanDelete, "one Hub candidate needs only one SQL command including permissions");
-        var full = await Text(items.Select(item => Source(item)).ToArray(), "quang trung");
+        var full = await Text(items.Take(19).Append(items[29]).Select(item => Source(item)).ToArray(), "quang trung");
         Check(full.Items.Count == 10 && full.Items[0].Item.Id == items[29].Id,
-            "a local candidate at the end of thirty candidates is ranked before the response limit");
+            "a local candidate at the end of twenty candidates is ranked before the response limit");
         Check(full.Items.Count(hit => hit.Item.Id == items[29].Id) == 1 && full.Items[0].Item.Images.Count == 2,
             "a batch JOIN materializes one item with both approved images without duplicate roots");
         var sameHub = await Text(items.Skip(10).Take(10).Select(item => Source(item)).ToArray());
@@ -99,19 +100,19 @@ static class SearchQueryChecks
         var personal = await Text(items.Skip(20).Take(4).Select(item => Source(item)).ToArray());
         Check(personal.Items.Select(hit => hit.Item.CanDelete).SequenceEqual([false, true, true, false]),
             "batch loading preserves external-poster and personal-holder management rights");
-        var duplicate = await Text(Enumerable.Repeat(Source(items[0]), 30).ToArray());
+        var duplicate = await Text(Enumerable.Repeat(Source(items[0]), 20).ToArray());
         Check(duplicate.Items.Count == 1 && !duplicate.Partial, "duplicate candidates are loaded and displayed once without marking the response partial");
         var missing = JsonSerializer.SerializeToElement(Source(items[0])).EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone());
         missing["itemId"] = Guid.NewGuid();
         var removed = await Text([missing, Source(items[0], hash: new string('0', 64)), Source(items[0], image: privateImage)]);
         Check(removed.Items.Count == 0 && removed.Partial, "missing, stale and nonpublic image sources fail closed after batching");
         Check((await Text([Source(items[0])], from: new DateOnly(2026, 1, 2))).Items.Count == 0, "batch rehydration keeps the date filter strict");
-        candidates = Enumerable.Repeat(Source(items[0]), 31).ToArray();
+        candidates = Enumerable.Repeat(Source(items[0]), 21).ToArray();
         counter.Commands.Clear();
         try
         {
             await search.TextAsync(actor.Id, new SearchRequest("white bottle"), default);
-            throw new InvalidOperationException("FAIL: thirty-one candidates should be rejected");
+            throw new InvalidOperationException("FAIL: twenty-one candidates should be rejected");
         }
         catch (ApiException error) when (error.StatusCode == 502) { }
         Check(counter.Commands.Count == 0, "oversized AI replies are rejected before any batch SQL");
@@ -138,8 +139,26 @@ static class SearchQueryChecks
             using var body = await multipart.ReadAsStreamAsync();
             Check((await search.ImagesAsync(actor.Id, new ImageSearchFilter(), multipart.Headers.ContentType!.ToString(), body,
                 multipart.Headers.ContentLength, default)).Items.Count == 1 && counter.Commands.Count == 1,
-                "three images plus description still request thirty candidates and execute one batch query");
+                "three images plus description still request twenty candidates and execute one batch query");
         }
+        ai.Handler = command => Task.FromResult(new AiReply(JsonSerializer.SerializeToElement(StubAiGateway.ReplyMetadata(command)),
+            JsonSerializer.SerializeToUtf8Bytes(new { candidates, rankingMethod = "reranker" })));
+        var quality = await Text([Quality(items[0], 0.9), Quality(items[1], 0.8)]);
+        Check(quality.RankingMethod == "reranker" && quality.Items.Count == 2 && !quality.Partial,
+            "Python quality scores and ranking method survive the final business check without padding");
+        var extraSource = Quality(items[0], 0.9);
+        extraSource["sources"] = new[] { Source(items[0]), Source(items[0], image: privateImage) };
+        Check((await Text([extraSource])).Items.Count == 0,
+            "single-query quality results validate every material image source, including added provenance");
+        try
+        {
+            await Text([Quality(items[0], 1.1)]);
+            throw new InvalidOperationException("FAIL: an invalid relevance score should be rejected");
+        }
+        catch (ApiException error) when (error.StatusCode == 502) { }
+        ai.Handler = command => Task.FromResult(new AiReply(JsonSerializer.SerializeToElement(StubAiGateway.ReplyMetadata(command)),
+            JsonSerializer.SerializeToUtf8Bytes(new { candidates })));
+        await CheckMaterials();
         candidates = [Source(items[0])];
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();
@@ -150,6 +169,77 @@ static class SearchQueryChecks
         }
         catch (OperationCanceledException) { }
         Console.WriteLine("PASS: search candidate cap, one SQL batch, Hub permissions, ordering, privacy and cancellation");
+
+        Dictionary<string, object?> Quality(Item item, double score)
+        {
+            var source = JsonSerializer.SerializeToElement(Source(item));
+            var value = source.EnumerateObject().ToDictionary(property => property.Name, property => (object?)property.Value.Clone());
+            value["relevanceScore"] = score;
+            value["imageRelevant"] = false;
+            value["textRelevant"] = true;
+            return value;
+        }
+
+        async Task CheckMaterials()
+        {
+            var storage = (StubStorage)factory.Services.GetRequiredService<IProcessedStorage>();
+            foreach (var item in items)
+                foreach (var image in item.Images) storage.Objects[image.ProcessedObject!.Id] = Output.ToArray();
+            var provider = new SearchMaterialsService(repository, storage);
+            var packets = new List<JsonElement>();
+            Task Capture(Guid itemId, byte[] packet, CancellationToken ct)
+            {
+                var size = BinaryPrimitives.ReadInt32BigEndian(packet);
+                using var document = JsonDocument.Parse(packet.AsMemory(4, size));
+                var manifest = document.RootElement.Clone();
+                Check(manifest.GetProperty("itemId").GetGuid() == itemId, "material packet binds its item ID");
+                Check(!document.RootElement.GetRawText().Contains("PRIVATE_SEARCH_CACHE"), "materials never include original embedding or OCR caches");
+                if (manifest.GetProperty("status").GetString() == "ready")
+                {
+                    Check(packet.AsSpan(4 + size).SequenceEqual(Output), "material binary packet contains only approved processed image bytes");
+                    Check(manifest.GetProperty("image").GetProperty("sourceSha256").GetString() == RecoveryWorkflow.Hash(Output),
+                        "material manifest binds the processed bytes hash");
+                }
+                else Check(packet.Length == size + 4, "failed material packets contain no image bytes");
+                packets.Add(manifest);
+                return Task.CompletedTask;
+            }
+            byte[] Request(params object[] values) => JsonSerializer.SerializeToUtf8Bytes(new { candidates = values });
+            object Candidate(Item item, string? hash = null, ItemImage? image = null) => new
+                { itemId = item.Id, sources = new[] { Source(item, hash, image) } };
+            var materialItems = items.Take(19).Append(items[29]).Select(item => Candidate(item)).ToArray();
+            Check(await provider.ProvideAsync(Request(materialItems), Capture, default) == 20
+                && packets.Count == 20 && packets.All(packet => packet.GetProperty("status").GetString() == "ready"),
+                "Python receives materials for the complete twenty-candidate pool before any UI limit");
+            packets.Clear();
+            await provider.ProvideAsync(Request(Candidate(items[0], image: privateImage), Candidate(items[1], hash: new string('0', 64))), Capture, default);
+            Check(packets.All(packet => packet.GetProperty("status").GetString() == "stale"),
+                "unapproved and stale sources are withheld even when their item has another approved image");
+            packets.Clear();
+            storage.CorruptRead = true;
+            try { await provider.ProvideAsync(Request(Candidate(items[0])), Capture, default); }
+            finally { storage.CorruptRead = false; }
+            Check(packets.Single().GetProperty("status").GetString() == "unavailable", "corrupt stored output requests whole-pool quality fallback");
+            packets.Clear();
+            storage.OnRead = async () =>
+            {
+                storage.OnRead = null;
+                await setup.Database.ExecuteSqlInterpolatedAsync($"UPDATE items SET publication_state = 'hidden' WHERE id = {items[0].Id}");
+            };
+            try { await provider.ProvideAsync(Request(Candidate(items[0])), Capture, default); }
+            finally
+            {
+                storage.OnRead = null;
+                await setup.Database.ExecuteSqlInterpolatedAsync($"UPDATE items SET publication_state = 'published' WHERE id = {items[0].Id}");
+            }
+            Check(packets.Single().GetProperty("status").GetString() == "stale", "a source revoked during storage reads is never sent to the model");
+            try
+            {
+                await provider.ProvideAsync(Request(materialItems.Append(Candidate(items[20])).ToArray()), Capture, default);
+                throw new InvalidOperationException("FAIL: twenty-one material candidates should be rejected");
+            }
+            catch (JsonException) { }
+        }
 
         ItemImage Image(Item item, short position, bool approved) => new()
         {

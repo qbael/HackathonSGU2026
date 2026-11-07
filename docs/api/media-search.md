@@ -85,8 +85,13 @@ Gửi lại đúng khóa/input trả cùng ảnh, không chạy AI/upload thêm.
 
 `redact-v4` che khoảng 60% phần đầu và giữ khoảng 40% phần cuối của số CCCD/CMND,
 điện thoại và mã định danh như MSSV, mã nhân viên, số thẻ/tài khoản. Tỷ lệ dựa trên
-chiều rộng vùng nhận diện, không phải phép đếm ký tự. Khuôn mặt, địa chỉ, QR và mã
-vạch vẫn che toàn bộ như trước; họ tên, ngày tháng và thông tin khác giữ nguyên.
+chiều rộng vùng nhận diện, không phải phép đếm ký tự. Số hộ chiếu (`passport_number`),
+toàn bộ vùng mã đọc máy (`mrz`), chữ ký (`signature`), khuôn mặt, địa chỉ/quê quán/nơi sinh, QR và mã
+vạch được che toàn bộ. Họ tên, ngày sinh, ngày cấp/hết hạn và thông tin đối chiếu
+khác ngoài MRZ giữ nguyên; dữ liệu lặp trong MRZ vẫn được che kín.
+Khi lượt đầu thấy dấu hiệu giấy tờ (khuôn mặt, số định danh/hộ chiếu, MRZ, chữ ký,
+QR hoặc mã vạch), worker kiểm tra thêm các trường trên toàn ảnh rồi gộp, bỏ khung
+trùng chính xác và kiểm giới hạn 32 vùng; lỗi hoặc quá giới hạn không trả ảnh che dở.
 Ảnh đã xử lý trước thay đổi này giữ output cũ; muốn áp dụng cách che hoặc embedding
 ảnh gốc hoặc OCR mới phải tải lại ảnh gốc. Chỉ mục văn bản ghép mô tả hiện hành với
 OCR của ảnh đã duyệt; sửa mô tả không cần tải lại ảnh.
@@ -172,7 +177,8 @@ Response **200**:
   "searchProfileVersion": 1,
   "partial": false,
   "filtersRelaxed": false,
-  "fallbackUrl": "/api/items"
+  "fallbackUrl": "/api/items",
+  "rankingMethod": "similarity_fallback"
 }
 ```
 
@@ -188,17 +194,17 @@ Tin chỉ ghi ngày nhặt được cộng 2% nếu cùng ngày theo múi giờ 
 Trong từng khu vực và nhóm truy vấn, điểm được nhân với `1 + bonusThoiGian`.
 Khu vực quyết định thứ tự trước nhóm truy vấn và điểm; bộ lọc ngày luôn được giữ nguyên.
 `filtersRelaxed:true` chỉ khi có `area` và danh sách trả về có món ngoài khu vực ưu tiên;
-không có nghĩa là đã nới ngày. Cả ba endpoint tìm kiếm nhận tối đa **30 món duy nhất**
-từ Python cho toàn bộ request. Mỗi kênh/nhánh truy hồi cũng giữ tối đa 30; nếu mở rộng,
+không có nghĩa là đã nới ngày. Cả ba endpoint tìm kiếm nhận tối đa **20 món duy nhất**
+từ Python cho toàn bộ request. Mỗi kênh/nhánh truy hồi cũng giữ tối đa 20; nếu mở rộng,
 kết quả ngoài khu vực nối sau kết quả trong khu vực trước khi cắt pool chung.
 .NET đọc cả pool bằng một truy vấn SQL JOIN kèm ảnh công khai và quyền quản lý Hub
 qua correlated `EXISTS`, kiểm phiên bản/quyền hiện tại rồi xếp khu vực và nhóm trước
 khi cắt kết quả cuối còn `limit=1..10`. Không truy vấn lại từng món hay refill ngoài
-pool 30; `partial:true` khi bỏ ứng viên khiến kết quả chưa đủ limit.
+pool 20; `partial:true` khi bỏ ứng viên khiến kết quả chưa đủ limit.
 Kết quả hợp lệ rỗng là **200** với `items:[]`.
 
 Input rỗng/khoảng ngày sai (kể cả from=0001-01-01 hoặc until=9999-12-31) **400**; response AI sai schema/model **502**;
-broker/model/search store thiếu hoặc timeout 30 giây **503**. Lúc lỗi dùng
+broker/model/search store thiếu hoặc timeout 45 giây **503**. Lúc lỗi dùng
 `GET /api/items?area=...&from=...&until=...` để lọc cơ bản; không đổi lỗi thành rỗng.
 Tên profile là hợp đồng cấu hình, chưa phải chứng nhận đạt chất lượng tìm kiếm.
 
@@ -211,7 +217,7 @@ chỉ nhận ứng viên gắn với ảnh đã che được duyệt ở đúng 
 mới khi capability ảnh bật dùng vector từ ảnh gốc; nguồn cũ/không có cache vẫn dùng
 vector bản che hoặc cache ảnh cũ. Ảnh truy vấn được embedding riêng, không chạy OCR;
 deadline mỗi ảnh 300 giây. Không coi độ giống là khớp số chính xác.
-Trình duyệt chờ tối đa 330 giây cho endpoint một ảnh.
+RPC gồm chấm lại tối đa 315 giây. Trình duyệt chờ tối đa 345 giây cho endpoint một ảnh.
 
 ```sh
 curl -b cookies.txt -H 'X-CSRF-TOKEN: <token>' -H 'Content-Type: image/png' \
@@ -236,8 +242,8 @@ Tổng request tối đa 30 MiB cộng 64 KiB cho form/header; không nhận tr�
 Kiểm xong toàn bộ ảnh, mô tả và bộ lọc mới gọi AI. .NET gửi một lệnh
 `search.hybrid.images` chứa cả nhóm ảnh và mô tả tùy chọn. Python tìm từng ảnh,
 chạy nhánh text hybrid nếu có mô tả rồi hợp nhất thứ hạng trước khi trả ứng viên.
-Thời gian xử lý AI chung tối đa **940 giây**, trình duyệt chờ tối đa
-**960 giây**, gồm tối đa ba nhánh ảnh 300 giây và một nhánh text 30 giây; một nhánh lỗi thì cả
+Thời gian xử lý AI chung tối đa **955 giây**, trình duyệt chờ tối đa
+**975 giây**, gồm tối đa ba nhánh ảnh 300 giây và một nhánh text 30 giây và 15 giây nhận ảnh/chấm lại; một nhánh truy hồi lỗi thì cả
 request lỗi, không trả kết quả thành công thiếu nhánh.
 
 ```sh
@@ -257,38 +263,23 @@ reciprocal rank fusion: mỗi danh sách ảnh đóng góp `1 / (60 + rank)`, nh
 danh sách và chỉ xuất hiện một lần trong kết quả; không trộn điểm similarity giữa model.
 Nhánh mô tả vẫn dùng hybrid text 60/40 bên trong.
 
-Khi có `area`, tất cả nhánh tìm trong khu vực trước. Ngưỡng mặc định cho cosine ảnh
-và mô tả đều là `0.6`, chỉnh bằng `AI_SEARCH_MIN_IMAGE_SIMILARITY` và
-`AI_SEARCH_MIN_TEXT_SIMILARITY` (0–1). Có cả ảnh và mô tả: cần ít nhất một tin đạt
-cả hai ngưỡng trên cùng món đồ; với nhiều ảnh, lấy độ giống cao nhất của các ảnh.
-Chỉ có một loại đầu vào thì xét ngưỡng tương ứng. Nếu không đạt (kể cả rỗng), mới
-truy vấn phần ngoài khu vực, dùng lại embedding và giữ bộ lọc ngày. Không có `area`
-thì tìm toàn bộ một lần. Cosine là `1 - cosine_distance`, không dùng điểm RRF làm
-ngưỡng và không coi `0.6` là xác suất 60%; ngưỡng này cần hiệu chỉnh theo model/dữ liệu.
-Cosine chỉ dùng nội bộ worker, không thay đổi body AMQP/HTTP. Với text/ảnh đơn,
-áp dụng cùng quy tắc. Không refill nếu .NET loại ứng viên stale sau bước này.
+Khi có `area`, tìm trong khu vực trước; nếu không có món nào đạt ngưỡng cosine
+ảnh **hoặc** mô tả thì mới tìm ngoài khu vực. Nhiều ảnh dùng cosine cao nhất.
+Mỗi kênh/nhánh và pool chung đều tối đa **20 món**, không nhân theo số đầu vào.
+Món yếu trong khu vực không chiếm chỗ khi mở rộng; ngày vẫn lọc cứng.
 
-Khi mở rộng, kết quả trong khu vực được xếp trước mọi kết quả ngoài khu vực.
-Trong mỗi phần đó, nhóm được cả nhánh ảnh và nhánh mô tả tìm thấy đứng trước, rồi
-nhóm chỉ nhánh ảnh tìm thấy, cuối cùng nhóm chỉ nhánh mô tả tìm thấy. Trong mỗi nhóm,
-xếp giảm dần theo tổng điểm, điểm ảnh hoặc điểm mô tả tương ứng, có bonus `lostAt`.
-Nhóm tính theo nhánh truy vấn, không theo `sourceKind`; nhánh mô tả vẫn có thể tìm
-thấy nguồn ảnh. Bonus `lostAt` chỉ đổi thứ tự trong nhóm, không vượt ưu tiên khu vực.
-Không truyền `area` thì chỉ xếp theo nhóm truy vấn rồi điểm như trên.
+Python chấm toàn bộ pool bằng Qwen3-VL-Reranker-2B khi đã cấu hình. Python lấy ảnh
+đã duyệt và mô tả công khai từ .NET qua RabbitMQ, chấm ảnh/text riêng rồi lọc ngưỡng
+và tỷ lệ so với điểm tốt nhất trong từng khu vực/nhóm. Một loại mạnh là đủ.
+Không dùng RRF như chất lượng tuyệt đối. Toàn bước bổ sung có ngân sách 15 giây;
+lỗi/quá giờ dùng bộ lọc cosine cho toàn pool, không trộn điểm model dở dang.
 
-Python hợp nhất và loại trùng rồi chọn tối đa **30 món duy nhất cho cả request**,
-ưu tiên khu vực trước nhóm truy vấn và điểm. Mỗi kênh/nhánh cũng giới hạn 30;
-giới hạn chung không nhân với số ảnh hoặc số nhánh. Pool đã chọn được gửi theo
-nhóm/điểm để kiểm hợp đồng AMQP. Mỗi ứng viên kèm điểm tổng, điểm ảnh, điểm mô tả
-và provenance của mọi nguồn góp điểm; các điểm này chỉ trao đổi nội bộ qua AMQP,
-HTTP vẫn chỉ trả rank. Body ứng viên AMQP tối đa 1 MiB cho cả ba endpoint.
-.NET đọc cả pool bằng một truy vấn SQL JOIN, gồm ảnh công khai và quyền Hub qua
-correlated `EXISTS`, rồi kiểm publication/lifecycle, document/source version/hash và bộ lọc ngày hiện tại;
-chỉ một nguồn góp điểm không còn hợp lệ cũng khiến cả ứng viên bị loại. .NET không gộp
-lại; xếp khu vực trước, giữ nhóm truy vấn và áp dụng bonus `lostAt` trên điểm Python,
-giữ tối đa `limit` món và đánh lại rank từ 1. Không refill ngoài pool 30 nếu loại tin
-stale hoặc không còn quyền hiển thị; không cần migration DB hay thêm trường HTTP.
-`partial`, `filtersRelaxed`, `fallbackUrl` giữ ý nghĩa như tìm text.
+.NET nhận 0–20 món đã lọc, kiểm lại nguồn hiện hành, ưu tiên khu vực và nhóm đạt
+ngưỡng rồi áp dụng bonus `lostAt` trên `relevanceScore` trước khi lấy tối đa 10 món.
+Không refill ngoài pool hoặc thêm món yếu để đủ 10. HTTP chỉ xuất rank và thêm
+`rankingMethod: "reranker" | "similarity_fallback"`; giao diện báo khi dùng dự phòng.
+`partial`, `filtersRelaxed`, `fallbackUrl` giữ ý nghĩa cũ. Không cần migration DB.
+Chi tiết ngưỡng và benchmark tại [hướng dẫn đánh giá](../guides/search-evaluation.md).
 
 Thiếu ảnh, quá ba ảnh, ảnh rỗng, text/form/bộ lọc sai **400**; sai MIME **415**;
 quá byte **413**; phản hồi AI sai **502**; AI/broker/timeout **503**. Ảnh query

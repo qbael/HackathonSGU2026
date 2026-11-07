@@ -4,7 +4,7 @@ import re
 import unicodedata
 
 
-MAX_SEARCH_CANDIDATES = 30
+MAX_SEARCH_CANDIDATES = 20
 
 
 def normalize_text(text: str) -> str:

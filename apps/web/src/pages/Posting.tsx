@@ -769,9 +769,9 @@ export function ReviewImages({ id }: { id: string }) {
             hợp.
           </p>
           {[
-            "Số giấy tờ, điện thoại và mã định danh đã che phần đầu, chỉ giữ tối đa khoảng 40% phần cuối để đối chiếu.",
-            "Không lộ khuôn mặt, ảnh chân dung hoặc địa chỉ riêng.",
-            "Không lộ mã QR, mã vạch hoặc chi tiết xác minh bí mật.",
+            "Số hộ chiếu đã che toàn bộ; số CCCD/CMND, điện thoại và mã định danh khác đã che phần đầu, chỉ giữ tối đa khoảng 40% phần cuối để đối chiếu.",
+            "Không lộ khuôn mặt, ảnh chân dung, chữ ký, địa chỉ riêng, quê quán hoặc nơi sinh.",
+            "Không lộ vùng mã đọc máy (MRZ) trên hộ chiếu, mã QR, mã vạch hoặc chi tiết xác minh bí mật.",
           ].map((label, index) => (
             <label className="checkbox-field safety-check" key={label}>
               <input

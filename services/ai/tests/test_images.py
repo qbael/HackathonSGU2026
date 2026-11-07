@@ -41,11 +41,15 @@ class Detector:
         self.documents = documents
         self.input = None
         self.calls = []
+        self.document_calls = []
 
     async def detect_regions(self, image, *, address_only=False, document_only=False):
         self.input = image
         self.calls.append((image, address_only))
         if document_only:
+            self.document_calls.append(image)
+            if isinstance(self.documents, Exception):
+                raise self.documents
             return self.documents
         if address_only and isinstance(self.refined, Exception):
             raise self.refined
@@ -81,6 +85,74 @@ def test_face_only_result_checks_printed_document_fields_before_masking():
         assert (pixels[72:90, 160:256] == 0).all()
         assert (pixels[72:90, 256:320] == 255).all()
         assert (pixels[24:60, 340:380] == 0).all()
+
+
+def test_partial_passport_result_checks_missing_mrz_and_signature_before_masking():
+    face = {"label": "face", "bbox": [50, 250, 250, 750]}
+    number = {"label": "passport_number", "bbox": [400, 300, 800, 375]}
+    mrz = {"label": "mrz", "bbox": [0, 800, 1000, 1000]}
+    signature = {"label": "signature", "bbox": [400, 600, 800, 700]}
+    detector = Detector([face, number], documents=[number, mrz, signature])
+    body = encoded(size=(400, 240))
+    output, metadata = asyncio.run(redact(detector, body, "image/png"))
+    assert detector.document_calls == [body]
+    assert metadata["sensitiveRegions"] == [face, number, mrz, signature]
+    with Image.open(BytesIO(output)) as image:
+        pixels = np.array(image)
+        assert (pixels[72:90, 160:320] == 0).all()
+        assert (pixels[192:240, :] == 0).all()
+        assert (pixels[144:168, 160:320] == 0).all()
+        assert (pixels[100:120, 160:320] == 255).all()
+
+
+@pytest.mark.parametrize("label", ["mrz", "qr_code", "barcode"])
+def test_cropped_document_without_face_still_checks_other_printed_fields(label):
+    initial = {"label": label, "bbox": [0, 800, 1000, 1000]}
+    number = {"label": "passport_number", "bbox": [400, 300, 800, 375]}
+    detector = Detector([initial], documents=[number])
+    _, metadata = asyncio.run(redact(detector, encoded(), "image/png"))
+    assert len(detector.document_calls) == 1
+    assert metadata["sensitiveRegions"] == [initial, number]
+
+
+@pytest.mark.parametrize("label", ["passport_number", "mrz", "signature"])
+def test_passport_fields_are_fully_masked_and_comparison_text_stays_visible(label):
+    buffer = BytesIO()
+    with Image.new("RGB", (400, 240), "white") as source:
+        ImageDraw.Draw(source).text((100, 10), "SAMPLE HOLDER 01/01/2000", fill="black")
+        original = np.array(source)
+        source.save(buffer, format="PNG")
+    region = {"label": label, "bbox": [250, 250, 750, 750]}
+    output, metadata = asyncio.run(redact(Detector([region]), buffer.getvalue(), "image/png"))
+    with Image.open(BytesIO(output)) as image:
+        pixels = np.array(image)
+        assert (pixels[60:180, 100:300] == 0).all()
+        np.testing.assert_array_equal(pixels[:50], original[:50])
+        np.testing.assert_array_equal(pixels[:, :90], original[:, :90])
+    assert metadata["sensitiveRegions"] == [region]
+
+
+def test_document_pass_deduplicates_before_enforcing_total_region_limit():
+    faces = [{"label": "face", "bbox": [index * 10, 0, index * 10 + 1, 1]} for index in range(31)]
+    number = {"label": "passport_number", "bbox": [250, 250, 750, 350]}
+    detector = Detector(faces + [number], documents=[number])
+    _, metadata = asyncio.run(redact(detector, encoded(), "image/png"))
+    assert metadata["sensitiveRegions"] == faces + [number]
+    detector.documents.append({"label": "signature", "bbox": [250, 500, 750, 600]})
+    with pytest.raises(ValueError):
+        asyncio.run(redact(detector, encoded(), "image/png"))
+
+
+@pytest.mark.parametrize("documents,error", [
+    (RuntimeError("document_detection_unavailable"), RuntimeError),
+    ([{"label": "unknown", "bbox": [0, 0, 100, 100]}], ValueError),
+    ([{"label": "mrz", "bbox": [0, 0, 100.5, 100]}], ValueError),
+    ([{"label": "mrz", "bbox": [0, 0, 0, 0]}], ValueError),
+])
+def test_document_pass_errors_do_not_return_partially_masked_output(documents, error):
+    detector = Detector([{"label": "passport_number", "bbox": [250, 250, 750, 350]}], documents=documents)
+    with pytest.raises(error):
+        asyncio.run(redact(detector, encoded(), "image/png"))
 
 
 def test_selected_fields_leave_other_comparison_details_visible():
@@ -312,8 +384,9 @@ def test_model_error_does_not_return_raw_input_as_output():
         asyncio.run(redact(BrokenDetector(), encoded(), "image/png"))
 
 
-def test_reviewed_masks_cover_complete_fields_without_changing_surrounding_pixels():
-    regions = [{"label": "identity_number", "bbox": [250, 250, 750, 750]}]
+@pytest.mark.parametrize("label", ["identity_number", "passport_number", "mrz", "signature"])
+def test_reviewed_masks_cover_complete_fields_without_changing_surrounding_pixels(label):
+    regions = [{"label": label, "bbox": [250, 250, 750, 750]}]
     output, metadata = reviewed_mask(encoded(size=(400, 240)), "image/png", regions)
     with Image.open(BytesIO(output)) as image:
         pixels = np.array(image)

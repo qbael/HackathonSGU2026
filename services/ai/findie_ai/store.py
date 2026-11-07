@@ -164,7 +164,7 @@ class Store:
         pool_limit = MAX_SEARCH_CANDIDATES
         profiles = ["image-v1"] if modality == "image" else ["text-v1", "image-v1"] if include_images else ["text-v1"]
         channels = {"semantic": [], "lexical": [], "locations": []}
-        need_semantic = modality == "image" or strategy != "lexical"
+        need_semantic = modality == "image" or strategy != "lexical" or include_similarity
         need_keyword = modality == "text" and strategy != "semantic"
         keyword_key = None
         # shortcut: exact vector scan favors recall; add ANN only after measuring corpus size and recall.
@@ -187,17 +187,29 @@ class Store:
                 channels.update(fresh)
                 if keyword_key and need_keyword:
                     await self.cache.put(keyword_key, {name: channels[name] for name in ("lexical", "locations")})
-        if modality == "image":
-            hits = rank_candidates(channels["semantic"], [], [], [], limit)
-        elif strategy != "hybrid":
-            hits = rank_candidates(channels[strategy], [], [], [], limit)
-        else:
-            hits = rank_candidates(channels["semantic"], channels["lexical"], channels["locations"], tokens, limit,
-                                   semantic_weight=self.semantic_weight)
-        if include_similarity:
-            similarities = {str(row["item_id"]): row["similarity"] for row in channels["semantic"]}
-            for hit in hits:
-                hit["similarity"] = similarities.get(hit["itemId"], -1.0)
+            if modality == "image":
+                hits = rank_candidates(channels["semantic"], [], [], [], limit)
+            elif strategy != "hybrid":
+                hits = rank_candidates(channels[strategy], [], [], [], limit)
+            else:
+                hits = rank_candidates(channels["semantic"], channels["lexical"], channels["locations"], tokens, limit,
+                                       semantic_weight=self.semantic_weight)
+            if include_similarity:
+                similarities = {str(row["item_id"]): row["similarity"] for row in channels["semantic"]}
+                missing = [hit["itemId"] for hit in hits if hit["itemId"] not in similarities]
+                if missing:
+                    # Keyword hits outside the semantic pool still need measured, query-specific cosine.
+                    cursor = await connection.execute("""SELECT d.item_id,
+                        max(1 - (d.embedding <=> %s::vector)) AS similarity
+                        FROM ai_documents d JOIN ai_items i USING (item_id)
+                        WHERE d.item_id = ANY(%s::uuid[]) AND NOT i.tombstone
+                          AND d.document_version = i.document_version
+                          AND (d.model_id, d.model_revision, d.dimensions) = (%s, %s, %s)
+                          AND d.processing_profile = ANY(%s::text[])
+                        GROUP BY d.item_id""", (vector, missing, *self.identity[:3], profiles))
+                    similarities.update({str(row["item_id"]): row["similarity"] for row in await cursor.fetchall()})
+                for hit in hits:
+                    hit["similarity"] = similarities.get(hit["itemId"], -1.0)
         return hits
 
     async def _search_channels(self, connection, profiles, area, outside_area, first, start, last, end, vector,

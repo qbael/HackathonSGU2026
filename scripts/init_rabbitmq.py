@@ -15,10 +15,10 @@ def initialize(root: Path) -> Path:
     definitions["permissions"] = []
     permissions = {
         "ADMIN": (".*", ".*", ".*"),
-        "API": (r"^amq\.gen-.*$", r"^amq\.default$", r"^(amq\.gen-.*|findie\.api\.results)$"),
+        "API": (r"^(amq\.gen-.*|findie\.api\.materials)$", r"^amq\.default$", r"^(amq\.gen-.*|findie\.api\.(results|materials))$"),
         # RabbitMQ 4.3.1+ requires a permission even for the passive result-queue check.
-        "AI": (r"^findie\.ai\.(query|image)$", r"^(amq\.default|findie\.api\.results)$",
-               r"^findie\.ai\.(commands|query|image)$"),
+        "AI": (r"^findie\.ai\.(query|image|materials\.results)$", r"^(amq\.default|findie\.api\.results)$",
+               r"^findie\.ai\.(commands|query|image|materials\.results)$"),
     }
     names = set()
     for role, (configure, write, read) in permissions.items():

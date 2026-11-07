@@ -143,7 +143,7 @@ def test_output_limit_and_date_representation_reuse_full_candidate_pool(cached_s
         expected = await store.search("ví", [1, 0], from_date="2026-10-25", limit=1)
         assert await store.search("ví", [1, 0], from_date=date(2026, 10, 25), limit=10) == expected
         assert store._search_channels.await_args.args[-3:-1] == (True, False)
-        assert store._search_channels.await_args.args[-1] == 30
+        assert store._search_channels.await_args.args[-1] == 20
     asyncio.run(run())
 
 
@@ -271,12 +271,12 @@ def test_inside_and_outside_area_keyword_pools_have_separate_cache_entries(cache
     asyncio.run(run())
 
 
-def test_legacy_cache_pool_larger_than_thirty_is_rejected(cached_store):
+def test_legacy_cache_pool_larger_than_twenty_is_rejected(cached_store):
     async def run():
         store, cache, entries, _ = cached_store
         await store.search("ví", [1, 0])
         payload = json.loads(next(iter(entries.values())))
-        payload["lexical"] *= 31
+        payload["lexical"] *= 21
         cache.client.get.side_effect = None
         cache.client.get.return_value = json.dumps(payload)
         await store.search("ví", [1, 0])

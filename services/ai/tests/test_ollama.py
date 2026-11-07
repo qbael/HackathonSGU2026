@@ -242,7 +242,7 @@ def test_address_refinement_restricts_schema_and_rejects_other_fields(label):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('label', ['qr_code', 'phone'])
+@pytest.mark.parametrize('label', ['qr_code', 'passport_number', 'mrz', 'signature', 'phone', 'face'])
 def test_document_redaction_restricts_schema_and_rejects_other_fields(label):
     settings = replace(SETTINGS, redaction_revision='b' * 64)
     region = {'label': label, 'bbox': [0, 0, 100, 100]}
@@ -252,9 +252,12 @@ def test_document_redaction_restricts_schema_and_rejects_other_fields(label):
             return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
         body = json.loads(request.content)
         assert body['format']['$defs']['Region']['properties']['label']['enum'] == [
-            'identity_number', 'identifier_number', 'address', 'qr_code', 'barcode',
+            'identity_number', 'identifier_number', 'passport_number', 'mrz', 'signature', 'address', 'qr_code', 'barcode',
         ]
-        assert body['prompt'].startswith('Find printed sensitive fields on all ID cards and student cards.')
+        assert 'passports' in body['prompt'] and 'residence permits' in body['prompt']
+        assert 'passport_number' in body['prompt'] and 'signature' in body['prompt']
+        assert 'ALL two or three lines' in body['prompt']
+        assert 'masked completely' in body['prompt']
         assert 'Nơi thường trú / Place of residence values including every line' in body['prompt']
         assert 'relative to the whole image' in body['prompt']
         return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
@@ -263,7 +266,7 @@ def test_document_redaction_restricts_schema_and_rejects_other_fields(label):
     async def run():
         model = Ollama(settings, httpx.MockTransport(respond))
         try:
-            if label == 'qr_code':
+            if label not in {'phone', 'face'}:
                 assert await model.detect_regions(image_bytes(), document_only=True) == [region]
             else:
                 with pytest.raises(ModelUnavailable, match='invalid_regions'):
@@ -306,6 +309,11 @@ def test_vision_redaction_uses_pinned_model_and_strict_structured_schema():
         labels = body['format']['$defs']['Region']['properties']['label']['enum']
         assert 'identity_number' in labels and 'identifier_number' in labels and 'personal_text' not in labels
         assert 'identity_document' not in labels and 'payment_card' not in labels
+        assert {'passport_number', 'mrz', 'signature'} <= set(labels)
+        assert 'passports' in body['prompt'] and 'place of birth' in body['prompt']
+        assert 'ALL two or three lines' in body['prompt']
+        assert 'rotated or partly cropped' in body['prompt']
+        assert 'masked completely' in body['prompt'] and 'outside MRZ blocks' in body['prompt']
         assert 'separate tight bounding box' in body['prompt']
         assert 'Keep card borders, logos, institution names' in body['prompt']
         assert 'cropped secondary cards at every image edge' in body['prompt']
@@ -324,6 +332,26 @@ def test_vision_redaction_uses_pinned_model_and_strict_structured_schema():
         try:
             assert await model.detect_regions(image) == [{'label': 'face', 'bbox': [0, 0, 100, 100]}]
             assert paths == ['/api/tags', '/api/generate', '/api/tags']
+        finally:
+            await model.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("label", ["passport_number", "mrz", "signature"])
+def test_vision_redaction_accepts_passport_fields_without_transcribing_text(label):
+    settings = replace(SETTINGS, redaction_revision='b' * 64)
+    region = {"label": label, "bbox": [0, 0, 100, 100]}
+
+    def respond(request):
+        if request.method == 'GET':
+            return httpx.Response(200, json={'models': [{'name': settings.redaction_model, 'digest': settings.redaction_revision}]})
+        return httpx.Response(200, json={'model': settings.redaction_model, 'done': True, 'done_reason': 'stop',
+                                        'response': json.dumps({'regions': [region]})})
+
+    async def run():
+        model = Ollama(settings, httpx.MockTransport(respond))
+        try:
+            assert await model.detect_regions(image_bytes()) == [region]
         finally:
             await model.close()
     asyncio.run(run())

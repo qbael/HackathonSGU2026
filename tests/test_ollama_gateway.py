@@ -329,9 +329,91 @@ class GatewayTests(unittest.TestCase):
             for thread in threads:
                 thread.join(timeout=2)
 
+    def test_reranker_dispatch_catalog_errors_and_shared_capacity(self):
+        item_id = "fd000000-0000-0000-0000-000000000001"
+        scores = [{"itemId": item_id, "imageScore": None, "textScore": 0.9}]
+        reranker = SimpleNamespace(model_id="reranker", digest="c" * 64, rerank=Mock(return_value=scores))
+        calls = []
+
+        class Upstream(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+
+            def do_GET(self):
+                calls.append(self.path)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"models":[{"name":"redaction","digest":"a"}]}')
+
+        upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
+        proxy = module.gateway(TOKEN, ["reranker", "redaction"], address=("127.0.0.1", 0),
+                               upstream=f"http://127.0.0.1:{upstream.server_port}", reranker=reranker)
+        servers = [upstream, proxy]
+        threads = [threading.Thread(target=server.serve_forever, daemon=True) for server in servers]
+        for thread in threads:
+            thread.start()
+        release = threading.Event()
+        try:
+            def request(path, payload=None, token=TOKEN):
+                req = Request(f"http://127.0.0.1:{proxy.server_port}" + path,
+                              data=None if payload is None else json.dumps(payload).encode(),
+                              headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+                try:
+                    with urlopen(req, timeout=3) as response:
+                        return response.status, json.load(response)
+                except HTTPError as error:
+                    with error:
+                        return error.code, json.load(error)
+
+            payload = {"model": "reranker", "text": "ví", "images": [],
+                       "candidates": [{"itemId": item_id, "text": "ví đen"}], "deadlineAt": "test"}
+            self.assertEqual(request("/api/rerank", payload, token="wrong")[0], 401)
+            self.assertEqual(request("/api/rerank", payload | {"model": "redaction"})[0], 400)
+            self.assertEqual(request("/api/embed", {"model": "reranker"})[0], 400)
+            self.assertEqual(request("/api/show", {"model": "reranker"}),
+                             (200, {"capabilities": ["rerank", "vision"]}))
+            self.assertIn({"name": "reranker", "digest": "sha256:" + reranker.digest},
+                          request("/api/tags")[1]["models"])
+            self.assertEqual(request("/api/rerank", payload), (200, {"model": "reranker", "scores": scores}))
+            self.assertEqual(calls, ["/api/tags"])
+            for error, status in ((ValueError("private input"), 400), (TimeoutError("private deadline"), 504),
+                                  (RuntimeError("private CUDA"), 502)):
+                reranker.rerank.side_effect = error
+                result = request("/api/rerank", payload)
+                self.assertEqual(result[0], status)
+                self.assertNotIn("private", json.dumps(result[1]))
+            reranker.rerank.side_effect = None
+            for invalid in ([], scores * 2, [scores[0] | {"textScore": float("nan")}],
+                            [scores[0] | {"textScore": True}], [scores[0] | {"itemId": "other"}]):
+                reranker.rerank.return_value = invalid
+                self.assertEqual(request("/api/rerank", payload)[0], 502)
+            entered = threading.Event()
+
+            def block(_payload):
+                entered.set()
+                release.wait(3)
+                return scores
+
+            reranker.rerank.side_effect = block
+            result = []
+            thread = threading.Thread(target=lambda: result.append(request("/api/rerank", payload)))
+            thread.start()
+            self.assertTrue(entered.wait(2))
+            self.assertEqual(request("/api/generate", {"model": "redaction"})[0], 429)
+            release.set()
+            thread.join(timeout=3)
+            self.assertEqual(result[0][0], 200)
+        finally:
+            release.set()
+            for server in servers:
+                server.shutdown()
+                server.server_close()
+            for thread in threads:
+                thread.join(timeout=2)
+
     def test_notebook_proxy_matches_tested_source_and_has_no_saved_outputs(self):
         notebook = json.loads((ROOT / "notebooks/colab/04_full_stack_ollama_ngrok.ipynb").read_text())
-        for tag, filename in (("gateway-source", "ollama_gateway.py"), ("qwen-source", "qwen_embedding.py")):
+        for tag, filename in (("gateway-source", "ollama_gateway.py"), ("qwen-source", "qwen_embedding.py"), ("reranker-source", "qwen_reranker.py")):
             source = next("".join(c["source"]) for c in notebook["cells"]
                           if tag in c["metadata"].get("tags", []))
             self.assertEqual(source, (ROOT / "scripts" / filename).read_text())

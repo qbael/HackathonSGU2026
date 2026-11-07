@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from .config import Settings
 from .worker import Worker
+from .ranking import MAX_SEARCH_CANDIDATES
 
 
 @asynccontextmanager
@@ -60,13 +61,16 @@ async def status(request: Request):
         'stage': 'multimodal_search' if settings.image_search_enabled else 'text_search',
         'inferenceReady': available,
         'execution': 'ollama',
-        'models': {'embedding': settings.model_id, 'redaction': settings.redaction_model if settings.redaction_revision else None},
+        'models': {'embedding': settings.model_id, 'redaction': settings.redaction_model if settings.redaction_revision else None,
+                   'reranker': settings.reranker_model if settings.reranker_revision else None},
         'modelRevision': settings.revision or None,
         'redactionRevision': settings.redaction_revision or None,
         'redactionProfileId': 'redact-v4',
         'embeddingDimensions': settings.dimensions,
         'searchProfileId': settings.search_profile,
         'imageSearchProfileId': settings.image_search_profile,
+        'searchQuality': {'candidateLimit': MAX_SEARCH_CANDIDATES, 'rerankerConfigured': bool(settings.reranker_revision),
+                          'rerankerRevision': settings.reranker_revision or None, 'rerankBudgetSeconds': 15},
         'capabilities': {'textSearch': available, 'imageSearch': available and settings.image_search_enabled,
                          'imageRedaction': available and bool(settings.redaction_revision)},
     }

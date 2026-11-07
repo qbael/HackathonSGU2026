@@ -1,6 +1,6 @@
 # AI service: văn bản, xử lý ảnh và tìm ảnh qua gateway Colab
 
-Cập nhật 05/11/2026. Python nhận lệnh qua RabbitMQ, gọi gateway tương thích API Ollama, sở hữu database `findie_search` và trả ứng viên để .NET kiểm lại quyền/nguồn/phiên bản. FastAPI chỉ phục vụ health/status nội bộ. Web, API, worker, PostgreSQL và broker ở local; chỉ model inference chạy từ xa.
+Cập nhật 07/11/2026. Python nhận lệnh qua RabbitMQ, gọi gateway tương thích API Ollama, sở hữu database `findie_search` và trả ứng viên để .NET kiểm lại quyền/nguồn/phiên bản. FastAPI chỉ phục vụ health/status nội bộ. Web, API, worker, PostgreSQL và broker ở local; chỉ model inference chạy từ xa.
 
 ## Khởi tạo kho tìm kiếm và chạy local
 
@@ -22,6 +22,7 @@ Notebook tải model embedding qua Transformers và cài Ollama release/checksum
 | --- | --- | --- |
 | `Qwen/Qwen3-VL-Embedding-2B` | Embedding văn bản và ảnh riêng qua Transformers | 2048 chiều, FP16, SDPA, L2; instruction truy vấn rỗng |
 | `qwen3-vl:4b-instruct` | OCR chữ nhìn thấy và gợi ý vùng nhạy cảm qua hai request riêng | JSON schema chặt, temperature 0 |
+| `Qwen/Qwen3-VL-Reranker-2B` | Chấm toàn bộ pool tối đa 20 món; tùy chọn khi đủ VRAM | FP16, SDPA, điểm ảnh/text riêng; tổng ngân sách thêm 15 giây |
 
 Dùng đúng tag `-instruct` để trả JSON trực tiếp. Bản Qwen3-VL Thinking không hỗ trợ
 tắt suy luận bằng `think:false`; cần chọn biến thể model theo [hướng dẫn của maintainer Ollama](https://github.com/ollama/ollama/issues/13353).
@@ -39,7 +40,7 @@ bằng mô tả. Khi bật tìm ảnh, `make local-reindex` dùng cache tương 
 embed bản che đối với nguồn không có cache. Muốn embedding ảnh gốc cho các nguồn này
 phải tải lại ảnh gốc; hệ thống không giữ bytes gốc để khôi phục.
 
-Trước khi mở tunnel, notebook kiểm model digest, capabilities, embedding text/ảnh/ảnh+chữ và JSON vision trên ảnh tổng hợp, warm cả hai model. Gateway full mode công bố `embedding,vision,image_text`; Findie chỉ dùng `embedding,vision` cho model embedding. Gateway chỉ mở `/api/tags`, `/api/show`, `/api/embed`, `/api/generate` cho model được chọn, bắt buộc Bearer token, giới hạn body/concurrency và tắt access log/traffic inspection. Không expose trực tiếp Ollama, FastAPI, DB hay broker. [Ngrok có hướng dẫn Bearer authentication cho Ollama](https://ngrok.com/docs/gateway/examples/ollama).
+Trước khi mở tunnel, notebook kiểm model digest, capabilities, embedding text/ảnh/ảnh+chữ và JSON vision trên ảnh tổng hợp, warm cả hai model. Gateway full mode công bố `embedding,vision,image_text`; Findie chỉ dùng `embedding,vision` cho model embedding. Gateway chỉ mở `/api/tags`, `/api/show`, `/api/embed`, `/api/generate`, `/api/rerank` cho model được chọn, bắt buộc Bearer token, giới hạn body/concurrency và tắt access log/traffic inspection. Không expose trực tiếp Ollama, FastAPI, DB hay broker. [Ngrok có hướng dẫn Bearer authentication cho Ollama](https://ngrok.com/docs/gateway/examples/ollama).
 
 Tải `findie-colab.json` ở cell export; file chỉ chứa URL và cấu hình model, **không chứa token**:
 
@@ -64,8 +65,12 @@ Colab có quota/thời lượng và hạn chế proxy/web services, nhất là t
 | `AI_REDIS_URL` | Redis cache ứng viên từ khóa/vị trí và embedding; mặc định local `redis://127.0.0.1:6379/0`, để rỗng để tắt cả hai cache; ngoài loopback cần `rediss://` |
 | `AI_SEARCH_CACHE_TTL_SECONDS` | TTL cho cache từ khóa/vị trí, mặc định 60 giây, hợp lệ 1–3600 |
 | `AI_SEARCH_SEMANTIC_WEIGHT` | Tỷ trọng ngữ nghĩa của hybrid search, mặc định `0.6` (60% ngữ nghĩa / 40% từ khóa), hợp lệ 0–1; từ khóa bằng `1 - giá trị`. Sửa trong `.env` rồi khởi động lại worker. |
-| `AI_SEARCH_MIN_IMAGE_SIMILARITY` | Ngưỡng cosine ảnh để giữ phạm vi trong khu vực, mặc định `0.6`, hợp lệ 0–1; cần hiệu chỉnh theo model/dữ liệu. |
-| `AI_SEARCH_MIN_TEXT_SIMILARITY` | Ngưỡng cosine mô tả, mặc định `0.6`, hợp lệ 0–1. Có cả ảnh và mô tả thì cùng một tin phải đạt cả hai; nhiều ảnh dùng điểm ảnh cao nhất. |
+| `AI_SEARCH_MIN_IMAGE_SIMILARITY` | Ngưỡng cosine ảnh cho mở rộng khu vực và lọc dự phòng, mặc định `0.6`, hợp lệ 0–1. |
+| `AI_SEARCH_MIN_TEXT_SIMILARITY` | Ngưỡng cosine mô tả, mặc định `0.6`; ảnh hoặc mô tả đạt là đủ. Nhiều ảnh lấy điểm cao nhất. |
+| `AI_SEARCH_RELATIVE_SCORE_RATIO` | Giữ điểm ít nhất bằng tỷ lệ này nhân điểm tốt nhất trong cùng khu vực/nhóm đạt ngưỡng; mặc định `0.75`. |
+| `AI_RERANKER_MODEL`, `AI_RERANKER_REVISION` | Qwen3-VL-Reranker-2B và fingerprint gateway đã ghim; revision rỗng dùng lọc similarity dự phòng. |
+| `AI_RERANK_MIN_IMAGE_SCORE`, `AI_RERANK_MIN_TEXT_SCORE` | Ngưỡng relevance của model, mặc định `0.5`; không dùng chung thang với cosine/RRF. |
+| `AI_MATERIALS_QUEUE`, `AI_MATERIALS_REPLY_QUEUE` | `findie.api.materials` và `findie.ai.materials.results`; đồng bộ với `RabbitMq__MaterialsQueue`/`RabbitMq__MaterialsReplyQueue`. |
 | `REDIS_PORT` | Cổng Redis Compose chỉ bind loopback, mặc định 6379 |
 | `AI_RABBITMQ_URL` / `RabbitMq__Uri` | Hai tài khoản runtime broker tách biệt |
 | `OLLAMA_BASE_URL` / `OLLAMA_API_KEY` | HTTPS gateway ngrok và token riêng của phiên |
@@ -79,8 +84,8 @@ Chỉ một Python process, không dùng nhiều Uvicorn workers với queue exc
 
 Web chờ tối đa 11 phút (660 giây) cho toàn bộ upload. `image.embed` đọc OCR và tạo vector
 riêng từ ảnh chưa che, có deadline 300 giây; `image.redact` có deadline riêng 300 giây.
-Tìm một ảnh có deadline AI 300 giây; text/index vẫn 30 giây. Tìm nhiều ảnh/mô tả dùng
-một RPC `search.hybrid.images`, ngân sách AI chung 940 giây, web chờ 960 giây.
+Tìm text có deadline 45 giây; tìm một ảnh 315 giây, web chờ 345 giây. Index vẫn 30 giây.
+Tìm nhiều ảnh/mô tả dùng một RPC `search.hybrid.images`, ngân sách AI 955 giây, web chờ 975 giây.
 Python chạy tuần tự từng ảnh (tối đa 300 giây/ảnh), mô tả (tối đa 30 giây), rồi gộp RRF.
 Việc ghép OCR với mô tả diễn ra trong worker local. Nếu gateway đang hoạt động thì chỉ
 cần khởi động lại worker sau khi cập nhật Findie.
@@ -100,7 +105,7 @@ Các giới hạn này dành cho health, không thay deadline của upload, tìm
 
 ## Cache từ khóa bằng Redis
 
-Python dùng khóa `findie:search:v1:keyword:<sha256>` để lưu ứng viên FTS và vị trí trước khi hợp nhất thứ hạng bằng RRF. Khóa dùng từ khóa tiếng Việt đã chuẩn hóa và tách theo database, model, phiên bản chỉ mục, bộ lọc ngày, khu vực, phạm vi trong/ngoài khu vực, kích thước pool 30 và nguồn text/image được phép. Cache lưu tối đa 30 ứng viên cho mỗi danh sách FTS và vị trí, kể cả kết quả rỗng. Mỗi lượt tra cache đọc UUID phiên bản chỉ mục từ PostgreSQL.
+Python dùng khóa `findie:search:v1:keyword:<sha256>` để lưu ứng viên FTS và vị trí trước khi hợp nhất thứ hạng bằng RRF. Khóa dùng từ khóa tiếng Việt đã chuẩn hóa và tách theo database, model, phiên bản chỉ mục, bộ lọc ngày, khu vực, phạm vi trong/ngoài khu vực, kích thước pool 20 và nguồn text/image được phép. Cache lưu tối đa 20 ứng viên cho mỗi danh sách FTS và vị trí, kể cả kết quả rỗng. Mỗi lượt tra cache đọc UUID phiên bản chỉ mục từ PostgreSQL.
 
 Khi trúng cache từ khóa, worker dùng lại hai danh sách này và vẫn chạy truy vấn xếp hạng vector cho nhánh ngữ nghĩa. Tìm bằng ảnh đi thẳng qua nhánh vector.
 
@@ -153,7 +158,12 @@ Bước này giảm tải truyền ảnh; API trực tiếp và kiểm tra serve
    giảm cạnh tối đa 1600px, bỏ EXIF/GPS, flatten alpha và encode PNG mới.
 3. Vision model trả bbox/nhãn theo schema, không OCR text; Python validate tọa độ hữu hạn
    0..1000/thứ tự/nhãn/số vùng rồi OpenCV che theo quy tắc `redact-v4` bên dưới.
-   Model/JSON lỗi làm cả request thất bại; không dùng raw làm output. Không PII vẫn re-encode.
+   Khi lượt đầu thấy khuôn mặt, số định danh/hộ chiếu, MRZ, chữ ký, QR hoặc mã vạch,
+   worker tìm thêm trường giấy tờ trên toàn ảnh. Kết quả gộp được bỏ khung trùng chính
+   xác theo nhãn/bbox trước khi kiểm giới hạn 32 vùng; có địa chỉ thì kiểm thêm vùng
+   cắt địa chỉ. Mọi lượt dùng chung deadline 300 giây.
+   Model/JSON lỗi hoặc quá giới hạn làm cả request thất bại; không dùng raw làm output.
+   Không PII vẫn re-encode.
 4. .NET chỉ lưu output hợp lệ lên R2 private và cache vector/model/revision/chiều/hash gốc
    cùng OCR có provenance model/profile riêng trong `item_images.original_embedding`
    jsonb nội bộ. Bytes gốc bị bỏ. Người có quyền
@@ -172,44 +182,40 @@ Bước này giảm tải truyền ảnh; API trực tiếp và kiểm tra serve
    ghép do quá giới hạn đầu vào, thử lại với văn bản công khai và giữ đủ OCR ở nhánh từ khóa.
    Nguồn ảnh cũ giữ cache hiện có;
    tải lại ảnh gốc để bổ sung OCR còn thiếu hoặc thay vector ảnh/OCR cũ bằng vector ảnh riêng.
-6. Text dùng semantic + PostgreSQL FTS + tín hiệu vị trí; khi capability ảnh bật, xét
-   cả nguồn mô tả có OCR `text-v1` và nguồn ảnh riêng `image-v1`. Tìm bằng ảnh chỉ tạo
-   vector từ ảnh truy vấn. Mô tả tìm kiếm bổ sung vẫn là một nhánh text riêng.
-   Với nhóm 1–3 ảnh và mô tả tùy chọn, Python gộp các danh sách bằng weighted RRF:
-   mỗi nhánh ảnh hệ số 1, nhánh mô tả hệ số 0.5, nhánh text bên trong vẫn ngữ nghĩa/từ khóa
-   mặc định 60/40. Khi có `area`, tất cả nhánh lọc và tìm trong khu vực trước.
-   Nếu không có cùng một tin đạt ngưỡng cosine ở mọi loại đầu vào đã cung cấp
-   (nhiều ảnh lấy điểm cao nhất), worker mới tìm phần ngoài khu vực với cùng embedding.
-   Ngưỡng mặc định `0.6` cho ảnh và text, không phải xác suất hay điểm RRF, cần hiệu
-   chỉnh trên dữ liệu có nhãn. Khi mở rộng, món trong khu vực vẫn xếp trước mọi món ngoài khu vực.
-   Trong mỗi phần đó, món được cả nhánh ảnh và mô tả tìm thấy xếp trước, rồi chỉ ảnh,
-   cuối cùng chỉ mô tả; từng nhóm xếp giảm dần theo tổng điểm/điểm ảnh/điểm mô tả tương ứng.
-   Không có `area` thì giữ nhóm truy vấn rồi điểm.
-   Phân nhóm theo nhánh truy vấn, không phải loại nguồn tài liệu; mỗi món chỉ xuất hiện một lần.
-   Mỗi kênh và mỗi nhánh giữ tối đa 30 ứng viên. Python hợp nhất, loại trùng và
-   chọn tối đa 30 món cho toàn bộ request, ưu tiên khu vực trước nhóm và điểm;
-   text/ảnh đơn cũng dùng cùng giới hạn 30. Pool đã chọn được gửi theo nhóm/điểm
-   để kiểm hợp đồng, kèm ba điểm nội bộ và toàn bộ nguồn góp điểm; body AMQP tối đa 1 MiB.
-   .NET chỉ xử lý pool này: một truy vấn SQL JOIN tải toàn bộ món và ảnh công khai,
-   kèm quyền quản lý Hub bằng correlated `EXISTS`, thay cho truy vấn riêng mỗi món.
-   API kiểm nghiệp vụ, bộ lọc ngày và document/source version/hash của từng nguồn;
-   nguồn nào không hợp lệ thì loại cả ứng viên. `area` khớp chuỗi con của `foundArea`,
-   không phân biệt hoa thường. Món ngoài khu vực vẫn đủ điều kiện nhưng luôn đứng sau
-   mọi món trong khu vực đã truy hồi. Bonus `lostAt` chỉ đổi thứ tự trong cùng khu vực
-   và nhóm bằng hệ số `1 + bonusThoiGian`.
-   API xếp khu vực trước nhóm và điểm, rồi trả tối đa `limit=1..10` món. Không refill
-   ngoài pool 30 nếu có tin stale hoặc không còn quyền hiển thị. Không thêm trường
-   HTTP hay migration DB; `filtersRelaxed:true` khi có món hiển thị ngoài khu vực ưu tiên.
-   Khoảng ngày luôn lọc cứng; `GET /api/items?area=...` vẫn lọc cứng khu vực.
-   Chưa có điều kiện đối chiếu chính xác toàn bộ số hoặc đuôi CCCD/MSSV: OCR có thể sai,
-   và thứ hạng semantic không chứng minh số giấy tờ trùng khớp.
+6. Text dùng semantic, FTS và vị trí; ảnh dùng vector ảnh. Mỗi kênh/nhánh giữ tối đa
+   **20 ứng viên**, Python hợp nhất bằng RRF rồi chấm **toàn bộ pool 20**, không cắt 10 trước.
+   Khi có khu vực, chỉ mở rộng nếu không có món nào đạt cosine ảnh **hoặc** mô tả;
+   bỏ các món yếu trong khu vực trước khi lấy phần ngoài để không chiếm hết pool.
+7. Khi đã cấu hình reranker, Python gửi `search.materials` qua RabbitMQ để .NET cấp
+   mô tả công khai và ảnh đã xử lý, đã duyệt của toàn bộ pool. Consumer riêng tránh
+   deadlock với request tìm kiếm đang chờ. Không dùng HTTP cấp ảnh hoặc credential R2 ở Python.
+   Kiểm hash/phiên bản/MIME, tạo ảnh 512px trong RAM, chấm ảnh/text riêng qua
+   `/api/rerank` với Qwen3-VL-Reranker-2B. Tổng bước nhận ảnh và chấm có tối đa **15 giây**.
+8. Giữ ứng viên nếu ít nhất một loại đạt ngưỡng; `relevanceScore` là điểm cao nhất
+   trong các loại đạt. Lọc tiếp theo tỷ lệ so với điểm tốt nhất trong cùng khu vực/nhóm.
+   Lỗi, quá giờ, thiếu cấu hình hoặc batch model chưa đủ thì bỏ toàn bộ điểm model và
+   lọc bằng cosine trên toàn pool; không đưa lại món đã được báo stale.
+   Các giá trị khởi đầu cần hiệu chỉnh trên dữ liệu có nhãn, không phải xác suất sở hữu.
+9. Python trả **0–20** ứng viên đã lọc kèm provenance và `rankingMethod`.
+   .NET kiểm lại published/active, nguồn, ngày, ưu tiên khu vực rồi nhóm đạt ngưỡng,
+   dùng `relevanceScore` cho bonus `lostAt` và chỉ sau đó lấy tối đa `limit=1..10`.
+   Không thêm món yếu để đủ số lượng. `partial` vẫn dành cho nguồn bị loại do nghiệp vụ;
+   `filtersRelaxed` chỉ khi kết quả hiển thị nằm ngoài khu vực ưu tiên.
+
+Xem [đánh giá chất lượng tìm kiếm](search-evaluation.md) để chạy benchmark có nhãn,
+hiệu chỉnh ngưỡng và xác minh tỷ lệ dự phòng. Cập nhật ACL hai queue mới rồi khởi động
+lại API/worker cùng phiên bản; không cần migration DB hoặc lập chỉ mục lại.
 
 Profile `redact-v4` che khoảng 60% phần đầu của số CCCD/CMND, điện thoại và mã định danh
 như MSSV, mã nhân viên, số thẻ/tài khoản, giữ khoảng 40% phần cuối để nhận diện.
 Tỷ lệ dựa trên chiều rộng bbox, không OCR/đếm chữ số; chuỗi nghiêng hoặc ký tự không đều
-có thể để lại số lượng ký tự khác tỷ lệ này. Khuôn mặt, địa chỉ riêng tư/quê quán, QR và
-mã vạch vẫn che toàn bộ như trước; họ tên, ngày sinh, các ngày tháng và thông tin khác
-giữ nguyên. Đặt `Ai__RedactionProfile=redact-v4` rồi khởi động lại API/worker sau khi cập
+có thể để lại số lượng ký tự khác tỷ lệ này. Số hộ chiếu (`passport_number`), toàn bộ
+vùng mã đọc máy (`mrz`), chữ ký (`signature`), khuôn mặt, địa chỉ riêng tư/quê quán/nơi sinh,
+QR và mã vạch được che toàn bộ. Họ tên, ngày sinh, ngày cấp/hết hạn và các thông tin
+đối chiếu ngoài MRZ giữ nguyên; dữ liệu lặp trong MRZ vẫn được che kín.
+Các nhãn vùng gồm `face`, `identity_number`, `identifier_number`, `passport_number`,
+`mrz`, `signature`, `phone`, `address`, `qr_code`, `barcode`.
+Đặt `Ai__RedactionProfile=redact-v4` rồi khởi động lại API/worker sau khi cập
 nhật. Prompt/schema được worker gửi trong mỗi request nên không cần tải lại model hoặc
 gateway Colab chỉ để đổi cách che. Ảnh đã xử lý giữ nguyên profile và output cũ; muốn
 áp dụng cách che mới hoặc tạo lại vector ảnh phải tải lại ảnh gốc. Cache OCR

@@ -8,6 +8,7 @@ from io import BytesIO
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import socket
 import subprocess
@@ -40,6 +41,8 @@ def run():
     broker = os.environ["FINDIE_TEST_BROKER_URI"]
     asyncio.run(provision(broker))
     token = secrets.token_hex(32)
+    fixture.OllamaStub.reranker_enabled = True
+    fixture.OllamaStub.rerank_modes = set()
     server = ThreadingHTTPServer(("127.0.0.1", 0), fixture.OllamaStub)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -52,6 +55,7 @@ def run():
         "AI_EMBEDDING_MODEL": fixture.MODEL, "AI_EMBEDDING_REVISION": fixture.REVISION,
         "AI_EMBEDDING_DIMENSIONS": str(fixture.DIMENSIONS), "AI_EMBEDDING_QUERY_INSTRUCTION": "test instruction",
         "AI_REDACTION_MODEL": fixture.REDACTION_MODEL, "AI_REDACTION_REVISION": fixture.REDACTION_REVISION,
+        "AI_RERANKER_MODEL": fixture.RERANKER_MODEL, "AI_RERANKER_REVISION": fixture.RERANKER_REVISION,
         "AI_TEXT_SEARCH_PROFILE": "text-description-v1", "AI_IMAGE_SEARCH_ENABLED": "true", "AI_IMAGE_SEARCH_PROFILE": "image-only-v1",
         "AI_INDEX_QUEUE": "findie.ai.commands", "AI_RESULT_QUEUE": "findie.api.results",
         "AI_QUERY_QUEUE": "findie.ai.query", "AI_IMAGE_QUEUE": "findie.ai.image", "PYTHONPATH": str(ROOT / "services/ai"),
@@ -89,6 +93,16 @@ def run():
                 time.sleep(0.25)
             subprocess.run(["dotnet", "run", "--project", "apps/api/tests/integration", "--no-build", "--no-launch-profile",
                             "--", "--cross-service-only"], cwd=ROOT, env=environment, check=True)
+            assert fixture.OllamaStub.rerank_modes == {"text", "image", "combined"}, "all query modes must reach the reranker through real material RPC"
+        except subprocess.CalledProcessError:
+            logs.seek(0)
+            output = logs.read()
+            failures = re.findall(rb"(?:Search reranking unavailable|Candidate material RPC failed) \(([A-Za-z_][A-Za-z_0-9]*)\)", output)
+            print("Reranker bridge failure categories:", sorted({value.decode("ascii") for value in failures}), file=sys.stderr)
+            phases = re.findall(rb"Candidate material reply failed \(([a-z]+), ([A-Za-z_][A-Za-z_0-9]*)\)", output)
+            print("Reranker bridge material phases:", sorted({(phase.decode("ascii"), category.decode("ascii")) for phase, category in phases}), file=sys.stderr)
+            print("Reranker bridge modes reached:", sorted(fixture.OllamaStub.rerank_modes), file=sys.stderr)
+            raise
         finally:
             if worker:
                 worker.terminate()

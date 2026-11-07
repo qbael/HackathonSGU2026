@@ -22,7 +22,7 @@ Coordinate = Annotated[int, Field(strict=True, ge=0, le=1000)]
 
 class Region(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    label: Literal["face", "identity_number", "identifier_number", "phone", "address", "qr_code", "barcode"]
+    label: Literal["face", "identity_number", "identifier_number", "passport_number", "mrz", "signature", "phone", "address", "qr_code", "barcode"]
     bbox: tuple[Coordinate, Coordinate, Coordinate, Coordinate]
 
     @model_validator(mode="after")
@@ -33,7 +33,7 @@ class Region(BaseModel):
 
 
 class ReviewedRegion(Region):
-    label: Literal["face", "identity_number", "identifier_number", "phone", "address", "qr_code", "barcode", "text"]
+    label: Literal["face", "identity_number", "identifier_number", "passport_number", "mrz", "signature", "phone", "address", "qr_code", "barcode", "text"]
 
 
 class Regions(BaseModel):
@@ -123,10 +123,12 @@ async def redact(ollama, body: bytes, content_type: str) -> tuple[bytes, dict]:
     height, width = image.shape[:2]
     clean = await asyncio.to_thread(_encode, image)
     regions = Regions(regions=await ollama.detect_regions(clean)).regions
-    if regions and all(region.label == "face" for region in regions):
-        # A broad pass can stop at the portraits and miss the printed fields on cards.
-        document_regions = await ollama.detect_regions(clean, document_only=True)
-        regions = Regions(regions=[*regions, *document_regions]).regions
+    if any(region.label in {"face", "identity_number", "identifier_number", "passport_number", "mrz", "signature", "qr_code", "barcode"}
+           for region in regions):
+        # Finding some document fields does not mean the broad pass found every sensitive field.
+        document_regions = Regions(regions=await ollama.detect_regions(clean, document_only=True)).regions
+        regions = Regions(regions=list({(region.label, region.bbox): region
+                                        for region in [*regions, *document_regions]}.values())).regions
     addresses = [region.bbox for region in regions if region.label == "address"]
     if addresses:
         left = math.floor(min(box[0] for box in addresses) * width / 1000)

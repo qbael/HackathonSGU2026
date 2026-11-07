@@ -220,10 +220,10 @@ static class ImageSearchChecks
         ai.Handler = command => SearchReply(command, [firstCandidate]);
         await Binary(ocrSeeker, "/api/search/image", original, "image/png", 502);
         ai.Handler = command => {
-            Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 30, "single-image requests cap candidates at thirty before API ranking");
+            Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 20, "single-image requests cap candidates at twenty before API ranking");
             Check(command.Kind == "search.hybrid.image" && !command.Persistent && command.Body.SequenceEqual(original), "image query uses transient binary transport");
             var remaining = command.Metadata.GetProperty("deadlineAt").GetDateTimeOffset() - DateTimeOffset.UtcNow;
-            Check(remaining.TotalSeconds is > 295 and <= 300, "image queries allow five minutes for image embedding");
+            Check(remaining.TotalSeconds is > 310 and <= 315, "image queries include fifteen seconds for quality evaluation");
             return SearchReply(command, [imageCandidate]);
         };
         var putCount = storage.Puts;
@@ -627,7 +627,7 @@ static class ImageSearchChecks
             var firstText = await Candidate(itemId, false);
             ai.Handler = command =>
             {
-                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 30, "batch requests cap the complete fused candidate pool at thirty");
+                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 20, "batch requests cap the complete fused candidate pool at twenty");
                 Check(!command.Persistent && command.Metadata.GetProperty("area").GetString() == "Campus"
                     && command.Metadata.GetProperty("from").GetString() == "2026-01-01"
                     && command.Metadata.GetProperty("until").GetString() == "2026-01-01", "batch search receives filters through transient AI transport");
@@ -638,7 +638,7 @@ static class ImageSearchChecks
                     && descriptors.All(value => value.GetProperty("contentType").GetString() == "image/png")
                     && command.Metadata.GetProperty("text").GetString() == "ví màu đen", "batch metadata preserves exact image boundaries and trimmed description");
                 var remaining = command.Metadata.GetProperty("deadlineAt").GetDateTimeOffset() - DateTimeOffset.UtcNow;
-                Check(remaining.TotalSeconds is > 935 and <= 940, "Python receives the complete multimodal search deadline");
+                Check(remaining.TotalSeconds is > 950 and <= 955, "Python receives the complete multimodal search and quality deadline");
                 buffers.Add(command.Body);
                 batchQueries++;
                 return SearchReply(command, [Fused(0.035, 0.005, imageCandidate, firstText), Fused(0, 0.005, secondText)]);
@@ -720,15 +720,15 @@ static class ImageSearchChecks
             using var limitBrowser = await User("candidate-limit-seeker");
             ai.Handler = command =>
             {
-                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 30, "text requests cap candidates at thirty before API ranking");
-                return SearchReply(command, Enumerable.Repeat(firstText, 30).ToArray());
+                Check(command.Metadata.GetProperty("candidateLimit").GetInt32() == 20, "text requests cap candidates at twenty before API ranking");
+                return SearchReply(command, Enumerable.Repeat(firstText, 20).ToArray());
             };
             await Send(limitBrowser, HttpMethod.Post, "/api/search", new { text = "wallet" }, 200);
-            ai.Handler = command => SearchReply(command, Enumerable.Repeat(firstText, 31).ToArray());
+            ai.Handler = command => SearchReply(command, Enumerable.Repeat(firstText, 21).ToArray());
             await Send(limitBrowser, HttpMethod.Post, "/api/search", new { text = "wallet" }, 502);
-            ai.Handler = command => SearchReply(command, Enumerable.Repeat(imageCandidate, 31).ToArray());
+            ai.Handler = command => SearchReply(command, Enumerable.Repeat(imageCandidate, 21).ToArray());
             await Binary(limitBrowser, "/api/search/image", original, "image/png", 502);
-            ai.Handler = command => SearchReply(command, Enumerable.Repeat(Fused(1d / 61, 0, imageCandidate), 31).ToArray());
+            ai.Handler = command => SearchReply(command, Enumerable.Repeat(Fused(1d / 61, 0, imageCandidate), 21).ToArray());
             await Multipart(limitBrowser, "/api/search/images", [original], null, 502);
             ai.Handler = command => SearchReply(command, [imageCandidate]);
         }

@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIELDS = {"OLLAMA_BASE_URL", "AI_EMBEDDING_MODEL", "AI_EMBEDDING_REVISION", "AI_EMBEDDING_DIMENSIONS",
           "AI_EMBEDDING_QUERY_INSTRUCTION", "AI_REDACTION_MODEL", "AI_REDACTION_REVISION",
           "AI_IMAGE_SEARCH_ENABLED", "AI_IMAGE_SEARCH_PROFILE"}
+RERANKER_FIELDS = {"AI_RERANKER_MODEL", "AI_RERANKER_REVISION"}
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -25,7 +26,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def settings(config, token):
-    if not isinstance(config, dict) or set(config) != FIELDS:
+    if not isinstance(config, dict) or set(config) not in (FIELDS, FIELDS | RERANKER_FIELDS):
         raise ValueError("Use findie-colab.json exported by notebook 04; unexpected or missing fields.")
     endpoint = urlsplit(str(config["OLLAMA_BASE_URL"]))
     if (endpoint.scheme != "https" or not endpoint.hostname or endpoint.username or endpoint.password
@@ -43,10 +44,17 @@ def settings(config, token):
             raise ValueError("Invalid model name.")
     if config["AI_IMAGE_SEARCH_ENABLED"] is not True or config["AI_IMAGE_SEARCH_PROFILE"] != "image-only-v1":
         raise ValueError("The full-stack export must enable native image search with image-only-v1.")
+    reranker_model = config.get("AI_RERANKER_MODEL", "Qwen/Qwen3-VL-Reranker-2B")
+    reranker_revision = config.get("AI_RERANKER_REVISION", "")
+    if (not isinstance(reranker_model, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", reranker_model)
+            or not isinstance(reranker_revision, str)
+            or reranker_revision and not re.fullmatch(r"[a-f0-9]{64}", reranker_revision)):
+        raise ValueError("Invalid reranker model or revision.")
     instruction = config["AI_EMBEDDING_QUERY_INSTRUCTION"]
     if not isinstance(instruction, str) or len(instruction) > 2000 or any(ord(c) < 32 for c in instruction):
         raise ValueError("Invalid embedding instruction.")
     result = {k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in config.items()}
+    result |= {"AI_RERANKER_MODEL": reranker_model, "AI_RERANKER_REVISION": reranker_revision}
     result["OLLAMA_BASE_URL"] = config["OLLAMA_BASE_URL"].rstrip("/")
     result |= {"OLLAMA_API_KEY": token,
                "Ai__EmbeddingModelId": result["AI_EMBEDDING_MODEL"],
@@ -72,15 +80,16 @@ def verify(values):
         models = json.loads(data)["models"]
         if not isinstance(models, list) or not all(isinstance(model, dict) for model in models):
             raise ValueError()
-        for prefix in ("AI_EMBEDDING", "AI_REDACTION"):
+        prefixes = ("AI_EMBEDDING", "AI_REDACTION") + (("AI_RERANKER",) if values.get("AI_RERANKER_REVISION") else ())
+        for prefix in prefixes:
             if not any(m.get("name") == values[prefix + "_MODEL"]
                        and str(m.get("digest", "")).removeprefix("sha256:") == values[prefix + "_REVISION"] for m in models):
                 raise ValueError()
     except HTTPError as error:
         error.close()
-        raise ValueError("Could not verify the ngrok token and both model revisions; .env was kept unchanged.") from None
+        raise ValueError("Could not verify the ngrok token and configured model revisions; .env was kept unchanged.") from None
     except (URLError, OSError, ValueError, KeyError, TypeError):
-        raise ValueError("Could not verify the ngrok token and both model revisions; .env was kept unchanged.") from None
+        raise ValueError("Could not verify the ngrok token and configured model revisions; .env was kept unchanged.") from None
 
 
 def write_env(path, values):

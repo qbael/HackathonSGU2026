@@ -153,6 +153,7 @@ builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IIntakeService, IntakeService>();
 builder.Services.AddScoped<IImageService, ImageService>();
 builder.Services.AddScoped<ISearchService, SearchService>();
+builder.Services.AddScoped<SearchMaterialsService>();
 builder.Services.AddSingleton<RabbitMqGateway>();
 builder.Services.AddSingleton<IAiGateway>(services => services.GetRequiredService<RabbitMqGateway>());
 builder.Services.AddHostedService(services => services.GetRequiredService<RabbitMqGateway>());

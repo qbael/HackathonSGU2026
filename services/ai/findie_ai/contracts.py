@@ -35,7 +35,10 @@ class Metadata(Contract):
         if remaining <= 0:
             raise TimeoutError("deadline_expired")
         image_operation = isinstance(self, (RedactMetadata, ImageEmbeddingMetadata)) or isinstance(self, SearchMetadata) and self.mode == "image"
-        if remaining > (945 if isinstance(self, BatchSearchMetadata) else 305 if image_operation else 35):
+        maximum = (960 if isinstance(self, BatchSearchMetadata) else
+                   320 if isinstance(self, SearchMetadata) and self.mode == "image" else
+                   50 if isinstance(self, SearchMetadata) else 305 if image_operation else 35)
+        if remaining > maximum:
             raise ValueError("deadline_too_long")
         return remaining
 

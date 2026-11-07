@@ -181,7 +181,7 @@ public static class LocalPublicSamples
                         || plan.Regions is null || plan.Regions.Count > 32
                         || plan.Regions.Count == 0 && (!sample.SyntheticScenario || plan.Method is not null)
                         || plan.Regions.Any(region =>
-                            (region.Label is not ("face" or "identity_number" or "phone" or "address" or "qr_code" or "barcode")
+                            (region.Label is not ("face" or "identity_number" or "identifier_number" or "passport_number" or "mrz" or "signature" or "phone" or "address" or "qr_code" or "barcode")
                                 && !(sample.SyntheticScenario && region.Label == "text"))
                             || region.Bbox is not { Length: 4 } || region.Bbox.Any(value => value is < 0 or > 1000)
                             || region.Bbox[0] >= region.Bbox[2] || region.Bbox[1] >= region.Bbox[3]))
@@ -203,7 +203,7 @@ public static class LocalPublicSamples
                         reviewedMasks = JsonSerializer.Deserialize<ReviewedMasks>(await File.ReadAllTextAsync(masksReviewPath), Json)!;
                         if (reviewedMasks.PlanSha256 != planHash || reviewedMasks.InputSha256 != plan.MaskedSha256
                             || reviewedMasks.Regions is null || reviewedMasks.Regions.Count > 32
-                            || reviewedMasks.Regions.Any(region => region.Label is not ("face" or "identity_number" or "identifier_number" or "phone" or "address" or "qr_code" or "barcode" or "text")
+                            || reviewedMasks.Regions.Any(region => region.Label is not ("face" or "identity_number" or "identifier_number" or "passport_number" or "mrz" or "signature" or "phone" or "address" or "qr_code" or "barcode" or "text")
                                 || region.Bbox is not { Length: 4 } || region.Bbox.Any(value => value is < 0 or > 1000)
                                 || region.Bbox[0] >= region.Bbox[2] || region.Bbox[1] >= region.Bbox[3]))
                             throw new InvalidOperationException("Reviewed masks do not match this exact correction input and plan.");

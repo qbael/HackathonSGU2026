@@ -10,6 +10,7 @@ export type SearchResponse = {
   partial: boolean;
   filtersRelaxed: boolean;
   fallbackUrl: string;
+  rankingMethod?: "reranker" | "similarity_fallback";
 };
 
 function apiSearchFilters({ lostAt, ...filters }: SearchFilters) {
@@ -48,7 +49,7 @@ export async function searchImage(
     if (value?.trim()) query.set(key, value.trim());
   return api<SearchResponse>(`/api/search/image?${query}`, {
     method: "POST",
-    signal: signal ?? AbortSignal.timeout(330000),
+    signal: signal ?? AbortSignal.timeout(345000),
     body: image,
     headers: {
       ...(await writeHeaders()),
@@ -85,7 +86,7 @@ export async function searchImages(
     if (value?.trim()) query.set(key, value.trim());
   return api<SearchResponse>(`/api/search/images?${query}`, {
     method: "POST",
-    signal: signal ?? AbortSignal.timeout(960000),
+    signal: signal ?? AbortSignal.timeout(975000),
     body,
     headers: await writeHeaders(),
   });
