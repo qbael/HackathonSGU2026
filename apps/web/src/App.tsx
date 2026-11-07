@@ -34,6 +34,7 @@ export default function App() {
   const [attempt, setAttempt] = useState(0);
   const [imageSearch, setImageSearch] = useState<SearchInput | null>(null);
   const [selectedHubPointId, setSelectedHubPointId] = useState<string>("");
+  const [navKey, setNavKey] = useState(0);
   const action = useAction();
   const toast = useToast();
 
@@ -52,13 +53,14 @@ export default function App() {
   useEffect(() => {
     const navigate = () => {
       const nextPath = window.location.pathname.replace(/\/$/, "") || "/";
-      if (nextPath === path) return;
       setPath(nextPath);
+      setImageSearch(null);
+      setNavKey((k) => k + 1);
       window.scrollTo(0, 0);
     };
     window.addEventListener("popstate", navigate);
     return () => window.removeEventListener("popstate", navigate);
-  }, [path]);
+  }, []);
 
   useEffect(() => {
     const handleLinkClick = (event: MouseEvent) => {
@@ -115,7 +117,9 @@ export default function App() {
 
       if (nextFullPath !== currentFullPath) {
         window.history.pushState(null, "", nextFullPath);
+        setImageSearch(null);
         setPath(nextPath);
+        setNavKey((k) => k + 1);
         window.scrollTo(0, 0);
       }
     };
@@ -222,7 +226,7 @@ export default function App() {
     setLoading(true);
     setPath("/search");
   }} />;
-  else if (path === "/search") content = protect(() => <Search initialRequest={imageSearch} />);
+  else if (path === "/search") content = protect(() => <Search key={window.location.search} initialRequest={imageSearch} />);
   else if (path === "/post") content = protect(() => <PostItem />);
   else if (path === "/posts") content = protect(() => <MyPosts />);
   else if (path === "/requests")
