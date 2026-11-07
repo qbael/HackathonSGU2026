@@ -247,6 +247,7 @@ export async function api<T>(
     if (options.signal?.aborted) throw cause;
     throw new Error(
       "Chưa kết nối được máy chủ. Hãy kiểm tra kết nối và thử lại.",
+      { cause },
     );
   }
   if (!response.ok) {
@@ -343,7 +344,7 @@ const uploadKeys = new WeakMap<File, string>();
 
 export function safeReturnUrl(value: string | null): string {
   return value &&
-    /^\/(?![\/\\])/.test(value) &&
+    /^\/(?![/\\])/.test(value) &&
     !/[\\\u0000-\u0020]/.test(value) &&
     !/^\/signin(?:[/?#]|$)/.test(value)
     ? value

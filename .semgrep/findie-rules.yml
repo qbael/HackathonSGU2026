@@ -1,0 +1,28 @@
+rules:
+  - id: findie-prevent-raw-image-disk-write
+    languages: [csharp]
+    message: "Potential privacy violation: Writing file bytes or image streams to disk. Findie policy strictly prohibits persisting raw images to disk."
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: File.WriteAllBytes(...)
+          - pattern: File.WriteAllBytesAsync(...)
+          - pattern: new FileStream(..., FileMode.Create, ...)
+    paths:
+      include:
+        - "apps/api/Services/**"
+        - "apps/api/Controllers/**"
+      exclude:
+        - "apps/api/tests/**"
+
+  - id: findie-python-pillow-unbounded-open
+    languages: [python]
+    message: "Potential Decompression Bomb DoS: Opening an image without specifying MAX_IMAGE_PIXELS or dimension checks."
+    severity: WARNING
+    patterns:
+      - pattern: Image.open(...)
+    paths:
+      include:
+        - "services/ai/**"
+      exclude:
+        - "services/ai/tests/**"

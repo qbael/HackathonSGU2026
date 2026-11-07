@@ -182,6 +182,37 @@ builder.Services.AddHttpClient("ai", client =>
     client.DefaultRequestHeaders.Add("X-Service-Token", serviceToken);
 }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 
+builder.Services.AddHsts(options =>
+{
+    options.Preload = true;
+    options.IncludeSubDomains = true;
+    options.MaxAge = TimeSpan.FromDays(365);
+});
+
+var allowedOrigins = builder.Configuration["Cors:AllowedOrigins"]
+    ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? (builder.Environment.IsDevelopment()
+        ? ["http://localhost:5173", "http://127.0.0.1:5173"]
+        : []);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FindieCors", policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        }
+        else
+        {
+            policy.SetIsOriginAllowed(_ => false);
+        }
+    });
+});
+
 var app = builder.Build();
 
 if (importPublicSamples)
@@ -192,8 +223,10 @@ if (importPublicSamples)
 
 var forwardedOptions = new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto,
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto,
 };
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
 var configuredForwardedHosts = builder.Configuration["ForwardedHosts"]
     ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 if (configuredForwardedHosts is { Length: > 0 })
@@ -206,6 +239,24 @@ if (configuredForwardedHosts is { Length: > 0 })
 app.UseForwardedHeaders(forwardedOptions);
 
 app.UseExceptionHandler();
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["X-XSS-Protection"] = "0";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    await next(context);
+});
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.UseCors("FindieCors");
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

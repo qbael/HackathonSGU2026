@@ -12,6 +12,9 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+# Explicit Pillow limit to guard against DecompressionBomb DoS attacks
+Image.MAX_IMAGE_PIXELS = 25_000_000
+
 MAX_BYTES = 10 * 1024 * 1024
 MIME_FORMATS = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
 Coordinate = Annotated[int, Field(strict=True, ge=0, le=1000)]
@@ -45,7 +48,7 @@ def _decode(body, content_type):
         with Image.open(BytesIO(body), formats=list(MIME_FORMATS.values())) as source:
             width, height = source.size
             if (source.format != MIME_FORMATS[content_type] or getattr(source, "n_frames", 1) != 1
-                    or max(width, height) > 10000 or width * height > 40_000_000):
+                    or max(width, height) > 10000 or width * height > 25_000_000):
                 raise ValueError("invalid_image")
             source.load()
             with ImageOps.exif_transpose(source) as oriented:
