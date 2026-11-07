@@ -1,0 +1,1958 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-background" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Findie — Kết nối để tìm lại | Nền tảng trao trả đồ thất lạc vì cộng đồng</title>
+<!-- Google Fonts: Be Vietnam Pro -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with custom styling config -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "tertiary-fixed": "#89f5e7",
+            "secondary-fixed": "#ffdbd0",
+            "primary-container": "#0f766e",
+            "inverse-primary": "#80d5cb",
+            "on-secondary-fixed-variant": "#832600",
+            "on-tertiary": "#ffffff",
+            "secondary-container": "#fd6b36",
+            "outline-variant": "#bdc9c6",
+            "background": "#f8f9ff",
+            "secondary": "#ac3400",
+            "on-tertiary-fixed-variant": "#005049",
+            "error-container": "#ffdad6",
+            "on-tertiary-fixed": "#00201d",
+            "on-background": "#121c2a",
+            "tertiary": "#005c54",
+            "on-secondary": "#ffffff",
+            "on-tertiary-container": "#91fdef",
+            "surface-container-highest": "#d9e3f6",
+            "surface-container-low": "#eff4ff",
+            "surface-bright": "#f8f9ff",
+            "on-primary-fixed": "#00201d",
+            "on-surface-variant": "#3e4947",
+            "surface-dim": "#d0dbed",
+            "on-primary-container": "#a3faef",
+            "on-surface": "#121c2a",
+            "error": "#ba1a1a",
+            "primary-fixed-dim": "#80d5cb",
+            "on-primary-fixed-variant": "#00504a",
+            "inverse-surface": "#27313f",
+            "surface-variant": "#d9e3f6",
+            "secondary-fixed-dim": "#ffb59d",
+            "on-error": "#ffffff",
+            "tertiary-container": "#00776d",
+            "on-error-container": "#93000a",
+            "on-secondary-container": "#5d1900",
+            "surface-tint": "#006a63",
+            "surface": "#f8f9ff",
+            "on-secondary-fixed": "#390c00",
+            "tertiary-fixed-dim": "#6bd8cb",
+            "surface-container-high": "#dee9fc",
+            "inverse-on-surface": "#eaf1ff",
+            "outline": "#6e7977",
+            "on-primary": "#ffffff",
+            "primary-fixed": "#9cf2e8",
+            "surface-container-lowest": "#ffffff",
+            "primary": "#005c55",
+            "surface-container": "#e6eeff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "margin": "1rem",
+            "gutter-md": "1.5rem",
+            "space-xs": "0.25rem",
+            "gutter": "1rem",
+            "space-md": "1rem",
+            "margin-md": "2rem",
+            "space-sm": "0.5rem",
+            "margin-lg": "3.5rem",
+            "space-lg": "1.5rem",
+            "space-xl": "2.5rem",
+            "gutter-lg": "2rem"
+          },
+          "fontFamily": {
+            "headline-md": ["Be Vietnam Pro", "sans-serif"],
+            "body-md": ["Be Vietnam Pro", "sans-serif"],
+            "caption": ["Be Vietnam Pro", "sans-serif"],
+            "display": ["Be Vietnam Pro", "sans-serif"],
+            "headline-sm": ["Be Vietnam Pro", "sans-serif"],
+            "display-mobile": ["Be Vietnam Pro", "sans-serif"],
+            "body-lg": ["Be Vietnam Pro", "sans-serif"],
+            "headline-lg-mobile": ["Be Vietnam Pro", "sans-serif"],
+            "headline-lg": ["Be Vietnam Pro", "sans-serif"],
+            "label-md": ["Be Vietnam Pro", "sans-serif"],
+            "title-md": ["Be Vietnam Pro", "sans-serif"],
+            "body-sm": ["Be Vietnam Pro", "sans-serif"],
+            "label-lg": ["Be Vietnam Pro", "sans-serif"]
+          },
+          "fontSize": {
+            "headline-md": ["1.5rem", { "lineHeight": "2rem", "fontWeight": "600" }],
+            "body-md": ["1rem", { "lineHeight": "1.5rem", "fontWeight": "400" }],
+            "caption": ["0.75rem", { "lineHeight": "1rem", "fontWeight": "400" }],
+            "display": ["3rem", { "lineHeight": "3.75rem", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "headline-sm": ["1.25rem", { "lineHeight": "1.75rem", "fontWeight": "600" }],
+            "display-mobile": ["2.25rem", { "lineHeight": "2.75rem", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+            "body-lg": ["1.125rem", { "lineHeight": "1.75rem", "fontWeight": "400" }],
+            "headline-lg-mobile": ["1.625rem", { "lineHeight": "2.125rem", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "headline-lg": ["2rem", { "lineHeight": "2.5rem", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "label-md": ["0.75rem", { "lineHeight": "1rem", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "title-md": ["1.125rem", { "lineHeight": "1.5rem", "fontWeight": "600" }],
+            "body-sm": ["0.875rem", { "lineHeight": "1.25rem", "fontWeight": "400" }],
+            "label-lg": ["0.875rem", { "lineHeight": "1.25rem", "letterSpacing": "0.01em", "fontWeight": "600" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #eff4ff;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #bdc9c6;
+      border-radius: 9999px;
+    }
+    .pulse-subtle {
+      animation: pulseSubtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulseSubtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+  </style>
+</head>
+<body class="font-body-md text-body-md text-on-surface antialiased bg-background min-h-screen flex flex-col selection:bg-primary selection:text-white">
+<!-- TOP APP TOOLBAR: Viewport Switcher & Prototype Flow Navigator -->
+<aside class="bg-inverse-surface text-inverse-on-surface py-2.5 px-4 sticky top-0 z-50 shadow-md border-b border-outline/20">
+<div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+<!-- Brand Pill & Interactive Mode -->
+<div class="flex items-center gap-3">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-caption font-label-md bg-primary-container text-on-primary-container">
+<span class="w-2 h-2 rounded-full bg-secondary-container animate-ping"></span>
+          FINDIE PROTOTYPE v2.4
+        </span>
+<span class="hidden sm:inline-block text-caption text-surface-container-highest">
+          Hệ sinh thái kết nối &amp; hỗ trợ trao trả đồ thất lạc Việt Nam
+        </span>
+</div>
+<!-- Quick Screen Switcher Jump Menu -->
+<div class="flex items-center gap-2 overflow-x-auto py-1">
+<label class="text-caption font-label-md whitespace-nowrap text-inverse-on-surface/80 flex items-center gap-1" for="screenSelector">
+<span class="material-symbols-outlined text-sm">swap_horiz</span> Màn hình:
+        </label>
+<select class="bg-surface-container/20 text-inverse-on-surface border border-outline/30 rounded px-2.5 py-1 text-caption font-label-md focus:ring-1 focus:ring-primary focus:outline-none" id="screenSelector" onchange="switchScreen(this.value)">
+<optgroup label="1. Trải nghiệm người tìm &amp; Kết quả">
+<option value="S01">S01 — Bắt đầu &amp; Tìm kiếm đồ thất lạc</option>
+<option value="S02">S02 — Kết quả tìm kiếm (Bento Grid)</option>
+<option value="S03A">S03A — Chi tiết: Cá nhân đang giữ (FD-00128)</option>
+<option value="S03B">S03B — Chi tiết: Tại Điểm tiếp nhận Hub (FD-00129)</option>
+<option value="S03C">S03C — Chi tiết: Nơi ngoài hệ thống (FD-00130)</option>
+</optgroup>
+<optgroup label="2. Đăng tin &amp; Quy trình kiểm duyệt">
+<option value="S04">S04 — Đăng nhập / Xác thực bảo vệ danh tính</option>
+<option value="S05">S05 — Đăng tin đồ nhặt được (3 Bước)</option>
+<option value="S06">S06 — Kiểm duyệt &amp; Che mờ bảo mật (Findie AI)</option>
+</optgroup>
+<optgroup label="3. Yêu cầu &amp; Bàn giao trực tiếp">
+<option value="S07">S07 — Gửi câu trả lời xác minh sở hữu</option>
+<option value="S08">S08 — Quản lý 'Yêu cầu của tôi' (Tiến trình)</option>
+<option value="S09">S09 — Người giữ duyệt &amp; Phê duyệt yêu cầu</option>
+<option value="S10">S10 — Khung chat hẹn gặp trao trả an toàn</option>
+</optgroup>
+<optgroup label="4. Phân hệ Điểm tiếp nhận Hub &amp; Luồng Flow">
+<option value="S13">S13 — Bàn tiếp nhận: Tiếp nhận đồ vào kho Hub</option>
+<option value="S14">S14 — Đối chiếu CCCD &amp; Xác thực chủ sở hữu</option>
+<option value="S15">S15 — Biên bản điện tử hoàn tất trao trả</option>
+<option value="FLOWS">S16 / FLOWS — Sơ đồ luồng A-F &amp; Giả định thiết kế</option>
+</optgroup>
+</select>
+<!-- Viewport Mode Buttons -->
+<div class="inline-flex rounded-lg border border-outline/30 bg-inverse-surface p-0.5 ml-2">
+<button class="px-2.5 py-1 rounded text-caption font-label-md bg-primary-container text-on-primary-container flex items-center gap-1" id="viewBtnDesktop" onclick="setViewportMode('desktop')" title="Chế độ Desktop 1440px">
+<span class="material-symbols-outlined text-sm">desktop_windows</span>
+<span class="hidden md:inline">Desktop</span>
+</button>
+<button class="px-2.5 py-1 rounded text-caption font-label-md text-surface-container-highest hover:text-white flex items-center gap-1" id="viewBtnMobile" onclick="setViewportMode('mobile')" title="Chế độ Mobile 390px">
+<span class="material-symbols-outlined text-sm">smartphone</span>
+<span class="hidden md:inline">Mobile 390</span>
+</button>
+</div>
+</div>
+</div>
+</aside>
+<!-- VIEWPORT FRAME CONTAINER (Supports dynamic desktop max-w or 390px mobile frame) -->
+<div class="w-full flex-1 flex flex-col transition-all duration-300" id="viewportContainer">
+<!-- GLOBAL COMPONENT: Web Header TopNavBar (From Shared Components JSON) -->
+<header class="bg-surface-container-lowest dark:bg-surface-container-low border-b border-outline-variant/30 dark:border-outline-variant/15 shadow-sm docked full-width top-0 sticky z-40">
+<div class="flex justify-between items-center w-full px-4 lg:px-14 max-w-7xl mx-auto h-16">
+<!-- Left: Logo & Direct Search -->
+<div class="flex items-center gap-6">
+<a class="text-headline-md font-headline-md text-primary dark:text-inverse-primary tracking-tight font-bold flex items-center gap-1" href="javascript:switchScreen('S01')">
+            findie<span class="inline-block w-2.5 h-2.5 rounded-full bg-secondary"></span>
+</a>
+<!-- On-Left Search (Desktop) -->
+<div class="hidden lg:flex items-center bg-surface-container-low rounded-full px-3.5 py-1.5 border border-outline-variant/40 w-72 focus-within:w-80 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant text-xl mr-2">search</span>
+<input class="bg-transparent border-0 text-body-sm font-body-sm text-on-surface focus:outline-none w-full p-0 placeholder:text-on-surface-variant/60" placeholder="Tìm kiếm ví, chìa khóa, CCCD..." type="text"/>
+</div>
+</div>
+<!-- Middle: Primary Nav Links (Exact from JSON) -->
+<nav class="hidden md:flex items-center gap-6 lg:gap-8 text-label-lg font-label-lg">
+<button class="text-primary dark:text-inverse-primary font-semibold border-b-2 border-primary dark:border-inverse-primary pb-1 transition-colors duration-150 active:scale-[0.98]" id="navLink-S01" onclick="switchScreen('S01')">
+            Tìm đồ
+          </button>
+<button class="text-on-surface-variant dark:text-surface-variant font-normal hover:text-on-surface dark:hover:text-inverse-on-surface pb-1 transition-colors duration-150 active:scale-[0.98]" id="navLink-S05" onclick="switchScreen('S05')">
+            Đăng tin nhặt được
+          </button>
+<button class="text-on-surface-variant dark:text-surface-variant font-normal hover:text-on-surface dark:hover:text-inverse-on-surface pb-1 transition-colors duration-150 active:scale-[0.98]" id="navLink-S08" onclick="switchScreen('S08')">
+            Yêu cầu trao trả
+          </button>
+<button class="text-on-surface-variant dark:text-surface-variant font-normal hover:text-on-surface dark:hover:text-inverse-on-surface pb-1 transition-colors duration-150 active:scale-[0.98] relative" id="navLink-S10" onclick="switchScreen('S10')">
+            Tin nhắn
+            <span class="absolute -top-1 -right-3 w-2 h-2 bg-secondary rounded-full"></span>
+</button>
+</nav>
+<!-- Right: Actions & Hub Portal -->
+<div class="flex items-center gap-3">
+<!-- Hub Portal Pill -->
+<button class="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 text-primary font-label-md text-label-md bg-tertiary-fixed/30 hover:bg-tertiary-fixed/50 transition-colors" onclick="switchScreen('S13')">
+<span class="material-symbols-outlined text-lg">verified_user</span>
+<span>Điểm tiếp nhận Findie Hub</span>
+</button>
+<!-- Post Quick CTA -->
+<button class="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm transition-all active:scale-[0.98]" onclick="switchScreen('S05')">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+<span class="hidden sm:inline">Đăng tin ngay</span>
+</button>
+<!-- Notifications & Switcher -->
+<div class="flex items-center gap-1 border-l border-outline-variant/30 pl-2">
+<button class="w-9 h-9 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors" onclick="switchScreen('S08')" title="Thông báo">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/60 ring-2 ring-primary/10" onclick="switchScreen('S04')" title="Tài khoản cá nhân">
+<div class="w-full h-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-caption">
+                FD
+              </div>
+</button>
+</div>
+</div>
+</div>
+</header>
+<!-- MAIN INTERACTIVE CANVAS: SCREEN SWITCHER OUTLET -->
+<main class="flex-1 w-full max-w-7xl mx-auto px-4 lg:px-14 py-6 md:py-8">
+<!-- ========================================================================= -->
+<!-- SCREEN S01: Trang bắt đầu / Tìm đồ -->
+<!-- ========================================================================= -->
+<section class="screen-view" id="screen-S01">
+<div class="max-w-4xl mx-auto">
+<!-- Civic Empathy Hero -->
+<div class="text-center mb-8 md:mb-10 pt-4">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high text-primary font-label-md text-label-md mb-4 border border-outline-variant/40">
+<span class="material-symbols-outlined text-sm">support_agent</span>
+              An tâm tìm lại, bảo mật thông tin tuyệt đối cùng cộng đồng Việt Nam
+            </div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-3 tracking-tight">
+              Bạn đang tìm món đồ nào?
+            </h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl mx-auto">
+              Nhập mô tả đồ vật hoặc tải ảnh tham chiếu. Thuật toán Findie AI sẽ so khớp thông minh với dữ liệu từ các điểm tiếp nhận công cộng và người dân.
+            </p>
+</div>
+<!-- Main Dual-Method Search Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 shadow-sm overflow-hidden p-6 md:p-8">
+<!-- Tab Mode Selector -->
+<div class="flex border-b border-outline-variant/30 mb-6 gap-6">
+<button class="pb-3 text-label-lg font-label-lg text-primary border-b-2 border-primary flex items-center gap-2 transition-all" id="s01TabDesc" onclick="setS01Tab('desc')">
+<span class="material-symbols-outlined text-xl">edit_note</span>
+                Tìm theo mô tả chi tiết
+              </button>
+<button class="pb-3 text-label-lg font-label-lg text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-all" id="s01TabImage" onclick="setS01Tab('image')">
+<span class="material-symbols-outlined text-xl">image_search</span>
+                Tìm theo ảnh tương đồng (AI)
+              </button>
+</div>
+<!-- Tab Content 1: Description -->
+<div class="space-y-6" id="s01ContentDesc">
+<div>
+<label class="block text-label-lg font-label-lg text-on-surface mb-2">
+                  Mô tả món đồ bị thất lạc <span class="text-secondary">*</span>
+</label>
+<div class="relative">
+<textarea class="w-full rounded-lg border-outline-variant/60 focus:border-primary focus:ring-1 focus:ring-primary text-body-md p-3.5 bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/50" id="s01QueryInput" placeholder="Ví dụ: Ví da màu đen gập đôi, có khóa kéo kim loại vàng, bên trong có thẻ xe máy và giấy tờ tên Nguyen Van A..." rows="3"></textarea>
+</div>
+<!-- Suggestions Chips -->
+<div class="mt-2.5 flex flex-wrap items-center gap-2 text-caption font-caption text-on-surface-variant">
+<span>Gợi ý nhanh:</span>
+<button class="px-2.5 py-1 rounded-full bg-surface-container-low hover:bg-surface-container text-primary font-label-md border border-outline-variant/30 transition-colors" onclick="fillS01Search('Ví đen, khóa kéo vàng, không có dây đeo')" type="button">
+                    Ví đen khóa kéo vàng
+                  </button>
+<button class="px-2.5 py-1 rounded-full bg-surface-container-low hover:bg-surface-container text-primary font-label-md border border-outline-variant/30 transition-colors" onclick="fillS01Search('Chùm chìa khóa 4 chìa móc nhựa xanh')" type="button">
+                    Chùm chìa khóa móc xanh
+                  </button>
+<button class="px-2.5 py-1 rounded-full bg-surface-container-low hover:bg-surface-container text-primary font-label-md border border-outline-variant/30 transition-colors" onclick="fillS01Search('Balô laptop xám hiệu Targus')" type="button">
+                    Balô laptop xám
+                  </button>
+</div>
+</div>
+<!-- Location & Time Filters Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+<!-- Location -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Khu vực rơi / nghi ngờ mất</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-lg">location_on</span>
+<select class="w-full pl-9 rounded-lg border-outline-variant/60 text-body-sm py-2 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary">
+<option selected="">TP. Hồ Chí Minh — Quận 1, Bờ Sông</option>
+<option>TP. Hồ Chí Minh — Quận Bình Thạnh</option>
+<option>TP. Hồ Chí Minh — TP. Thủ Đức</option>
+<option>Hà Nội — Quận Hoàn Kiếm</option>
+<option>Đà Nẵng — Quận Hải Châu</option>
+</select>
+</div>
+</div>
+<!-- Date -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Ngày ước tính thất lạc</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-lg">calendar_today</span>
+<input class="w-full pl-9 rounded-lg border-outline-variant/60 text-body-sm py-2 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary" type="date" value="2025-05-18"/>
+</div>
+</div>
+<!-- Time slot -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Khoảng thời gian</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-lg">schedule</span>
+<select class="w-full pl-9 rounded-lg border-outline-variant/60 text-body-sm py-2 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary">
+<option>Buổi sáng (06:00 - 11:30)</option>
+<option selected="">Buổi chiều (13:00 - 17:30)</option>
+<option>Buổi tối (18:00 - 22:00)</option>
+<option>Đêm muộn (22:00 - 05:00)</option>
+</select>
+</div>
+</div>
+</div>
+<!-- Checkbox Option -->
+<div class="flex items-center gap-2">
+<input class="rounded border-outline-variant/60 text-primary focus:ring-primary w-4 h-4" id="chkNoExactTime" type="checkbox"/>
+<label class="text-caption font-caption text-on-surface-variant" for="chkNoExactTime">Tôi không nhớ chính xác mốc giờ thất lạc (Hệ thống sẽ mở rộng biên độ tìm kiếm ± 2 ngày)</label>
+</div>
+<!-- Search CTA -->
+<div class="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-outline-variant/20">
+<span class="text-caption font-caption text-on-surface-variant flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base text-primary">verified</span>
+                  1,420+ món đồ đã được bàn giao an toàn tuần này
+                </span>
+<button class="w-full sm:w-auto px-8 py-3 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]" onclick="switchScreen('S02')">
+<span class="material-symbols-outlined">search</span>
+                  Tìm kiếm dữ liệu khớp
+                </button>
+</div>
+</div>
+<!-- Tab Content 2: Image Search (Hidden by default) -->
+<div class="hidden space-y-6" id="s01ContentImage">
+<div class="border-2 border-dashed border-outline-variant/80 rounded-xl p-8 text-center bg-surface-container-low/40 hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="w-16 h-16 mx-auto rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-3xl">cloud_upload</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface mb-1">Tải ảnh chụp tham khảo của đồ vật</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-md mx-auto mb-4">
+                  Kéo thả hoặc tải lên ảnh chụp cũ của ví, túi xách, thú cưng hoặc vật dụng tương đồng. Findie AI sẽ quét vector đặc trưng màu sắc &amp; hình khối.
+                </p>
+<button class="px-5 py-2 rounded-lg bg-surface-container text-primary font-label-lg border border-outline-variant/50 hover:bg-surface-container-high transition-colors">
+                  Chọn ảnh từ thiết bị
+                </button>
+</div>
+<div class="flex justify-end">
+<button class="px-8 py-3 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center gap-2" onclick="switchScreen('S02')">
+<span class="material-symbols-outlined">smart_toy</span>
+                  Tìm theo ảnh đã phân tích
+                </button>
+</div>
+</div>
+</div>
+<!-- Trust Badges & Safety Protocol Strip -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+<div class="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/30 flex items-start gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">lock_person</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Bảo mật thông tin tối đa</h4>
+<p class="font-caption text-caption text-on-surface-variant">Mọi số CCCD, tài khoản và khuôn mặt trên giấy tờ đều được tự động làm mờ.</p>
+</div>
+</div>
+<div class="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/30 flex items-start gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">policy</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Không trả lời thông tin riêng</h4>
+<p class="font-caption text-caption text-on-surface-variant">Người tìm phải trả lời câu hỏi bảo mật riêng tư để chứng minh sở hữu hợp pháp.</p>
+</div>
+</div>
+<div class="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/30 flex items-start gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">store</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Hệ thống Findie Hub</h4>
+<p class="font-caption text-caption text-on-surface-variant">Mạng lưới điểm bàn giao trung gian được giám sát camera và nhân viên chuyên trách.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S02: Kết quả tìm kiếm (Bento Grid & Filter Layout) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S02">
+<div class="flex flex-col lg:flex-row gap-8 items-start">
+<!-- Filter Sidebar (Desktop 3 Cols equivalent) -->
+<aside class="w-full lg:w-72 bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/40 shadow-sm shrink-0">
+<div class="flex items-center justify-between pb-4 border-b border-outline-variant/20 mb-4">
+<h3 class="font-label-lg text-label-lg text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-lg">filter_alt</span> Bộ lọc kết quả
+              </h3>
+<button class="text-caption font-caption text-secondary hover:underline">Đặt lại</button>
+</div>
+<!-- Filter: Possession Status -->
+<div class="mb-5">
+<label class="block text-label-md font-label-md text-on-surface mb-2.5">Nơi giữ hiện tại (Nơi lưu)</label>
+<div class="space-y-2">
+<label class="flex items-center gap-2 text-body-sm font-body-sm text-on-surface-variant cursor-pointer">
+<input checked="" class="rounded border-outline-variant/60 text-primary focus:ring-primary" type="checkbox"/>
+<span>Cá nhân giữ (2)</span>
+</label>
+<label class="flex items-center gap-2 text-body-sm font-body-sm text-on-surface-variant cursor-pointer">
+<input checked="" class="rounded border-outline-variant/60 text-primary focus:ring-primary" type="checkbox"/>
+<span class="text-primary font-medium">Điểm tiếp nhận Hub (1)</span>
+</label>
+<label class="flex items-center gap-2 text-body-sm font-body-sm text-on-surface-variant cursor-pointer">
+<input checked="" class="rounded border-outline-variant/60 text-primary focus:ring-primary" type="checkbox"/>
+<span>Nơi ngoài hệ thống (1)</span>
+</label>
+</div>
+</div>
+<!-- Filter: Category -->
+<div class="mb-5 pt-3 border-t border-outline-variant/20">
+<label class="block text-label-md font-label-md text-on-surface mb-2.5">Phân loại đồ vật</label>
+<div class="space-y-1.5 text-body-sm">
+<label class="flex items-center justify-between py-1 text-on-surface">
+<span class="flex items-center gap-2"><input checked="" class="text-primary focus:ring-primary" name="cat" type="radio"/> Ví &amp; Túi xách</span>
+<span class="text-caption text-on-surface-variant">1</span>
+</label>
+<label class="flex items-center justify-between py-1 text-on-surface-variant">
+<span class="flex items-center gap-2"><input class="text-primary focus:ring-primary" name="cat" type="radio"/> Chìa khóa &amp; Thẻ xe</span>
+<span class="text-caption text-on-surface-variant">1</span>
+</label>
+<label class="flex items-center justify-between py-1 text-on-surface-variant">
+<span class="flex items-center gap-2"><input class="text-primary focus:ring-primary" name="cat" type="radio"/> Balô &amp; Cặp sách</span>
+<span class="text-caption text-on-surface-variant">1</span>
+</label>
+<label class="flex items-center justify-between py-1 text-on-surface-variant">
+<span class="flex items-center gap-2"><input class="text-primary focus:ring-primary" name="cat" type="radio"/> Điện thoại &amp; Thiết bị số</span>
+<span class="text-caption text-on-surface-variant">1</span>
+</label>
+</div>
+</div>
+<!-- Filter: Time Window -->
+<div class="pt-3 border-t border-outline-variant/20">
+<label class="block text-label-md font-label-md text-on-surface mb-2">Khoảng ngày nhặt được</label>
+<select class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2 bg-surface-container-lowest">
+<option>3 ngày gần nhất (16 - 19/05)</option>
+<option>7 ngày gần nhất</option>
+<option>30 ngày gần nhất</option>
+</select>
+</div>
+</aside>
+<!-- Main Feed & Bento Grid Content -->
+<div class="flex-1 w-full space-y-5">
+<!-- Result Summary Header Banner -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/40 flex flex-wrap items-center justify-between gap-3">
+<div class="flex items-center gap-2 flex-wrap">
+<span class="text-body-sm font-body-sm text-on-surface-variant">Đang lọc:</span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-primary font-label-md text-label-md">
+<span class="material-symbols-outlined text-sm">search</span>
+                  "Ví đen khóa kéo vàng tại Công viên Bờ Sông"
+                  <button class="hover:text-secondary ml-1"><span class="material-symbols-outlined text-xs">close</span></button>
+</span>
+<span class="text-caption font-caption text-on-surface-variant">Tìm thấy 4 kết quả phù hợp cao</span>
+</div>
+<div class="flex items-center gap-2 text-caption">
+<span class="text-on-surface-variant">Sắp xếp:</span>
+<select class="rounded-lg border-outline-variant/60 text-caption py-1 pl-2 pr-6 bg-surface-container-lowest font-label-md text-primary">
+<option>Độ tương đồng cao nhất (AI Match)</option>
+<option>Mới nhặt gần nhất</option>
+<option>Khoảng cách gần nhất</option>
+</select>
+</div>
+</div>
+<!-- Bento Card Grid: 4 items (FD-00128, FD-00129, FD-00130, FD-00131) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+<!-- Item 1: FD-00128 (Ví đen - Cá nhân giữ) -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group">
+<div class="relative aspect-[4/3] bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="A modern leather black folding wallet resting on a clean wooden bench in a sunlit public river park in Vietnam. The background has calm soft green foliage and gentle warm natural daylight. A subtle translucent privacy blur covers the edge where an ID card might be. The overall style is realistic, grounded, and reassuring with deep teal tones and clean edges." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5WVj5SELf4u8jKVB3nSjuLkDE0UGuU59_uK0RIb9XYvkfGM9-Yo2EeOsmYtbgwpWOjO_dGDhvOueiDECRgSIj2De_qssZHFsahQ_5RkUCMJc40RAlmWoeZDLav7wRlmBROeD1uMuJyNrRKllZGIt6UU7tAI_-AOxOs6HUP1Cam9_kbM44u6T1gy_da0WpE0NqSfRio8UaDEogSp9YZ4iIRmeyUeeCc2RdEKsnsJQfVHNSRtRr4ASo"/>
+<!-- AI Privacy Badge Overlay -->
+<div class="absolute bottom-2.5 left-2.5 right-2.5 py-1 px-2.5 rounded-lg bg-inverse-surface/85 backdrop-blur-sm text-inverse-on-surface text-caption font-caption flex items-center justify-between">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm text-primary-fixed">verified_user</span>
+                      Đã che mờ giấy tờ cá nhân
+                    </span>
+<span class="font-label-md text-primary-fixed">Khớp 96%</span>
+</div>
+<!-- Category Pin -->
+<span class="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-surface-container-lowest/90 backdrop-blur-sm text-on-surface shadow-sm">
+                    FD-00128
+                  </span>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between gap-2 mb-2">
+<!-- Badge: Cá nhân giữ -->
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-surface-container text-on-surface-variant border border-outline-variant/40">
+<span class="material-symbols-outlined text-xs">person</span> Cá nhân giữ
+                      </span>
+<span class="text-caption text-on-surface-variant flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs">schedule</span> 4 giờ trước
+                      </span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface font-semibold mb-1 group-hover:text-primary transition-colors">
+                      Ví đen khóa kéo vàng (gấp đôi)
+                    </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-3">
+                      Nhặt được trên ghế đá Công viên Bờ Sông (gần bến buýt sông). Bên trong có thẻ xe máy và giấy tờ cá nhân đã được bảo vệ.
+                    </p>
+</div>
+<div class="pt-3 border-t border-outline-variant/20 flex items-center justify-between">
+<span class="text-caption text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-primary">pin_drop</span> Q. Bình Thạnh, TP.HCM
+                    </span>
+<button class="px-4 py-1.5 rounded-lg bg-primary/10 text-primary font-label-md hover:bg-primary hover:text-white transition-all text-caption" onclick="switchScreen('S03A')">
+                      Xem chi tiết &amp; Nhận
+                    </button>
+</div>
+</div>
+</div>
+<!-- Item 2: FD-00129 (Chùm chìa khóa - Điểm tiếp nhận Hub) -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group">
+<div class="relative aspect-[4/3] bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="A set of keys with an emerald green rubber keychain and four metal brass keys resting on a clean white intake desk at Findie Hub office in District 1 Ho Chi Minh City. Soft natural ambient lighting with clean institutional interior and neat modern teal accents. The atmosphere is official, clean, and organized." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4HGmO30yP97mwmsWqnRqpwA2FHgAm754ulajtH2Upe3LC30eGQqPk3uXFD3HxFLyP5ccH5S08-k5eKN0w2CVFGAHD7fXDcyEQ0TpjGCJVOcz-GOtkH4YjP338K2E2C4aZOHpJP5Rny2TOQPXt2hYaeQGz4kba3yoVbrOcD6RC6Foh5MJ19TFntVNQuKgYFZgIRSQ-XQUdr984K1TuJxzvMNJtuYgbyFRzzulwo5CijUuBix_q_I91"/>
+<!-- Official Hub Intake Stencil -->
+<div class="absolute bottom-2.5 left-2.5 right-2.5 py-1 px-2.5 rounded-lg bg-primary-container text-on-primary-container text-caption font-caption flex items-center justify-between shadow-sm">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">domain_verification</span>
+                      Đã nhập kho Findie Hub Q1
+                    </span>
+<span class="font-label-md">Khớp 88%</span>
+</div>
+<span class="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-surface-container-lowest/90 backdrop-blur-sm text-on-surface shadow-sm">
+                    FD-00129
+                  </span>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between gap-2 mb-2">
+<!-- Badge: Điểm tiếp nhận Findie Hub -->
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-tertiary-fixed/40 text-tertiary border border-tertiary-fixed-dim">
+<span class="material-symbols-outlined text-xs">verified</span> Findie Hub Quận 1
+                      </span>
+<span class="text-caption text-on-surface-variant flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs">schedule</span> Hôm qua 16:30
+                      </span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface font-semibold mb-1 group-hover:text-primary transition-colors">
+                      Chùm chìa khóa móc nhựa xanh
+                    </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-3">
+                      Gồm 4 chìa cơ kim loại và 1 thẻ từ quẹt thang máy chung cư. Đã được người dân gửi vào Điểm tiếp nhận 45 Lê Duẩn.
+                    </p>
+</div>
+<div class="pt-3 border-t border-outline-variant/20 flex items-center justify-between">
+<span class="text-caption text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-primary">store</span> 45 Lê Duẩn, Q.1
+                    </span>
+<button class="px-4 py-1.5 rounded-lg bg-primary text-white font-label-md hover:bg-tertiary transition-all text-caption" onclick="switchScreen('S03B')">
+                      Xem &amp; Đến nhận tại Hub
+                    </button>
+</div>
+</div>
+</div>
+<!-- Item 3: FD-00130 (Balô laptop - Nơi ngoài hệ thống) -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group">
+<div class="relative aspect-[4/3] bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="A grey fabric modern laptop backpack neatly placed near a security guard station desk inside a cultural youth hall building in Vietnam. The lighting is diffused interior daylight, high key, clean, highlighting the fabric texture and dark zipper accents with calm professional aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6J-6L9qrXl1U_gmW1V7uPL9NP4bl0IOhKK_-KQDAFHCI9sa8SqkGK61D9iYbJuFW3Rv7U8XIa79v-pgUcphmJz2072ScNksInfkGSeJnBY-xgeWn6EsZ-Dch2wJ_-BdTUjaSobD7MISybt88roHH_ddfcxE9XLY7US9WbyvJ8x5GDkd33kEfwTfpga_CY2sW-HlXvbwR6f6xLYL2DDJkPab7LuUwYSsXGea_3ss6MSVBYfvs2VwWA"/>
+<span class="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-surface-container-lowest/90 backdrop-blur-sm text-on-surface shadow-sm">
+                    FD-00130
+                  </span>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between gap-2 mb-2">
+<!-- Badge: Nơi ngoài hệ thống -->
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-amber-50 text-amber-800 border border-amber-200">
+<span class="material-symbols-outlined text-xs">corporate_fare</span> Quầy bảo vệ Nhà VH Thanh Niên
+                      </span>
+<span class="text-caption text-on-surface-variant flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs">schedule</span> 1 ngày trước
+                      </span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface font-semibold mb-1 group-hover:text-primary transition-colors">
+                      Balô laptop xám ghi chống nước
+                    </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-3">
+                      Để quên tại ghế chờ sảnh chính. Người nhặt đã bàn giao cho tổ bảo vệ quản lý ca trực để bảo quản.
+                    </p>
+</div>
+<div class="pt-3 border-t border-outline-variant/20 flex items-center justify-between">
+<span class="text-caption text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-primary">pin_drop</span> 4 Phạm Ngọc Thạch, Q.1
+                    </span>
+<button class="px-4 py-1.5 rounded-lg bg-surface-container text-on-surface font-label-md hover:bg-surface-container-high transition-all text-caption" onclick="switchScreen('S03C')">
+                      Xem hướng dẫn liên hệ
+                    </button>
+</div>
+</div>
+</div>
+<!-- Item 4: FD-00131 (Điện thoại ốp xanh - Cá nhân giữ) -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group">
+<div class="relative aspect-[4/3] bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="A modern smartphone with a matte teal silicone protective case placed gently on a cafe table beside a small iced coffee glass. The screen is facing down for privacy protection. Soft afternoon indoor lighting in a cozy cafe in Saigon Vietnam with minimalist warm tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHnopJHH5VKl3fxjPQ1gEBBdJqyhC9E_y19OBn9fo5QQsKwv6gOAUYwGTCBFvqc_hPDL0ogCq-MTExAVnV19hBo5x9r0m6P67zaDztrtPv9a2PuLqYg_6Veur89EffyVYz8Vtkr5cwBXKfdMaDnefwx-IdTZPN2S5w4B-wbbCPZ0cQJwEcMVytuONqhvruDc4VmhnqWm0k2FbOWJKRI_ciLP5wHpKcuZeciw-nLnm9CR9jLFbVT-2A"/>
+<div class="absolute bottom-2.5 left-2.5 right-2.5 py-1 px-2.5 rounded-lg bg-inverse-surface/85 backdrop-blur-sm text-inverse-on-surface text-caption font-caption flex items-center justify-between">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm text-primary-fixed">lock</span>
+                      Đã che mật khẩu &amp; màn hình
+                    </span>
+<span class="font-label-md text-primary-fixed">Khớp 79%</span>
+</div>
+<span class="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-surface-container-lowest/90 backdrop-blur-sm text-on-surface shadow-sm">
+                    FD-00131
+                  </span>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between gap-2 mb-2">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-caption font-label-md bg-surface-container text-on-surface-variant border border-outline-variant/40">
+<span class="material-symbols-outlined text-xs">person</span> Cá nhân giữ
+                      </span>
+<span class="text-caption text-on-surface-variant flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs">schedule</span> 6 giờ trước
+                      </span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface font-semibold mb-1 group-hover:text-primary transition-colors">
+                      Điện thoại thông minh ốp lưng xanh
+                    </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-3">
+                      Để quên tại bàn ngoài trời quán cà phê đường Nguyễn Hữu Cảnh. Pin vẫn mở máy, đang chờ chủ nhân liên hệ xác minh hình nền.
+                    </p>
+</div>
+<div class="pt-3 border-t border-outline-variant/20 flex items-center justify-between">
+<span class="text-caption text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-primary">pin_drop</span> Q. Bình Thạnh, TP.HCM
+                    </span>
+<button class="px-4 py-1.5 rounded-lg bg-primary/10 text-primary font-label-md hover:bg-primary hover:text-white transition-all text-caption" onclick="switchScreen('S03A')">
+                      Gửi yêu cầu nhận
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S03A: Chi tiết Biến thể A — Cá nhân giữ (FD-00128) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S03A">
+<div class="max-w-5xl mx-auto space-y-6">
+<!-- Back breadcrumb & Variant switcher -->
+<div class="flex flex-wrap items-center justify-between gap-3">
+<button class="text-label-md font-label-md text-on-surface-variant hover:text-primary flex items-center gap-1" onclick="switchScreen('S02')">
+<span class="material-symbols-outlined text-base">arrow_back</span> Quay lại danh sách kết quả
+            </button>
+<div class="flex items-center gap-2">
+<span class="text-caption text-on-surface-variant font-label-md">Xem 3 biến thể chi tiết:</span>
+<button class="px-2.5 py-1 rounded bg-primary text-white text-caption font-label-md" onclick="switchScreen('S03A')">Biến thể A: Cá nhân giữ</button>
+<button class="px-2.5 py-1 rounded bg-surface-container text-on-surface text-caption font-label-md hover:bg-surface-container-high" onclick="switchScreen('S03B')">Biến thể B: Điểm tiếp nhận</button>
+<button class="px-2.5 py-1 rounded bg-surface-container text-on-surface text-caption font-label-md hover:bg-surface-container-high" onclick="switchScreen('S03C')">Biến thể C: Nơi ngoài</button>
+</div>
+</div>
+<!-- Split Layout: 7 Cols Visual & Verification Cues / 5 Cols Action -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Left 7 Cols: Image & Verified Sensitive Masking -->
+<div class="lg:col-span-7 space-y-4">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 overflow-hidden p-3 shadow-sm">
+<div class="relative aspect-[4/3] rounded-lg overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A realistic close-up shot of a black bi-fold leather wallet on a clean neutral textured surface. An area showing identity details has an artistic semi-translucent privacy glass frost overlay with a small lock icon. Natural soft lighting, clear high-resolution details, elegant teal and warm terracotta branding aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3fiEnAEFG_Vita_wdN2LzOmer8SkNXgsYlIq6pPqUt5z1PULX6_kYmp-woQoYZuUJj7VcsP6KyjES9_6mBYJvzRVuG8e5we0CmwxmjcPIbCXrHQrElsZvKfAcZ7fNsjfOqEDfMhaLgxSPIY9_exUsLnvqfKpphwx87XHdglgSKiWE3pqmC9nFmm9rLUinirNRBgewbugOIVqZUljr6S4TRsi5wuS3XTC5SPhd9VbIysD_a4X3lxN-"/>
+<!-- Stencil Watermark Over Masked Area -->
+<div class="absolute inset-0 pointer-events-none border-2 border-primary/20 rounded-lg flex items-center justify-center">
+<div class="bg-inverse-surface/85 backdrop-blur-md px-4 py-2 rounded-xl text-center border border-white/20 shadow-lg">
+<span class="material-symbols-outlined text-primary-fixed text-2xl mb-1">visibility_off</span>
+<p class="text-caption font-label-md text-inverse-on-surface">Đã bảo mật thông tin cá nhân qua Findie AI</p>
+<p class="text-[11px] text-surface-container-highest">Mọi dữ liệu nhạy cảm chỉ được đối chiếu khi trực tiếp nhận đồ</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Physical Intake Verification Info -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-5 space-y-3">
+<h4 class="font-label-lg text-label-lg text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">security</span>
+                  Quy trình bảo vệ hai chiều của Findie
+                </h4>
+<p class="text-body-sm text-on-surface-variant">
+                  Nhằm chống gian lận và mạo nhận, Findie không công khai số điện thoại hay địa chỉ nhà riêng của người nhặt. Bạn sẽ cần trả lời <strong>1 câu hỏi bảo mật riêng</strong> mà chỉ chủ sở hữu thực sự mới biết.
+                </p>
+<div class="p-3 rounded-lg bg-surface-container-low border border-outline-variant/30 text-caption text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-base">info</span>
+                  Sau khi người giữ duyệt câu trả lời chính xác, kênh chat trao trả an toàn tại nơi công cộng mới được kích hoạt.
+                </div>
+</div>
+</div>
+<!-- Right 5 Cols: Details & Request CTA -->
+<div class="lg:col-span-5 space-y-5">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-6 shadow-sm space-y-5">
+<div>
+<!-- Status Badge -->
+<div class="flex items-center justify-between mb-3">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-caption font-label-md bg-surface-container text-on-surface-variant border border-outline-variant/40">
+<span class="material-symbols-outlined text-sm">home_pin</span> Cá nhân tự giữ &amp; hỗ trợ trả
+                    </span>
+<span class="text-caption font-caption text-on-surface-variant">Mã: FD-00128</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface mb-2">Ví đen khóa kéo vàng (gấp đôi)</h2>
+<p class="text-body-sm text-on-surface-variant">
+                    Ví da nam, màu đen tuyền, khóa kéo kim loại vàng sáng, tình trạng còn mới, không có dây đeo ngoài.
+                  </p>
+</div>
+<!-- Metadata Rows -->
+<div class="space-y-3 pt-4 border-t border-outline-variant/20 text-body-sm">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-lg mt-0.5">place</span>
+<div>
+<span class="block text-caption font-label-md text-on-surface-variant">Nơi nhặt được</span>
+<span class="text-on-surface font-medium">Ghế đá Công viên Bờ Sông (Bến buýt sông Bình An)</span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-lg mt-0.5">schedule</span>
+<div>
+<span class="block text-caption font-label-md text-on-surface-variant">Thời gian nhặt</span>
+<span class="text-on-surface font-medium">Khoảng 14:20 ngày 18/05/2025</span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-lg mt-0.5">account_circle</span>
+<div>
+<span class="block text-caption font-label-md text-on-surface-variant">Người đăng nhặt</span>
+<span class="text-on-surface font-medium">Hoàng Minh T. (Đã xác minh số điện thoại)</span>
+</div>
+</div>
+</div>
+<!-- Call to Action Box -->
+<div class="pt-5 border-t border-outline-variant/20 space-y-3">
+<div class="p-3 rounded-lg bg-surface-container-high/60 text-caption text-on-surface-variant">
+<span class="font-semibold text-on-surface">Đây đúng là món đồ của bạn?</span> Hãy gửi yêu cầu nhận đồ và mô tả các chi tiết riêng tư bên trong ví.
+                  </div>
+<button class="w-full py-3.5 px-4 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]" onclick="switchScreen('S07')">
+<span class="material-symbols-outlined">send</span>
+                    Gửi yêu cầu nhận đồ này
+                  </button>
+<div class="text-center">
+<span class="text-caption text-on-surface-variant/70 italic">Không cho phép nhắn tin trực tiếp để ngăn ngừa quấy rối</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S03B: Chi tiết Biến thể B — Điểm tiếp nhận Hub (FD-00129) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S03B">
+<div class="max-w-5xl mx-auto space-y-6">
+<div class="flex flex-wrap items-center justify-between gap-3">
+<button class="text-label-md font-label-md text-on-surface-variant hover:text-primary flex items-center gap-1" onclick="switchScreen('S02')">
+<span class="material-symbols-outlined text-base">arrow_back</span> Quay lại danh sách kết quả
+            </button>
+<div class="flex items-center gap-2">
+<button class="px-2.5 py-1 rounded bg-surface-container text-on-surface text-caption font-label-md" onclick="switchScreen('S03A')">Biến thể A: Cá nhân giữ</button>
+<button class="px-2.5 py-1 rounded bg-primary text-white text-caption font-label-md" onclick="switchScreen('S03B')">Biến thể B: Điểm tiếp nhận</button>
+<button class="px-2.5 py-1 rounded bg-surface-container text-on-surface text-caption font-label-md" onclick="switchScreen('S03C')">Biến thể C: Nơi ngoài</button>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<div class="lg:col-span-7 space-y-4">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-3 shadow-sm">
+<div class="relative aspect-[4/3] rounded-lg overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Intake shelf inside an official Findie Community Hub in Saigon showing neatly tagged lost items with barcodes in safe glass lockers. Warm bright daylight, welcoming civic atmosphere, primary teal elements and security camera sign visible." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCD5DlTVaAbH9m-AqHnmQKPt_BepTU12Hkp-yC1A69t5OBHSIq1M3Rx7P3qpSgCwthCmyVIRrKFhfQts97wZvEhRNf-a8vMnUm5ja-OH8EPL3pjdRttCiMGlhsQ3w9qFkNiT94hPgc6wTnfJ-V2jESa-BEd3up2C8R_24nRnVbdqoSLPqtimqRJZBb2Fx4YRQHvQ2MI-_u1KFmYvMjJo0cffl2mfWj9fXAHSy1QfOxbU6qVqKDgAwlj"/>
+<div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-primary text-on-primary text-caption font-label-md flex items-center gap-1.5 shadow">
+<span class="material-symbols-outlined text-sm">verified</span> ĐANG LƯU KHO BẢO QUẢN
+                  </div>
+</div>
+</div>
+<!-- Map Anchor Location Box -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-5 space-y-3">
+<div class="flex items-center justify-between">
+<h4 class="font-label-lg text-label-lg text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">map</span>
+                    Bản đồ vị trí Điểm tiếp nhận Findie Hub Quận 1
+                  </h4>
+<span class="text-caption font-label-md text-primary">Cách bạn ~1.8 km</span>
+</div>
+<!-- Simulated Location Map Canvas -->
+<div class="h-44 rounded-lg bg-surface-container relative overflow-hidden flex items-center justify-center border border-outline-variant/40" data-location="Ho Chi Minh City, Vietnam" style="">
+<div class="text-center p-4">
+<div class="w-10 h-10 rounded-full bg-primary text-white mx-auto flex items-center justify-center shadow-md mb-2">
+<span class="material-symbols-outlined text-xl">storefront</span>
+</div>
+<span class="text-label-md font-label-md text-on-surface block">Findie Hub Q1 — 45 Lê Duẩn, Bến Nghé, Quận 1</span>
+<span class="text-caption text-on-surface-variant">Mở cửa: 08:00 - 20:00 (Thứ 2 đến Chủ Nhật)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right: Station Notice & Instructions -->
+<div class="lg:col-span-5 space-y-5">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-6 shadow-sm space-y-5">
+<div>
+<div class="flex items-center justify-between mb-3">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-caption font-label-md bg-tertiary-fixed/40 text-tertiary border border-tertiary-fixed-dim">
+<span class="material-symbols-outlined text-sm">verified_user</span> Đã kiểm duyệt &amp; lưu tại Findie Hub
+                    </span>
+<span class="text-caption font-caption text-on-surface-variant">Mã: FD-00129</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface mb-2">Chùm chìa khóa móc nhựa xanh</h2>
+<p class="text-body-sm text-on-surface-variant">
+                    Bao gồm 4 chìa khóa cơ kim loại, 1 chìa khóa xe máy Honda và 1 thẻ từ quẹt thang máy chung cư màu xanh ngọc.
+                  </p>
+</div>
+<div class="p-4 rounded-xl bg-tertiary-fixed/20 border border-tertiary-fixed-dim space-y-2">
+<div class="font-label-md text-label-md text-tertiary flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">badge</span> Thủ tục nhận đồ tại quầy:
+                  </div>
+<ul class="text-caption text-on-surface-variant space-y-1.5 list-disc pl-4">
+<li>Vui lòng mang theo <strong>CCCD / VNeID</strong> để nhân viên đối chiếu danh tính.</li>
+<li>Chuẩn bị hình ảnh chiếc xe máy hoặc thử đúng ổ khóa khi nhận bàn giao trực tiếp.</li>
+<li>Ký biên bản bàn giao điện tử (miễn phí 100%).</li>
+</ul>
+</div>
+<div class="space-y-3 pt-2">
+<a class="w-full py-3 px-4 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center justify-center gap-2 transition-all" href="https://maps.google.com" target="_blank">
+<span class="material-symbols-outlined">directions</span>
+                    Chỉ đường đến Điểm tiếp nhận (45 Lê Duẩn)
+                  </a>
+<button class="w-full py-2.5 px-4 rounded-xl border border-outline-variant/60 font-label-md text-label-md text-on-surface hover:bg-surface-container flex items-center justify-center gap-2" onclick="switchScreen('S13')">
+<span class="material-symbols-outlined text-base">support</span>
+                    Xem màn hình nhân viên tại Hub (Demo)
+                  </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S03C: Chi tiết Biến thể C — Nơi ngoài hệ thống (FD-00130) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S03C">
+<div class="max-w-5xl mx-auto space-y-6">
+<div class="flex flex-wrap items-center justify-between gap-3">
+<button class="text-label-md font-label-md text-on-surface-variant hover:text-primary flex items-center gap-1" onclick="switchScreen('S02')">
+<span class="material-symbols-outlined text-base">arrow_back</span> Quay lại danh sách kết quả
+            </button>
+<div class="flex items-center gap-2">
+<button class="px-2.5 py-1 rounded bg-surface-container text-on-surface text-caption font-label-md" onclick="switchScreen('S03A')">Biến thể A: Cá nhân giữ</button>
+<button class="px-2.5 py-1 rounded bg-surface-container text-on-surface text-caption font-label-md" onclick="switchScreen('S03B')">Biến thể B: Điểm tiếp nhận</button>
+<button class="px-2.5 py-1 rounded bg-primary text-white text-caption font-label-md" onclick="switchScreen('S03C')">Biến thể C: Nơi ngoài</button>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<div class="lg:col-span-7 space-y-4">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-3 shadow-sm">
+<div class="relative aspect-[4/3] rounded-lg overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A grey fabric backpack resting securely at a cultural center security counter in Ho Chi Minh City. Soft daylight streaming from tall entrance windows, quiet and safe environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4t94ORdW_ZTXcJvzRAqhMcyWpcXi1R9mH2mkx1v7RdfuVf0kIn2E7Wh6S5p02hbKPQDbOT6sWu4WgBgGHUrDSpFqG8Al996Hz-XcTvTpR-k_5cGOBoaoCo2AvdBjXv9-763xtAYghvlbuNmZ2bq_RuPsFn1XpVyHPEktWVTzBW-W4dJ2_GS9FYvLgxG2UAp_2c2qooHU_UwWH5eUd3EPrpw7sCIRBDX8-XEi-e-3-nKqY8YrxHXmb"/>
+<div class="absolute top-3 left-3 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-caption font-label-md border border-amber-300 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">corporate_fare</span> NƠI LƯU NGOÀI HỆ THỐNG
+                  </div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-5 space-y-2">
+<h4 class="font-label-lg text-label-lg text-on-surface">Lưu ý quan trọng từ Findie</h4>
+<p class="text-body-sm text-on-surface-variant">
+                  Món đồ này hiện đang được giữ tại quầy an ninh của đơn vị chủ quản (không thuộc điểm Hub độc quyền của Findie). Findie không thu thập thông tin duyệt online mà đóng vai trò dẫn đường kết nối bạn tới đơn vị tiếp nhận thực tế.
+                </p>
+</div>
+</div>
+<div class="lg:col-span-5 space-y-5">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-6 shadow-sm space-y-5">
+<div>
+<div class="flex items-center justify-between mb-3">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-caption font-label-md bg-amber-50 text-amber-900 border border-amber-200">
+<span class="material-symbols-outlined text-sm">shield</span> Tổ bảo vệ quản lý
+                    </span>
+<span class="text-caption font-caption text-on-surface-variant">Mã: FD-00130</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface mb-2">Balô laptop xám ghi chống nước</h2>
+<p class="text-body-sm text-on-surface-variant">
+                    Hiệu Targus, màu xám chuột, bên trong có dây sạc và sổ tay ghi chép. Đã được gửi vào quầy trực an ninh.
+                  </p>
+</div>
+<!-- Contact & Location Strip -->
+<div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 space-y-3">
+<div class="flex items-start gap-2.5">
+<span class="material-symbols-outlined text-primary text-xl">location_on</span>
+<div>
+<span class="text-caption font-label-md text-on-surface-variant block">Địa chỉ nhận đồ</span>
+<span class="text-body-sm font-semibold text-on-surface">Quầy Bảo vệ — Nhà Văn hóa Thanh Niên</span>
+<p class="text-caption text-on-surface-variant">Số 4 Phạm Ngọc Thạch, Bến Nghé, Quận 1, TP.HCM</p>
+</div>
+</div>
+<div class="flex items-start gap-2.5 pt-2 border-t border-outline-variant/20">
+<span class="material-symbols-outlined text-primary text-xl">call</span>
+<div>
+<span class="text-caption font-label-md text-on-surface-variant block">Điện thoại bàn ca trực</span>
+<span class="text-body-sm font-semibold text-on-surface">028 3822 4937 (Bấm số 102)</span>
+</div>
+</div>
+</div>
+<a class="w-full py-3 px-4 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center justify-center gap-2 transition-all" href="tel:02838224937">
+<span class="material-symbols-outlined">phone_forwarded</span>
+                  Gọi điện xác minh với Quầy Bảo vệ
+                </a>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S04: Đăng nhập tối giản / Bảo mật tài khoản -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S04">
+<div class="max-w-md mx-auto pt-6">
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-8 shadow-sm">
+<div class="text-center mb-6">
+<span class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+<span class="material-symbols-outlined text-2xl">verified_user</span>
+</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface mb-1">Xác thực tài khoản Findie</h2>
+<p class="text-body-sm text-on-surface-variant">
+                Bảo vệ danh tính để tiến hành gửi yêu cầu nhận đồ hoặc đăng tin nhặt an toàn.
+              </p>
+</div>
+<form class="space-y-4" onsubmit="event.preventDefault(); switchScreen('S07');">
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Số điện thoại / Email</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-lg">smartphone</span>
+<input class="w-full pl-9 rounded-lg border-outline-variant/60 text-body-sm py-2.5 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary" type="text" value="0918 345 678"/>
+</div>
+</div>
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Mã OTP hoặc Mật khẩu</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-lg">key</span>
+<input class="w-full pl-9 rounded-lg border-outline-variant/60 text-body-sm py-2.5 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary" type="password" value="••••••••"/>
+</div>
+</div>
+<div class="flex items-center justify-between text-caption">
+<label class="flex items-center gap-1.5 text-on-surface-variant cursor-pointer">
+<input checked="" class="rounded border-outline-variant/60 text-primary focus:ring-primary w-3.5 h-3.5" type="checkbox"/>
+                  Ghi nhớ phiên đăng nhập
+                </label>
+<a class="text-primary hover:underline" href="javascript:void(0)">Gửi lại mã OTP</a>
+</div>
+<button class="w-full py-3 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm transition-all flex items-center justify-center gap-2" type="submit">
+<span>Tiếp tục quy trình an toàn</span>
+<span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+</form>
+<div class="mt-6 pt-5 border-t border-outline-variant/20 text-center">
+<span class="text-caption text-on-surface-variant flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-sm text-primary">shield</span>
+                Hệ thống xác thực liên kết định danh dân sự
+              </span>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S05: Đăng đồ nhặt được (Form 3 bước rõ ràng) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S05">
+<div class="max-w-3xl mx-auto space-y-6">
+<div class="text-center pt-2">
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-2">Đăng thông tin đồ vật nhặt được</h1>
+<p class="text-body-md text-on-surface-variant max-w-xl mx-auto">
+              Cảm ơn lòng tốt của bạn vì cộng đồng. Hãy làm theo 3 bước bảo mật để người đánh rơi tìm lại được món đồ của mình.
+            </p>
+</div>
+<!-- Stepper Progress Header -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/40 shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-label-md text-caption" id="s05StepPill1">1</span>
+<div>
+<span class="block text-label-md font-label-md text-on-surface">Bước 1</span>
+<span class="text-caption text-on-surface-variant hidden sm:inline">Ảnh &amp; Thông tin mô tả</span>
+</div>
+</div>
+<div class="h-0.5 w-8 bg-outline-variant/40"></div>
+<div class="flex items-center gap-3">
+<span class="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center font-label-md text-caption" id="s05StepPill2">2</span>
+<div>
+<span class="block text-label-md font-label-md text-on-surface">Bước 2</span>
+<span class="text-caption text-on-surface-variant hidden sm:inline">Nơi lưu giữ hiện tại</span>
+</div>
+</div>
+<div class="h-0.5 w-8 bg-outline-variant/40"></div>
+<div class="flex items-center gap-3">
+<span class="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center font-label-md text-caption" id="s05StepPill3">3</span>
+<div>
+<span class="block text-label-md font-label-md text-on-surface">Bước 3</span>
+<span class="text-caption text-on-surface-variant hidden sm:inline">Câu hỏi xác minh</span>
+</div>
+</div>
+</div>
+<!-- STEP 1 CONTENT -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-6 md:p-8 space-y-6 shadow-sm" id="s05Step1">
+<!-- Photo Upload Area with Privacy Prompt -->
+<div>
+<label class="block text-label-lg font-label-lg text-on-surface mb-2">Ảnh chụp đồ vật nhặt được</label>
+<div class="border-2 border-dashed border-primary/40 rounded-xl p-6 text-center bg-tertiary-fixed/10 hover:bg-tertiary-fixed/20 transition-all cursor-pointer" onclick="switchScreen('S06')">
+<span class="material-symbols-outlined text-primary text-3xl mb-1">add_a_photo</span>
+<p class="font-label-md text-on-surface">Nhấn vào đây để tải ảnh chụp &amp; Mở công cụ tự động che mờ CCCD</p>
+<p class="text-caption text-on-surface-variant mt-1">Ảnh đã tải sẵn mô phỏng: 1 ảnh ví da có kèm giấy tờ cần redact (Bấm để thử nghiệm S06)</p>
+</div>
+</div>
+<!-- Title & Category -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Tên đồ vật khái quát <span class="text-secondary">*</span></label>
+<input class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2.5 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary" type="text" value="Ví da nam màu đen gập đôi"/>
+</div>
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Phân loại</label>
+<select class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2.5 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary">
+<option selected="">Ví / Bóp tiền / Túi xách</option>
+<option>Giấy tờ tùy thân (CCCD/GPLX/Thẻ SV)</option>
+<option>Chìa khóa / Thẻ xe / Thẻ từ</option>
+<option>Thiết bị điện tử (Điện thoại, tai nghe)</option>
+</select>
+</div>
+</div>
+<!-- Public Description (With Cautionary Note) -->
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<label class="text-label-md font-label-md text-on-surface">Mô tả công khai</label>
+<span class="text-caption text-secondary font-label-md">Lưu ý: Không ghi số tiền mặt hay đặc điểm bí mật!</span>
+</div>
+<textarea class="w-full rounded-lg border-outline-variant/60 text-body-sm p-3 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary" placeholder="Ví dụ: Nhặt được ví da màu đen tại công viên bờ sông, khóa kéo vàng sáng. Ai là chủ nhân xin liên hệ để trả lời câu hỏi xác minh..." rows="3"></textarea>
+</div>
+<!-- Location & Time Pickers -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Địa điểm nhặt</label>
+<input class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2 bg-surface-container-lowest" type="text" value="Công viên Bờ Sông, P. Bình An, TP. Thủ Đức"/>
+</div>
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Ngày giờ nhặt</label>
+<input class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2 bg-surface-container-lowest" type="datetime-local" value="2025-05-18T14:20"/>
+</div>
+</div>
+<div class="flex justify-end pt-4 border-t border-outline-variant/20">
+<button class="px-6 py-2.5 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary flex items-center gap-2" onclick="goToS05Step(2)">
+                Sang Bước 2: Chọn nơi giữ
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- STEP 2 CONTENT (Hidden by default) -->
+<div class="hidden bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-6 md:p-8 space-y-6 shadow-sm" id="s05Step2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Bước 2: Bạn dự định lưu giữ món đồ này ở đâu?</h3>
+<div class="space-y-4">
+<!-- Choice 1: Self keep -->
+<label class="flex items-start gap-4 p-4 rounded-xl border border-primary bg-primary/5 cursor-pointer">
+<input checked="" class="mt-1 text-primary focus:ring-primary" name="keepMethod" type="radio"/>
+<div>
+<span class="font-label-lg text-label-lg text-on-surface block">1. Tôi tự giữ và sẽ trực tiếp hẹn gặp trao trả</span>
+<p class="text-body-sm text-on-surface-variant">Số điện thoại của bạn được ẩn kín. Bạn chỉ duyệt qua người trả lời đúng câu hỏi bí mật trên Findie.</p>
+</div>
+</label>
+<!-- Choice 2: Findie Hub -->
+<label class="flex items-start gap-4 p-4 rounded-xl border border-outline-variant/40 hover:bg-surface-container-low cursor-pointer transition-colors">
+<input class="mt-1 text-primary focus:ring-primary" name="keepMethod" type="radio"/>
+<div>
+<span class="font-label-lg text-label-lg text-on-surface block">2. Gửi vào Điểm tiếp nhận Findie Hub gần nhất</span>
+<p class="text-body-sm text-on-surface-variant">Bàn giao tại quầy Findie Hub (có biên nhận). Nhân viên Hub sẽ chịu trách nhiệm bảo quản và trao trả.</p>
+</div>
+</label>
+<!-- Choice 3: External Place -->
+<label class="flex items-start gap-4 p-4 rounded-xl border border-outline-variant/40 hover:bg-surface-container-low cursor-pointer transition-colors">
+<input class="mt-1 text-primary focus:ring-primary" name="keepMethod" type="radio"/>
+<div>
+<span class="font-label-lg text-label-lg text-on-surface block">3. Đã gửi tại Trụ sở Công an / Quầy ban quản lý địa điểm</span>
+<p class="text-body-sm text-on-surface-variant">Bạn cung cấp địa chỉ và số điện thoại bàn của đơn vị giữ hộ để người mất đến nhận trực tiếp.</p>
+</div>
+</label>
+</div>
+<div class="flex justify-between pt-4 border-t border-outline-variant/20">
+<button class="px-5 py-2.5 rounded-xl border border-outline-variant/60 text-on-surface font-label-md" onclick="goToS05Step(1)">
+                Quay lại Bước 1
+              </button>
+<button class="px-6 py-2.5 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary flex items-center gap-2" onclick="goToS05Step(3)">
+                Sang Bước 3: Đặt câu hỏi bí mật
+                <span class="material-symbols-outlined text-base">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- STEP 3 CONTENT (Hidden by default) -->
+<div class="hidden bg-surface-container-lowest rounded-xl border border-outline-variant/40 p-6 md:p-8 space-y-6 shadow-sm" id="s05Step3">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-1">Bước 3: Tạo câu hỏi xác minh danh tính chủ sở hữu</h3>
+<p class="text-body-sm text-on-surface-variant">
+                Đây là chốt chặn quan trọng nhất! Chỉ người thực sự là chủ sở hữu mới trả lời đúng.
+              </p>
+</div>
+<div class="space-y-4">
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Câu hỏi bảo mật 1 <span class="text-secondary">*</span></label>
+<input class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2.5 bg-surface-container-lowest focus:ring-1 focus:ring-primary" type="text" value="Bên trong ví có tấm ảnh thẻ của ai hoặc có bao nhiêu ngăn nhỏ?"/>
+</div>
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5">Đáp án bí mật (Chỉ bạn nhìn thấy để đối chiếu)</label>
+<input class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2.5 bg-surface-container-lowest focus:ring-1 focus:ring-primary" type="text" value="Có 1 thẻ sinh viên trường Bách Khoa và ảnh thẻ 3x4 trong ngăn phụ"/>
+</div>
+</div>
+<div class="p-4 rounded-xl bg-surface-container-high/60 text-caption text-on-surface-variant flex items-center gap-2.5">
+<span class="material-symbols-outlined text-primary text-xl">verified</span>
+              Sau khi bạn duyệt tin, bài đăng sẽ được kiểm duyệt ảnh qua Findie AI trước khi xuất hiện trên bản tin công cộng.
+            </div>
+<div class="flex justify-between pt-4 border-t border-outline-variant/20">
+<button class="px-5 py-2.5 rounded-xl border border-outline-variant/60 text-on-surface font-label-md" onclick="goToS05Step(2)">
+                Quay lại Bước 2
+              </button>
+<button class="px-6 py-2.5 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary flex items-center gap-2" onclick="switchScreen('S06')">
+                Hoàn tất &amp; Mở màn kiểm duyệt ảnh (S06)
+                <span class="material-symbols-outlined text-base">check</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S06: Kiểm duyệt & Che mờ bảo mật (Findie AI Redact Console) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S06">
+<div class="max-w-4xl mx-auto space-y-6">
+<div class="flex flex-wrap items-center justify-between gap-3">
+<div>
+<span class="inline-flex items-center gap-1 text-caption font-label-md px-2.5 py-0.5 rounded-full bg-primary/10 text-primary mb-1">
+<span class="material-symbols-outlined text-xs">auto_awesome</span> FINDIE AI PRIVACY ENGINE
+              </span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Kiểm duyệt &amp; Làm mờ vùng ảnh nhạy cảm</h2>
+</div>
+<button class="text-caption font-label-md text-on-surface-variant hover:text-primary" onclick="switchScreen('S05')">
+              Thoát ra
+            </button>
+</div>
+<!-- Interactive Masking Canvas Window -->
+<div class="bg-inverse-surface rounded-2xl p-4 md:p-6 text-inverse-on-surface shadow-xl relative overflow-hidden">
+<div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4 text-caption">
+<span class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                Đã phát hiện tự động: 1 khuôn mặt CCCD, 1 dãy số định danh 12 chữ số
+              </span>
+<span class="text-surface-container-highest">Kéo chuột hoặc nhấn để thêm vùng che mờ</span>
+</div>
+<!-- Stage Canvas Mockup -->
+<div class="relative max-w-2xl mx-auto rounded-xl overflow-hidden bg-black/40 border border-white/20 aspect-[16/10] flex items-center justify-center">
+<img class="w-full h-full object-cover opacity-90" data-alt="Close-up of a wallet interior showing cards spread out on a neutral table. Gaussian blur boxes cover personal numbers and a small photo card with sleek high-tech UI bounding boxes with teal outline." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4hhnVAkVD2mcGt9wilraJO1gsi7J8vHa5vGkMuwAxkmZnC_ZwFQmk7BTdg-SEp2ClvDWnVyxrfWb8pIVJg4nai6QpygTF12SsfpG3hO123DmnW2sk-gxv_1duG7Y0JsdqANmzj6Zdzq7Biva7lWvtWvxkoD1CZM1SbC9b_Lcvyaqpe4Y2XYGPeP8nWcI_y8oq3JmQiA6hKrHi7ND_HkRbFQHlEYOHhdmzOeWjxNmq-FNl2f-ByWgx"/>
+<!-- Active Smart Bounding Box 1: Face Blur -->
+<div class="absolute top-[28%] left-[24%] w-24 h-24 border-2 border-dashed border-primary-fixed rounded-lg backdrop-blur-md bg-white/20 flex flex-col items-center justify-center text-center p-1 pointer-events-auto">
+<span class="material-symbols-outlined text-white text-base">face</span>
+<span class="text-[10px] font-label-md text-white bg-primary/80 px-1.5 py-0.5 rounded mt-1">Đã che mặt</span>
+</div>
+<!-- Active Smart Bounding Box 2: CCCD Number Redact -->
+<div class="absolute bottom-[32%] right-[22%] w-48 h-10 border-2 border-dashed border-secondary-container rounded bg-black/80 backdrop-blur-md flex items-center justify-center px-2">
+<span class="text-[11px] font-mono text-white tracking-widest">0792000*****</span>
+</div>
+</div>
+<!-- Privacy Action Toolbar Bottom Strip -->
+<div class="mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
+<div class="flex items-center gap-2 text-caption">
+<button class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-label-md flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">replay</span> Khôi phục vùng
+                </button>
+<button class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-label-md flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">crop_free</span> Vẽ thêm hộp che mờ
+                </button>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 rounded-xl text-caption font-label-md text-surface-container-highest hover:text-white" onclick="switchScreen('S05')">
+                  Yêu cầu che thêm
+                </button>
+<button class="px-6 py-2.5 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-md flex items-center gap-2" onclick="switchScreen('S02')">
+<span class="material-symbols-outlined text-base">check_circle</span>
+                  Duyệt bản ảnh sạch &amp; Đăng công khai
+                </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S07: Gửi yêu cầu nhận đồ (Trả lời câu hỏi bảo mật) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S07">
+<div class="max-w-2xl mx-auto space-y-6">
+<button class="text-label-md font-label-md text-on-surface-variant hover:text-primary flex items-center gap-1" onclick="switchScreen('S03A')">
+<span class="material-symbols-outlined text-base">arrow_back</span> Trở lại trang thông tin đồ vật
+          </button>
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-6 md:p-8 shadow-sm space-y-6">
+<div class="flex items-start gap-4 pb-6 border-b border-outline-variant/20">
+<div class="w-16 h-16 rounded-xl bg-surface-container overflow-hidden shrink-0">
+<img class="w-full h-full object-cover" data-alt="A small square thumbnail photo of the black bi-fold leather wallet with subtle blurred personal cards." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZ3il2EHITtpr8M1Wjgi_LZX1TPuGbWbMmC2jbtFukrzRwZOHz0WwlhowjL4OvZZqzyAF0Pumhzfo1BCeGTH85WZ6wKDMDhxYB2fotIytqU0toV1JbCAnFJ7oq0qEsHXujDfDvtA__hwAz4CmxZOeW60OGUhRUTEOItN02gKXhXtKHCn0uF6EnPDNJ26pWvLkja38VTLprXffV2e9qK1-RH0zb6IdOKyFFVQhblEzRyz_pcX7MBbpf"/>
+</div>
+<div>
+<span class="text-caption font-label-md text-primary">Mã yêu cầu nhận: FD-00128</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Ví đen khóa kéo vàng (gấp đôi)</h3>
+<p class="text-caption text-on-surface-variant">Người giữ: Hoàng Minh T. (TP. Thủ Đức)</p>
+</div>
+</div>
+<!-- Empathy Shield Banner -->
+<div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 text-body-sm text-on-surface-variant space-y-1">
+<span class="font-semibold text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-lg">psychology_alt</span>
+                Xác thực chủ sở hữu công bằng &amp; bảo mật
+              </span>
+<p class="text-caption text-on-surface-variant">
+                Hãy cung cấp chi tiết mà chỉ người sở hữu thật mới biết. Người giữ sẽ đối chiếu câu trả lời này trước khi đồng ý kết nối trao trả.
+              </p>
+</div>
+<!-- Form -->
+<form class="space-y-4" onsubmit="event.preventDefault(); switchScreen('S08');">
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1">
+                  Câu hỏi từ người giữ: <span class="text-secondary font-semibold">"Bên trong ví có tấm ảnh thẻ của ai hoặc có bao nhiêu ngăn nhỏ?"</span>
+</label>
+<textarea class="w-full rounded-lg border-outline-variant/60 text-body-sm p-3 bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-primary" placeholder="Ví dụ: Có 1 ảnh thẻ 3x4 của em gái mặc áo trắng và 1 thẻ sinh viên trường Bách Khoa..." required="" rows="3"></textarea>
+</div>
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1">
+                  Thông tin nhận dạng thêm (nếu có)
+                </label>
+<input class="w-full rounded-lg border-outline-variant/60 text-body-sm py-2.5 bg-surface-container-lowest" placeholder="Ví dụ: Bên trong ngăn khóa kéo có chùm chìa khóa nhỏ..." type="text"/>
+</div>
+<div class="pt-4 border-t border-outline-variant/20 flex items-center justify-between">
+<span class="text-caption text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">lock</span> Mã hóa end-to-end
+                </span>
+<button class="px-8 py-3 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center gap-2" type="submit">
+<span>Gửi câu trả lời cho người giữ</span>
+<span class="material-symbols-outlined text-base">send</span>
+</button>
+</div>
+</form>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S08: Quản lý Yêu cầu của tôi (Tiến trình trực quan) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S08">
+<div class="max-w-4xl mx-auto space-y-6">
+<div class="flex flex-wrap items-center justify-between gap-3">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Yêu cầu trao trả của tôi</h1>
+<p class="text-body-sm text-on-surface-variant">Theo dõi tiến trình xét duyệt và lịch hẹn trao trả trực tiếp</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-3 py-1 rounded-full bg-primary/10 text-primary text-caption font-label-md">1 Đang duyệt</span>
+<span class="px-3 py-1 rounded-full bg-surface-container text-on-surface text-caption font-label-md">2 Đã hoàn tất</span>
+</div>
+</div>
+<!-- Active Request Card (FD-00128) -->
+<div class="bg-surface-container-lowest rounded-2xl border border-primary/40 p-6 shadow-sm space-y-6">
+<div class="flex flex-wrap items-start justify-between gap-4">
+<div class="flex items-start gap-3.5">
+<div class="w-14 h-14 rounded-xl bg-surface-container overflow-hidden shrink-0">
+<img class="w-full h-full object-cover" data-alt="Small thumbnail of the black bi-fold wallet." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD-Pau1BQ5hd3ikQ6jbohL2WUF6s4h1etvr3E77t5CybYnA_4UQXvdEeL-dUF6ubSmE_c5YWVQLu10mEy2JxBduQHZ_CNAAq6KkGCjs47uqN3z7t4ovab77mvYpju4SOo7FhygyNYRV-Cu-rtivEU5Uzf3vBBBuCNlZVTQsQhaXjmaDY8n3eT-nXP1My2O7jvtzkxp6CdrvOb_2IS8KFM98emhrhF3-8P4-w5fsJ40TSzQ17kvYJw5c"/>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-primary">FD-00128</span>
+<span class="text-caption text-on-surface-variant">• Gửi lúc 15:10 hôm nay</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface font-semibold">Ví đen khóa kéo vàng (gấp đôi)</h3>
+<p class="text-caption text-on-surface-variant">Người đang giữ: Hoàng Minh T.</p>
+</div>
+</div>
+<!-- Stage Badge -->
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-caption font-label-md">
+<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Đang chờ người giữ duyệt
+              </span>
+</div>
+<!-- Timeline Stepper Track -->
+<div class="grid grid-cols-3 gap-2 pt-2 pb-2 text-center text-caption font-label-md">
+<div class="space-y-1.5">
+<div class="h-2 rounded-full bg-primary"></div>
+<span class="text-primary block">1. Đã gửi yêu cầu</span>
+</div>
+<div class="space-y-1.5">
+<div class="h-2 rounded-full bg-primary/80 pulse-subtle"></div>
+<span class="text-primary font-semibold block">2. Người giữ đang xem câu trả lời</span>
+</div>
+<div class="space-y-1.5">
+<div class="h-2 rounded-full bg-surface-container-highest"></div>
+<span class="text-on-surface-variant block">3. Hẹn gặp trao trả</span>
+</div>
+</div>
+<!-- Interactivity Simulator Controls -->
+<div class="pt-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
+<span class="text-caption text-on-surface-variant">Mô phỏng góc nhìn người giữ để tiếp tục quy trình:</span>
+<div class="flex items-center gap-2">
+<button class="px-4 py-2 rounded-lg bg-primary text-white text-caption font-label-lg hover:bg-tertiary flex items-center gap-1.5" onclick="switchScreen('S09')">
+<span class="material-symbols-outlined text-sm">switch_account</span>
+                  Đóng vai Người giữ để duyệt (S09)
+                </button>
+<button class="px-4 py-2 rounded-lg bg-surface-container text-primary text-caption font-label-lg hover:bg-surface-container-high flex items-center gap-1.5" onclick="switchScreen('S10')">
+<span class="material-symbols-outlined text-sm">chat</span>
+                  Mở hộp chat hẹn gặp (S10)
+                </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S09: Người giữ duyệt yêu cầu nhận đồ -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S09">
+<div class="max-w-3xl mx-auto space-y-6">
+<div class="flex items-center justify-between">
+<button class="text-label-md font-label-md text-on-surface-variant hover:text-primary flex items-center gap-1" onclick="switchScreen('S08')">
+<span class="material-symbols-outlined text-base">arrow_back</span> Trở lại danh sách yêu cầu
+            </button>
+<span class="text-caption font-label-md px-2.5 py-1 rounded bg-secondary-fixed text-on-secondary-fixed">
+              Góc nhìn: Hoàng Minh T. (Người đang nhặt giữ)
+            </span>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-6 md:p-8 shadow-sm space-y-6">
+<div>
+<span class="text-caption text-primary font-label-md">ĐỐI CHIẾU XÁC MINH SỞ HỮU</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Yêu cầu nhận đồ từ: Tran Van H.</h2>
+<p class="text-body-sm text-on-surface-variant">Món đồ: Ví đen khóa kéo vàng (FD-00128)</p>
+</div>
+<!-- Comparison Table -->
+<div class="space-y-4">
+<div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 space-y-1">
+<span class="text-caption font-label-md text-on-surface-variant">Câu hỏi bạn đã đặt ra:</span>
+<p class="text-body-md font-medium text-on-surface">"Bên trong ví có tấm ảnh thẻ của ai hoặc có bao nhiêu ngăn nhỏ?"</p>
+</div>
+<div class="p-4 rounded-xl bg-primary/5 border border-primary/30 space-y-1">
+<span class="text-caption font-label-md text-primary">Câu trả lời của người xin nhận (Tran Van H.):</span>
+<p class="text-body-md font-semibold text-primary">
+                  "Dạ trong ngăn khóa kéo có 1 ảnh thẻ 3x4 của em gái em mặc áo dài trắng và 1 thẻ sinh viên trường Bách Khoa ghi tên Trần Văn H., mã số SV 2018..."
+                </p>
+</div>
+<div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-caption text-amber-900 flex items-center gap-2">
+<span class="material-symbols-outlined text-base text-amber-700">fact_check</span>
+                Hãy so khớp với vật phẩm thực tế bạn đang cầm. Nếu trùng khớp, hãy bấm <strong>Phê duyệt</strong> để bắt đầu chat hẹn gặp tại nơi công cộng an toàn.
+              </div>
+</div>
+<!-- Decision CTAs -->
+<div class="pt-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
+<button class="px-5 py-2.5 rounded-xl border border-outline-variant/60 text-secondary hover:bg-error-container/20 font-label-md" onclick="alert('Đã từ chối do không trùng khớp thông tin'); switchScreen('S08');">
+                Từ chối yêu cầu này
+              </button>
+<div class="flex items-center gap-3">
+<button class="px-7 py-3 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center gap-2" onclick="switchScreen('S10')">
+<span class="material-symbols-outlined">thumb_up</span>
+                  Phê duyệt &amp; Hẹn gặp an toàn (Mở S10)
+                </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S10: Khung Chat hẹn gặp trao trả an toàn -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S10">
+<div class="max-w-4xl mx-auto">
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 shadow-sm overflow-hidden flex flex-col h-[680px]">
+<!-- Chat Header with Safe Meeting Guidelines -->
+<div class="p-4 border-b border-outline-variant/30 bg-surface-container-lowest flex items-center justify-between">
+<div class="flex items-center gap-3">
+<button class="text-on-surface-variant hover:text-on-surface" onclick="switchScreen('S08')"><span class="material-symbols-outlined">arrow_back</span></button>
+<div class="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-caption">
+                  TM
+                </div>
+<div>
+<h3 class="font-label-lg text-label-lg text-on-surface">Hoàng Minh T. (Người giữ) &amp; Tran Van H.</h3>
+<span class="text-caption text-primary flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Trao đổi về ví FD-00128
+                  </span>
+</div>
+</div>
+<!-- Handover Complete Action -->
+<button class="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-label-md text-caption hover:bg-emerald-700 flex items-center gap-1 shadow-sm" onclick="alert('Chúc mừng! Hai bên đã xác nhận hoàn tất trao trả thành công.'); switchScreen('S08');">
+<span class="material-symbols-outlined text-sm">handshake</span>
+                Xác nhận đã trao trả thành công
+              </button>
+</div>
+<!-- Safety Banner Pinned Strip -->
+<div class="bg-amber-50 px-4 py-2 border-b border-amber-200 text-amber-900 text-caption font-caption flex items-center justify-between">
+<span class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base text-secondary">security</span>
+                Vì sự an toàn của bạn, hãy hẹn gặp tại Điểm tiếp nhận Findie Hub, quán cà phê đông người hoặc trụ sở công an gần nhất.
+              </span>
+<span class="font-semibold text-secondary hidden sm:inline">Tuyệt đối không chuyển tiền cọc</span>
+</div>
+<!-- Messages Scroll Area -->
+<div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-background/50 custom-scrollbar">
+<!-- Timestamp divider -->
+<div class="text-center">
+<span class="px-3 py-1 rounded-full bg-surface-container text-caption font-caption text-on-surface-variant">Hôm nay 15:32</span>
+</div>
+<!-- Message 1 (Incoming from Holder) -->
+<div class="flex items-start gap-2.5 max-w-lg">
+<div class="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center text-xs font-bold shrink-0">
+                  TM
+                </div>
+<div class="p-3.5 rounded-2xl rounded-tl-none bg-surface-container-lowest border border-outline-variant/30 text-body-sm shadow-sm space-y-1">
+<p class="text-on-surface">Chào bạn, câu trả lời về ảnh thẻ em gái trong ngăn kéo hoàn toàn khớp với chiếc ví mình nhặt được nhé.</p>
+<span class="text-[10px] text-on-surface-variant block text-right">15:33</span>
+</div>
+</div>
+<!-- Message 2 (Outgoing from Finder) -->
+<div class="flex items-start justify-end gap-2.5 max-w-lg ml-auto">
+<div class="p-3.5 rounded-2xl rounded-tr-none bg-primary text-on-primary text-body-sm shadow-sm space-y-1">
+<p>Mừng quá ạ! Cảm ơn anh rất nhiều vì đã nhặt được và giữ gìn giúp em. Anh có tiện hẹn gặp ở đâu không ạ?</p>
+<span class="text-[10px] text-on-primary/70 block text-right">15:35</span>
+</div>
+</div>
+<!-- Meeting Action Card (Interactive Element) -->
+<div class="max-w-md mx-auto my-3 bg-surface-container-lowest rounded-xl border border-primary/40 p-4 shadow-sm space-y-3">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">storefront</span> Gợi ý điểm gặp an toàn Findie
+                  </span>
+<span class="text-caption font-label-md bg-tertiary-fixed/30 text-tertiary px-2 py-0.5 rounded">Có camera &amp; Nhân viên</span>
+</div>
+<div>
+<h4 class="font-title-md text-title-md text-on-surface">Findie Hub Quận 1 — 45 Lê Duẩn</h4>
+<p class="text-caption text-on-surface-variant">Bàn giao tại sảnh đón tiếp công dân, mở cửa liên tục tới 20h00.</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex-1 py-1.5 rounded-lg bg-primary text-white text-caption font-label-md hover:bg-tertiary">Đồng ý địa điểm này</button>
+<button class="px-3 py-1.5 rounded-lg bg-surface-container text-on-surface text-caption font-label-md hover:bg-surface-container-high">Đổi địa điểm</button>
+</div>
+</div>
+</div>
+<!-- Message Input Strip -->
+<div class="p-3 bg-surface-container-lowest border-t border-outline-variant/30 flex items-center gap-2">
+<button class="w-10 h-10 rounded-full text-on-surface-variant hover:bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined">add_location_alt</span>
+</button>
+<input class="flex-1 rounded-full border-outline-variant/50 text-body-sm px-4 py-2 bg-surface-container-low focus:ring-1 focus:ring-primary focus:outline-none" placeholder="Nhập tin nhắn trao đổi lịch hẹn an toàn..." type="text"/>
+<button class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-tertiary transition-transform active:scale-95">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S13: Bàn tiếp nhận đồ vào Hub (Console nhân viên) -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S13">
+<div class="max-w-4xl mx-auto space-y-6">
+<div class="bg-primary-container text-on-primary-container p-6 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-4">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined">admin_panel_settings</span>
+<span class="text-caption font-label-md uppercase tracking-wider text-primary-fixed">FINDIE HUB OPERATOR CONSOLE</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-white font-bold">Quản lý kho tiếp nhận &amp; Bàn giao đồ</h2>
+<p class="text-caption text-on-primary-container/80">Điểm tiếp nhận: Hub Quận 1 — Mã nhân viên: OP-704 (Lê Thanh Hương)</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-4 py-2 rounded-xl bg-white text-primary font-label-md text-body-sm shadow hover:bg-surface-container" onclick="switchScreen('S14')">
+                Tiếp nhận người đến nhận đồ (S14)
+              </button>
+</div>
+</div>
+<!-- Quick QR Scan Trigger Strip -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/40 shadow-sm flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">qr_code_scanner</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Quét mã QR đồ vào</h4>
+<p class="text-caption text-on-surface-variant">In tem niêm phong dán lên túi lưu trữ</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/40 shadow-sm flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">inventory_2</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Đang lưu kho: 24 món</h4>
+<p class="text-caption text-on-surface-variant">18 món đã khớp thông tin tìm kiếm</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/40 shadow-sm flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-tertiary-fixed text-tertiary flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">history_edu</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Đã trao trả: 112</h4>
+<p class="text-caption text-on-surface-variant">Tỷ lệ hài lòng công dân: 99.4%</p>
+</div>
+</div>
+</div>
+<!-- Pending Items Table -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/40 overflow-hidden shadow-sm">
+<div class="p-4 border-b border-outline-variant/20 flex items-center justify-between">
+<h3 class="font-title-md text-title-md text-on-surface font-semibold">Danh mục đồ vật cần bàn giao hôm nay</h3>
+<span class="text-caption text-primary font-label-md">Cập nhật lúc 15:40</span>
+</div>
+<div class="divide-y divide-outline-variant/20 text-body-sm">
+<div class="p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-3">
+<span class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary font-bold text-caption">129</span>
+<div>
+<span class="font-label-md text-on-surface block">Chùm chìa khóa móc nhựa xanh (FD-00129)</span>
+<span class="text-caption text-on-surface-variant">Vị trí tủ: Hộc K-04 • Chủ sở hữu đang tới quầy</span>
+</div>
+</div>
+<button class="px-4 py-1.5 rounded-lg bg-primary text-white text-caption font-label-md hover:bg-tertiary" onclick="switchScreen('S14')">
+                  Thực hiện đối chiếu (S14)
+                </button>
+</div>
+<div class="p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors">
+<div class="flex items-center gap-3">
+<span class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary font-bold text-caption">135</span>
+<div>
+<span class="font-label-md text-on-surface block">Căn cước công dân gắn chip (FD-00135)</span>
+<span class="text-caption text-on-surface-variant">Vị trí tủ: Két ID-01 • Chờ công an phường phối hợp</span>
+</div>
+</div>
+<span class="text-caption text-on-surface-variant px-3 py-1 rounded bg-surface-container">Đang đối chiếu VNeID</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S14: Đối chiếu CCCD & Xác thực chủ sở hữu tại quầy -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S14">
+<div class="max-w-3xl mx-auto space-y-6">
+<div class="flex items-center justify-between">
+<button class="text-label-md font-label-md text-on-surface-variant hover:text-primary flex items-center gap-1" onclick="switchScreen('S13')">
+<span class="material-symbols-outlined text-base">arrow_back</span> Trở lại bàn quản lý
+            </button>
+<span class="text-caption font-label-md px-2.5 py-1 rounded bg-tertiary-fixed/40 text-tertiary">
+              Quy trình kiểm tra 3 bước tại Hub
+            </span>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-6 md:p-8 shadow-sm space-y-6">
+<div>
+<span class="text-caption font-label-md text-primary">BÀN GIAO MÓN ĐỒ FD-00129</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Đối chiếu thông tin người đến nhận</h2>
+<p class="text-body-sm text-on-surface-variant">Vui lòng kiểm tra kỹ danh tính trước khi xuất kho niêm phong</p>
+</div>
+<!-- Verification Checklist -->
+<div class="space-y-4">
+<label class="flex items-start gap-3 p-4 rounded-xl border border-outline-variant/40 bg-surface-container-low/60 cursor-pointer">
+<input checked="" class="mt-1 rounded text-primary focus:ring-primary w-4 h-4" type="checkbox"/>
+<div>
+<span class="font-label-md text-label-md text-on-surface block">1. Đối chiếu hình ảnh thực tế đồ vật</span>
+<p class="text-caption text-on-surface-variant">Chùm chìa khóa 4 chiếc + móc thẻ từ trùng khớp số hiệu căn hộ đăng ký.</p>
+</div>
+</label>
+<label class="flex items-start gap-3 p-4 rounded-xl border border-outline-variant/40 bg-surface-container-low/60 cursor-pointer">
+<input checked="" class="mt-1 rounded text-primary focus:ring-primary w-4 h-4" type="checkbox"/>
+<div>
+<span class="font-label-md text-label-md text-on-surface block">2. Xác thực CCCD / Định danh VNeID của người nhận</span>
+<p class="text-caption text-on-surface-variant">Đã đối chiếu khuôn mặt người nhận khớp 100% với CCCD bản cứng xuất trình.</p>
+</div>
+</label>
+<label class="flex items-start gap-3 p-4 rounded-xl border border-outline-variant/40 bg-surface-container-low/60 cursor-pointer">
+<input checked="" class="mt-1 rounded text-primary focus:ring-primary w-4 h-4" type="checkbox"/>
+<div>
+<span class="font-label-md text-label-md text-on-surface block">3. Chữ ký số / Biên nhận bàn giao điện tử</span>
+<p class="text-caption text-on-surface-variant">Công dân đã ký xác nhận trên máy tính bảng tại quầy Hub.</p>
+</div>
+</label>
+</div>
+<div class="pt-4 border-t border-outline-variant/20 flex justify-end">
+<button class="px-7 py-3 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center gap-2" onclick="switchScreen('S15')">
+<span>Hoàn tất &amp; Xuất biên bản điện tử (S15)</span>
+<span class="material-symbols-outlined text-base">check_circle</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S15: Biên bản điện tử hoàn tất trao trả -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-S15">
+<div class="max-w-2xl mx-auto space-y-6">
+<div class="text-center pt-2">
+<div class="w-14 h-14 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto mb-3 shadow-sm">
+<span class="material-symbols-outlined text-3xl">done_all</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-1">Trao trả thành công!</h1>
+<p class="text-body-sm text-on-surface-variant">Biên bản điện tử đã được mã hóa và lưu trữ vào hồ sơ minh bạch Findie</p>
+</div>
+<!-- Official Electronic Receipt Box -->
+<div class="bg-surface-container-lowest rounded-2xl border-2 border-primary/30 p-6 md:p-8 shadow-sm space-y-5 relative">
+<div class="flex items-center justify-between pb-4 border-b border-outline-variant/30">
+<div>
+<span class="text-caption font-mono text-primary font-bold">BIÊN BẢN SỐ: FD-ACT-2025-0941</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Chứng nhận bàn giao tài sản</h3>
+</div>
+<span class="px-3 py-1 rounded bg-emerald-100 text-emerald-800 text-caption font-label-md">ĐÃ HOÀN TẤT</span>
+</div>
+<div class="space-y-3 text-body-sm">
+<div class="flex justify-between py-1 border-b border-outline-variant/10">
+<span class="text-on-surface-variant">Món đồ bàn giao:</span>
+<span class="font-semibold text-on-surface">Chùm chìa khóa móc nhựa xanh (FD-00129)</span>
+</div>
+<div class="flex justify-between py-1 border-b border-outline-variant/10">
+<span class="text-on-surface-variant">Thời gian xuất kho:</span>
+<span class="font-medium text-on-surface">15:45:12 — 19/05/2025</span>
+</div>
+<div class="flex justify-between py-1 border-b border-outline-variant/10">
+<span class="text-on-surface-variant">Điểm tiếp nhận:</span>
+<span class="font-medium text-on-surface">Findie Hub Quận 1 (45 Lê Duẩn)</span>
+</div>
+<div class="flex justify-between py-1 border-b border-outline-variant/10">
+<span class="text-on-surface-variant">Nhân viên chứng kiến:</span>
+<span class="font-medium text-on-surface">Lê Thanh Hương (OP-704)</span>
+</div>
+<div class="flex justify-between py-1">
+<span class="text-on-surface-variant">Chi phí dịch vụ:</span>
+<span class="font-bold text-emerald-700">0 VNĐ (Hoàn toàn miễn phí vì cộng đồng)</span>
+</div>
+</div>
+<!-- Signature Seal Badge -->
+<div class="p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 text-center">
+<span class="text-caption text-on-surface-variant block mb-1">Mã xác thực chuỗi hash Findie Chain:</span>
+<span class="font-mono text-xs text-primary font-semibold">0x7f4b89a1c3d8204e951b72a6ff</span>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-3 pt-3">
+<button class="px-4 py-2 rounded-lg border border-outline-variant/60 text-caption font-label-md hover:bg-surface-container flex items-center gap-1.5" onclick="window.print()">
+<span class="material-symbols-outlined text-sm">print</span> In biên bản
+              </button>
+<button class="px-6 py-2.5 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg hover:bg-tertiary shadow-sm flex items-center gap-1.5" onclick="switchScreen('S01')">
+<span class="material-symbols-outlined text-sm">home</span> Trở về Trang chủ
+              </button>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================================================= -->
+<!-- SCREEN S16 / FLOWS: Sơ đồ tương tác luồng A-F & Ghi chú thiết kế MVP -->
+<!-- ========================================================================= -->
+<section class="screen-view hidden" id="screen-FLOWS">
+<div class="max-w-5xl mx-auto space-y-8">
+<div class="text-center pt-2">
+<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-md text-caption mb-2">
+              TÀI LIỆU KIẾN TRÚC TRẢI NGHIỆM NGƯỜI DÙNG (UX FLOW ARCHITECTURE)
+            </span>
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-2">Sơ đồ Luồng A-F &amp; Giả định thiết kế Findie MVP</h1>
+<p class="text-body-md text-on-surface-variant max-w-2xl mx-auto">
+              Bản quy hoạch 6 luồng hành trình người dùng then chốt kết hợp hệ sinh thái trực tiếp (O2O) và thuật toán che mờ nhạy cảm.
+            </p>
+</div>
+<!-- Flow Cards Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Flow A -->
+<div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/40 shadow-sm space-y-3">
+<div class="flex items-center gap-2 text-primary font-label-lg">
+<span class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-caption font-bold">A</span>
+<h3>Luồng A: Tìm kiếm &amp; Khám phá đồ vật (S01 ➔ S02)</h3>
+</div>
+<p class="text-body-sm text-on-surface-variant">
+                Người dùng trong tâm trạng lo âu cần giao diện đơn giản nhất. Hỗ trợ nhập văn bản tự nhiên, gắn chip gợi ý nhanh, hoặc thả ảnh cũ để AI so khớp đặc trưng thị giác.
+              </p>
+<div class="p-3 rounded-lg bg-surface-container-low text-caption font-mono text-primary">
+                S01 (Search Box / Drag Image) ➔ S02 (Bento Grid 4 Cards + Filter)
+              </div>
+</div>
+<!-- Flow B -->
+<div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/40 shadow-sm space-y-3">
+<div class="flex items-center gap-2 text-primary font-label-lg">
+<span class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-caption font-bold">B</span>
+<h3>Luồng B: Xử lý 3 Biến thể Nơi lưu giữ (S03A, S03B, S03C)</h3>
+</div>
+<p class="text-body-sm text-on-surface-variant">
+                Phân hóa minh bạch: Cá nhân giữ (bảo vệ quyền riêng tư người nhặt), Điểm tiếp nhận Hub (dẫn đường và yêu cầu mang giấy tờ), Nơi ngoài (hướng dẫn số hotline bảo vệ).
+              </p>
+<div class="p-3 rounded-lg bg-surface-container-low text-caption font-mono text-primary">
+                S03A (Cá nhân giữ) | S03B (Hub Lê Duẩn) | S03C (Quầy Bảo Vệ ngoài)
+              </div>
+</div>
+<!-- Flow C -->
+<div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/40 shadow-sm space-y-3">
+<div class="flex items-center gap-2 text-primary font-label-lg">
+<span class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-caption font-bold">C</span>
+<h3>Luồng C: Đăng đồ nhặt &amp; AI Redact (S05 ➔ S06)</h3>
+</div>
+<p class="text-body-sm text-on-surface-variant">
+                Form 3 bước giảm tải nhận thức: Điền mô tả ➔ Chọn nơi giữ ➔ Đặt câu hỏi bí mật. Kèm bàn kiểm duyệt S06 quét tự động làm mờ CCCD/mặt trước khi đăng công khai.
+              </p>
+<div class="p-3 rounded-lg bg-surface-container-low text-caption font-mono text-primary">
+                S05 (3 Steps Registration) ➔ S06 (AI Privacy Redact Masking)
+              </div>
+</div>
+<!-- Flow D -->
+<div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/40 shadow-sm space-y-3">
+<div class="flex items-center gap-2 text-primary font-label-lg">
+<span class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-caption font-bold">D</span>
+<h3>Luồng D: Xác minh sở hữu hai chiều (S07 ➔ S08 ➔ S09)</h3>
+</div>
+<p class="text-body-sm text-on-surface-variant">
+                Người tìm trả lời câu hỏi riêng tư. Người giữ nhận thông báo và đối chiếu độc lập trên vật thể. Nếu duyệt sẽ mở khóa phòng chat.
+              </p>
+<div class="p-3 rounded-lg bg-surface-container-low text-caption font-mono text-primary">
+                S07 (Answer Challenge) ➔ S08 (My Requests) ➔ S09 (Holder Decision)
+              </div>
+</div>
+<!-- Flow E -->
+<div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/40 shadow-sm space-y-3">
+<div class="flex items-center gap-2 text-primary font-label-lg">
+<span class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-caption font-bold">E</span>
+<h3>Luồng E: Hẹn gặp &amp; Bàn giao trực tiếp (S10)</h3>
+</div>
+<p class="text-body-sm text-on-surface-variant">
+                Kênh nhắn tin có cắm cờ cảnh báo an toàn. Tích hợp sẵn nút 'Gợi ý địa điểm công cộng / Findie Hub' và nút bấm xác nhận hoàn tất hai chiều.
+              </p>
+<div class="p-3 rounded-lg bg-surface-container-low text-caption font-mono text-primary">
+                S10 (Safe Handover Chat + Geo Hub Suggestion + Final Ack)
+              </div>
+</div>
+<!-- Flow F -->
+<div class="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant/40 shadow-sm space-y-3">
+<div class="flex items-center gap-2 text-primary font-label-lg">
+<span class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-caption font-bold">F</span>
+<h3>Luồng F: Quản lý Trạm tiếp nhận Hub (S13 ➔ S14 ➔ S15)</h3>
+</div>
+<p class="text-body-sm text-on-surface-variant">
+                Dành cho nhân viên vận hành: Kiểm soát đồ lưu kho hộc tủ, đối chiếu định danh CCCD thực tế, cấp biên lai điện tử có chữ ký số.
+              </p>
+<div class="p-3 rounded-lg bg-surface-container-low text-caption font-mono text-primary">
+                S13 (Operator Inventory) ➔ S14 (ID Check) ➔ S15 (Official Hash Certificate)
+              </div>
+</div>
+</div>
+<!-- MVP Product Design Principles Summary -->
+<div class="bg-surface-container-lowest p-6 md:p-8 rounded-2xl border border-outline-variant/40 shadow-sm space-y-4">
+<h3 class="font-title-md text-title-md text-on-surface font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">emoji_objects</span>
+              3 Trụ cột Trải nghiệm then chốt của Findie MVP
+            </h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+<div>
+<h4 class="font-label-lg text-label-lg text-primary mb-1">1. Giảm thiểu căng thẳng (De-escalation)</h4>
+<p class="text-caption text-on-surface-variant">Không dùng màu đỏ báo động hay từ ngữ tiêu cực. Bảng màu teal ổn định kết hợp cam đất ấm áp tạo cảm giác được nâng đỡ và an tâm.</p>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-primary mb-1">2. Phòng chống gian lận (Anti-Fraud)</h4>
+<p class="text-caption text-on-surface-variant">Không mở chat bừa bãi. Cơ chế câu hỏi bảo mật riêng và việc giấu kín thông tin nhạy cảm loại trừ 99% trường hợp giả mạo đến chuộc đồ.</p>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-primary mb-1">3. Cầu nối thế giới thực (O2O Grounding)</h4>
+<p class="text-caption text-on-surface-variant">Công nghệ chỉ đóng vai trò mai mối; đích đến cuối cùng là sự an toàn vật lý tại mạng lưới Điểm tiếp nhận Findie Hub khắp các đô thị.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- GLOBAL COMPONENT: Web Footer (From Shared Components JSON) -->
+<footer class="bg-surface-container-low dark:bg-surface-container border-t border-outline-variant/30 dark:border-outline-variant/15 full-width mt-12">
+<div class="w-full py-10 px-4 lg:px-14 max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<!-- Left: Brand & Statement -->
+<div class="flex flex-col items-center md:items-start text-center md:text-left gap-2">
+<div class="text-title-md font-title-md text-primary dark:text-inverse-primary font-bold flex items-center gap-1">
+            findie<span class="w-2 h-2 rounded-full bg-secondary"></span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant dark:text-surface-variant max-w-md">
+            © 2025 Findie Vietnam. Hệ sinh thái kết nối và hỗ trợ trao trả đồ thất lạc vì cộng đồng.
+          </p>
+</div>
+<!-- Right: Standard Links (Exact from JSON) -->
+<div class="flex flex-wrap items-center justify-center md:justify-end gap-x-6 gap-y-2 text-label-md font-label-md text-on-surface-variant dark:text-surface-variant">
+<a class="hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="javascript:switchScreen('FLOWS')">Về Findie</a>
+<a class="hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="javascript:switchScreen('S13')">Mạng lưới Điểm tiếp nhận</a>
+<a class="hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="javascript:switchScreen('S06')">Bảo mật dữ liệu Findie AI</a>
+<a class="hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="javascript:switchScreen('S14')">Quy trình xác minh CCCD/CMND</a>
+<a class="hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="javascript:switchScreen('S10')">Hướng dẫn trao trả an toàn</a>
+<a class="hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="javascript:switchScreen('FLOWS')">Liên hệ điều hành</a>
+</div>
+</div>
+</footer>
+</div>
+<!-- INLINE JAVASCRIPT: Prototype Router & Interactive Simulation -->
+<script>
+    // State management
+    let currentScreen = 'S01';
+    let currentViewport = 'desktop';
+
+    // Switch active prototype screen
+    function switchScreen(screenId) {
+      currentScreen = screenId;
+      
+      // Update select element value
+      const selector = document.getElementById('screenSelector');
+      if (selector) selector.value = screenId;
+
+      // Hide all screen views
+      const screens = document.querySelectorAll('.screen-view');
+      screens.forEach(s => s.classList.add('hidden'));
+
+      // Show target screen
+      const target = document.getElementById('screen-' + screenId);
+      if (target) {
+        target.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      // Update Nav highlighting
+      updateNavHighlight(screenId);
+    }
+
+    // Nav active tab styling based on JSON guidance
+    function updateNavHighlight(screenId) {
+      const links = ['S01', 'S05', 'S08', 'S10'];
+      links.forEach(id => {
+        const btn = document.getElementById('navLink-' + id);
+        if (!btn) return;
+        
+        let isActive = false;
+        if (id === 'S01' && (screenId === 'S01' || screenId === 'S02' || screenId.startsWith('S03'))) isActive = true;
+        else if (id === 'S05' && (screenId === 'S05' || screenId === 'S06')) isActive = true;
+        else if (id === 'S08' && (screenId === 'S08' || screenId === 'S09' || screenId === 'S07')) isActive = true;
+        else if (id === 'S10' && screenId === 'S10') isActive = true;
+
+        if (isActive) {
+          btn.className = "text-primary dark:text-inverse-primary font-semibold border-b-2 border-primary dark:border-inverse-primary pb-1 transition-colors duration-150 active:scale-[0.98]";
+        } else {
+          btn.className = "text-on-surface-variant dark:text-surface-variant font-normal hover:text-on-surface dark:hover:text-inverse-on-surface pb-1 transition-colors duration-150 active:scale-[0.98]";
+        }
+      });
+    }
+
+    // Set viewport mode (Desktop full-width vs Mobile 390px device simulation frame)
+    function setViewportMode(mode) {
+      currentViewport = mode;
+      const container = document.getElementById('viewportContainer');
+      const btnDesk = document.getElementById('viewBtnDesktop');
+      const btnMob = document.getElementById('viewBtnMobile');
+
+      if (mode === 'mobile') {
+        container.classList.remove('w-full');
+        container.classList.add('max-w-[390px]', 'mx-auto', 'my-4', 'shadow-2xl', 'rounded-[36px]', 'overflow-hidden', 'border-[8px]', 'border-inverse-surface');
+        
+        btnMob.className = "px-2.5 py-1 rounded text-caption font-label-md bg-primary-container text-on-primary-container flex items-center gap-1";
+        btnDesk.className = "px-2.5 py-1 rounded text-caption font-label-md text-surface-container-highest hover:text-white flex items-center gap-1";
+      } else {
+        container.classList.remove('max-w-[390px]', 'mx-auto', 'my-4', 'shadow-2xl', 'rounded-[36px]', 'overflow-hidden', 'border-[8px]', 'border-inverse-surface');
+        container.classList.add('w-full');
+
+        btnDesk.className = "px-2.5 py-1 rounded text-caption font-label-md bg-primary-container text-on-primary-container flex items-center gap-1";
+        btnMob.className = "px-2.5 py-1 rounded text-caption font-label-md text-surface-container-highest hover:text-white flex items-center gap-1";
+      }
+    }
+
+    // S01 Tab switching
+    function setS01Tab(tab) {
+      const descTab = document.getElementById('s01TabDesc');
+      const imgTab = document.getElementById('s01TabImage');
+      const descContent = document.getElementById('s01ContentDesc');
+      const imgContent = document.getElementById('s01ContentImage');
+
+      if (tab === 'desc') {
+        descTab.className = "pb-3 text-label-lg font-label-lg text-primary border-b-2 border-primary flex items-center gap-2";
+        imgTab.className = "pb-3 text-label-lg font-label-lg text-on-surface-variant hover:text-on-surface flex items-center gap-2";
+        descContent.classList.remove('hidden');
+        imgContent.classList.add('hidden');
+      } else {
+        imgTab.className = "pb-3 text-label-lg font-label-lg text-primary border-b-2 border-primary flex items-center gap-2";
+        descTab.className = "pb-3 text-label-lg font-label-lg text-on-surface-variant hover:text-on-surface flex items-center gap-2";
+        imgContent.classList.remove('hidden');
+        descContent.classList.add('hidden');
+      }
+    }
+
+    // S01 quick fill
+    function fillS01Search(text) {
+      const input = document.getElementById('s01QueryInput');
+      if (input) {
+        input.value = text;
+        input.focus();
+      }
+    }
+
+    // S05 Stepper Navigation
+    function goToS05Step(stepNum) {
+      [1, 2, 3].forEach(n => {
+        const stepEl = document.getElementById('s05Step' + n);
+        const pill = document.getElementById('s05StepPill' + n);
+        if (!stepEl || !pill) return;
+
+        if (n === stepNum) {
+          stepEl.classList.remove('hidden');
+          pill.className = "w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-label-md text-caption";
+        } else if (n < stepNum) {
+          stepEl.classList.add('hidden');
+          pill.className = "w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-label-md text-caption";
+          pill.innerHTML = `<span class="material-symbols-outlined text-sm">check</span>`;
+        } else {
+          stepEl.classList.add('hidden');
+          pill.className = "w-8 h-8 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center font-label-md text-caption";
+          pill.innerText = n;
+        }
+      });
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+    }
+
+    // Keyboard navigation helper for testing
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && e.key === '1') switchScreen('S01');
+      if (e.altKey && e.key === '2') switchScreen('S02');
+      if (e.altKey && e.key === '3') switchScreen('S03A');
+      if (e.altKey && e.key === '5') switchScreen('S05');
+      if (e.altKey && e.key === '6') switchScreen('S06');
+    });
+  </script>
+</body></html>

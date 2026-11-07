@@ -1,0 +1,13 @@
+{
+  "vhosts": [{"name": "/"}],
+  "exchanges": [{"name": "findie.ai.dlx", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}],
+  "queues": [
+    {"name": "findie.ai.commands", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "quorum", "x-message-ttl": 30000, "x-max-length": 64, "x-max-length-bytes": 67108864, "x-delivery-limit": 5, "x-dead-letter-exchange": "findie.ai.dlx", "x-dead-letter-routing-key": "index"}},
+    {"name": "findie.api.results", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "quorum", "x-message-ttl": 60000, "x-max-length": 256, "x-max-length-bytes": 1048576, "x-delivery-limit": 5, "x-dead-letter-exchange": "findie.ai.dlx", "x-dead-letter-routing-key": "results"}},
+    {"name": "findie.ai.dead", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-message-ttl": 86400000, "x-max-length": 256, "x-max-length-bytes": 67108864}}
+  ],
+  "bindings": [
+    {"source": "findie.ai.dlx", "vhost": "/", "destination": "findie.ai.dead", "destination_type": "queue", "routing_key": "index", "arguments": {}},
+    {"source": "findie.ai.dlx", "vhost": "/", "destination": "findie.ai.dead", "destination_type": "queue", "routing_key": "results", "arguments": {}}
+  ]
+}
