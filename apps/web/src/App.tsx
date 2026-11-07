@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { loadUser, logout, type UserProfile } from "./lib/auth";
 import { useAction } from "./hooks/hooks";
-import { Breadcrumb, EmptyState, ErrorNotice, Icon, Loading } from "./components/ui";
+import { Breadcrumb, EmptyState, ErrorNotice, Icon, Loading, useToast } from "./components/ui";
 import SignIn from "./pages/SignIn";
 import Profile from "./pages/Profile";
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -35,35 +35,108 @@ export default function App() {
   const [imageSearch, setImageSearch] = useState<SearchInput | null>(null);
   const [selectedHubPointId, setSelectedHubPointId] = useState<string>("");
   const action = useAction();
+  const toast = useToast();
+
+  useEffect(() => {
+    if (action.error) {
+      toast.error(action.error.message);
+    }
+  }, [action.error]);
 
   useEffect(() => {
     if (user?.managedPoints?.length && !selectedHubPointId) {
       setSelectedHubPointId(user.managedPoints[0].id);
     }
   }, [user, selectedHubPointId]);
+
   useEffect(() => {
     const navigate = () => {
       const nextPath = window.location.pathname.replace(/\/$/, "") || "/";
       if (nextPath === path) return;
-      setLoading(true);
       setPath(nextPath);
+      window.scrollTo(0, 0);
     };
     window.addEventListener("popstate", navigate);
     return () => window.removeEventListener("popstate", navigate);
   }, [path]);
+
+  useEffect(() => {
+    const handleLinkClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = (event.target as HTMLElement).closest("a");
+      if (!target || !(target instanceof HTMLAnchorElement)) return;
+
+      if (target.target && target.target !== "_self") return;
+      if (target.hasAttribute("download")) return;
+
+      const href = target.getAttribute("href");
+      if (!href) return;
+
+      if (
+        href.startsWith("http://") ||
+        href.startsWith("https://") ||
+        href.startsWith("mailto:") ||
+        href.startsWith("tel:") ||
+        href.startsWith("#")
+      ) {
+        try {
+          const url = new URL(href, window.location.origin);
+          if (url.origin !== window.location.origin) return;
+        } catch {
+          return;
+        }
+      }
+
+      const nextUrl = new URL(href, window.location.origin);
+      if (nextUrl.origin !== window.location.origin) return;
+
+      if (
+        nextUrl.pathname.startsWith("/api/") ||
+        nextUrl.pathname.startsWith("/auth/")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const nextPath = nextUrl.pathname.replace(/\/$/, "") || "/";
+      const nextFullPath = nextUrl.pathname + nextUrl.search + nextUrl.hash;
+      const currentFullPath =
+        window.location.pathname + window.location.search + window.location.hash;
+
+      if (nextFullPath !== currentFullPath) {
+        window.history.pushState(null, "", nextFullPath);
+        setPath(nextPath);
+        window.scrollTo(0, 0);
+      }
+    };
+
+    document.addEventListener("click", handleLinkClick);
+    return () => document.removeEventListener("click", handleLinkClick);
+  }, [path]);
+
   useEffect(() => {
     if (path === "/signin") return;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
     let active = true;
-    setLoading(true);
+    if (!user) setLoading(true);
     setError(null);
     loadUser(controller.signal)
       .then((value) => {
         if (active) setUser(value);
       })
       .catch(() => {
-        if (active)
+        if (active && !user)
           setError(
             new Error(
               "Chưa kiểm tra được phiên đăng nhập. Hãy kiểm tra kết nối và thử lại.",
@@ -550,7 +623,6 @@ export default function App() {
         {path !== "/" && !isPortalMode && (
           <Breadcrumb current={titles[path] ?? "Thông tin trao trả"} />
         )}
-        <ErrorNotice error={action.error} />
         {content}
       </main>
 

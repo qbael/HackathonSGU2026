@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatDate, pageNumber, write, type CustodyEvent, type Item, type Page } from "../lib/api";
+import { ApiError, formatDate, pageNumber, write, type CustodyEvent, type Item, type Page } from "../lib/api";
 import { directReturnInput } from "../lib/itemForm";
 import { useAction, useResource } from "../hooks/hooks";
 import { Badge, EmptyState, ErrorNotice, Icon, ItemSummary, Loading, Notice, PageHeader, Pagination, SafetyNote } from "../components/ui";
@@ -8,6 +8,16 @@ export function CustodyHistory({ id }: { id: string }) {
   const page = pageNumber(new URLSearchParams(window.location.search).get("page"));
   const events = useResource<Page<CustodyEvent>>(`/api/items/${id}/custody-events?page=${page}&pageSize=20`);
   const labels: Record<string, string> = { registered: "Đăng ký món đồ", received: "Hub đã tiếp nhận", returned: "Đã trao trả cho chủ sở hữu" };
+  if (events.error instanceof ApiError && events.error.status === 404) {
+    return (
+      <EmptyState title="Không tìm thấy lịch sử bàn giao" icon="document">
+        <p>Món đồ này không tồn tại hoặc bạn không có quyền xem thông tin lưu chuyển.</p>
+        <a className="button" href="/posts">
+          Về bài đăng của tôi
+        </a>
+      </EmptyState>
+    );
+  }
   return <>
     <PageHeader eyebrow={`Món đồ #${id.slice(0, 8)}`} title="Lịch sử bàn giao">
       Lịch sử dành cho người đăng và người có quyền quản lý món đồ.
@@ -34,7 +44,19 @@ export function ReturnItem({ id }: { id: string }) {
   const [result, setResult] = useState<CustodyEvent | null>(null);
   const action = useAction();
   if (item.loading) return <Loading />;
-  if (item.error || !item.data) return <ErrorNotice error={item.error} retry={item.reload} />;
+  if (item.error || !item.data) {
+    if (item.error instanceof ApiError && item.error.status === 404) {
+      return (
+        <EmptyState title="Món đồ không tồn tại hoặc đã được gỡ" icon="document">
+          <p>Món đồ này không tồn tại hoặc bạn không có quyền truy cập thông tin trao trả.</p>
+          <a className="button" href="/posts">
+            Về bài đăng của tôi
+          </a>
+        </EmptyState>
+      );
+    }
+    return <ErrorNotice error={item.error} retry={item.reload} />;
+  }
   const data = item.data;
   return <>
     <PageHeader eyebrow="Đối chiếu trước khi bàn giao" title="Xác nhận trao trả món đồ">

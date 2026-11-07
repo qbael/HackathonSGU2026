@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useCallback, useRef, useState, type ReactNode } from "react";
 import {
   ApiError,
   custodyLabels,
@@ -360,4 +360,142 @@ export function ConfirmDialog({
       </dialog>
     </>
   );
+}
+
+export function ConfirmModal({
+  open,
+  title,
+  message,
+  confirmText = "Xác nhận",
+  cancelText = "Hủy",
+  danger = false,
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message: ReactNode;
+  confirmText?: string;
+  cancelText?: string;
+  danger?: boolean;
+  busy?: boolean;
+  onConfirm: () => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="hub-modal-backdrop" onClick={() => !busy && onCancel()}>
+      <div className="hub-modal-card" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
+          {title}
+        </h3>
+        <div style={{ fontSize: "0.875rem", color: "#475569", lineHeight: 1.5 }}>
+          {message}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.625rem", marginTop: "0.5rem" }}>
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={onCancel}
+            disabled={busy}
+          >
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            className={`button button-small${danger ? " button-danger" : ""}`}
+            onClick={() => void onConfirm()}
+            disabled={busy}
+          >
+            {busy ? "Đang xử lý…" : confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export type Toast = {
+  id: string;
+  type: "success" | "error" | "info" | "warning";
+  message: string;
+};
+
+type ToastContextType = {
+  toast: (message: string, type?: Toast["type"]) => void;
+  success: (message: string) => void;
+  error: (message: string) => void;
+  info: (message: string) => void;
+  warning: (message: string) => void;
+};
+
+const ToastContext = createContext<ToastContextType | null>(null);
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const addToast = useCallback((message: string, type: Toast["type"] = "info") => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      removeToast(id);
+    }, 3800);
+  }, [removeToast]);
+
+  const value: ToastContextType = {
+    toast: addToast,
+    success: useCallback((msg: string) => addToast(msg, "success"), [addToast]),
+    error: useCallback((msg: string) => addToast(msg, "error"), [addToast]),
+    info: useCallback((msg: string) => addToast(msg, "info"), [addToast]),
+    warning: useCallback((msg: string) => addToast(msg, "warning"), [addToast]),
+  };
+
+  return (
+    <ToastContext.Provider value={value}>
+      {children}
+      {toasts.length > 0 && (
+        <div className="toast-container" aria-live="polite">
+          {toasts.map((t) => (
+            <div key={t.id} className={`toast-item toast-${t.type}`} role="status">
+              <span className="toast-icon">
+                <Icon
+                  name={t.type === "success" ? "check" : "shield"}
+                  size={18}
+                />
+              </span>
+              <span>{t.message}</span>
+              <button
+                type="button"
+                className="toast-close-btn"
+                onClick={() => removeToast(t.id)}
+                aria-label="Đóng thông báo"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  const ctx = useContext(ToastContext);
+  if (!ctx) {
+    // Fallback safe no-op if used outside ToastProvider
+    return {
+      toast: (msg: string) => console.log(msg),
+      success: (msg: string) => console.log(msg),
+      error: (msg: string) => console.error(msg),
+      info: (msg: string) => console.log(msg),
+      warning: (msg: string) => console.warn(msg),
+    };
+  }
+  return ctx;
 }

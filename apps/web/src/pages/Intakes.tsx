@@ -103,10 +103,26 @@ export function IntakeDetail({ id, user }: { id: string; user: UserProfile }) {
     }
   }
   if (intake.loading) return <Loading />;
-  if (!intake.data) return <ErrorNotice error={intake.error} retry={intake.reload} />;
+  if (!intake.data) {
+    if (intake.error instanceof ApiError && intake.error.status === 404) {
+      return (
+        <EmptyState title="Yêu cầu tiếp nhận không tồn tại" icon="document">
+          <p>Yêu cầu tiếp nhận này không tồn tại hoặc đã được xử lý/gỡ bỏ.</p>
+          <a className="button" href="/intakes">
+            Về danh sách tiếp nhận
+          </a>
+        </EmptyState>
+      );
+    }
+    return <ErrorNotice error={intake.error} retry={intake.reload} />;
+  }
   const data = intake.data;
   const own = data.requestedBy === user.id;
-  const canDecide = !intake.error && Number.isSafeInteger(data.itemRowVersion) && data.itemRowVersion > 0;
+  const isStaffForThisPoint = Boolean(
+    (user.isStaff && user.managedPoints?.some((p) => p.id === data.targetPointId)) ||
+    user.isAdmin
+  );
+  const canDecide = isStaffForThisPoint && !intake.error && Number.isSafeInteger(data.itemRowVersion) && data.itemRowVersion > 0;
   const decisionForm = (
     <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (confirmed) void decide("received"); }}>
       <Notice>
@@ -158,12 +174,29 @@ export function IntakeDetail({ id, user }: { id: string; user: UserProfile }) {
           {data.decisionNote && <Notice tone={data.status === "rejected" ? "warning" : "info"}>
             <strong>Ghi chú từ điểm tiếp nhận</strong><p className="preserve-lines">{data.decisionNote}</p>
           </Notice>}
-          {data.status === "pending" && !data.stale && <>
-            {own ? <>
-              <Notice><strong>Đang chờ Hub tiếp nhận.</strong><p>Món đồ vẫn ở nơi giữ hiện tại cho đến khi nhân viên nhận đồ và xác nhận tại quầy.</p></Notice>
-              <details><summary>Dành cho nhân viên điểm tiếp nhận</summary>{decisionForm}</details>
-            </> : decisionForm}
-          </>}
+          {data.status === "pending" && !data.stale && (
+            <>
+              {own && (
+                <Notice>
+                  <strong>Đang chờ Hub tiếp nhận.</strong>
+                  <p>Món đồ vẫn ở nơi giữ hiện tại cho đến khi bạn mang đồ tới và nhân viên tiếp nhận tại quầy.</p>
+                </Notice>
+              )}
+              {isStaffForThisPoint && (
+                <div style={{ marginTop: "1rem" }}>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+                    Bàn tiếp nhận nhân viên Hub
+                  </h3>
+                  {decisionForm}
+                </div>
+              )}
+              {!own && !isStaffForThisPoint && (
+                <Notice>
+                  Đề nghị đang chờ nhân viên phụ trách tại trạm này kiểm tra và tiếp nhận hiện vật.
+                </Notice>
+              )}
+            </>
+          )}
           {data.status === "received" && <Notice tone="success">Đề nghị đã hoàn tất; Hub đã xác nhận nhận món đồ thực tế.</Notice>}
           {data.status === "rejected" && <Notice tone="warning">Hub đã từ chối đề nghị. Việc gửi đề nghị này không thay đổi nơi giữ món đồ.</Notice>}
           {data.decidedAt && <p className="field-hint">Cập nhật lúc {formatDate(data.decidedAt, true)}</p>}

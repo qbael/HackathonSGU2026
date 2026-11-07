@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ApiError,
   custodyLabels,
   formatDate,
   foundTime,
+  imageUrl,
   pageNumber,
   type Item,
   type Page,
@@ -251,7 +252,16 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
   const [suggestions, setSuggestions] = useState<SearchResponse | null>(null);
   const [searchError, setSearchError] = useState<Error | null>(null);
   const [searching, setSearching] = useState(Boolean(request));
+  const [searchStep, setSearchStep] = useState("Đang tải ảnh lên và mã hóa dữ liệu…");
   const [attempt, setAttempt] = useState(0);
+  const searchControllerRef = useRef<AbortController | null>(null);
+
+  const cancelSearch = () => {
+    searchControllerRef.current?.abort();
+    setSearching(false);
+    setRequest(null);
+  };
+
   const filter = new URLSearchParams({ page: String(page), pageSize: "12" });
   for (const key of ["q", "area", "from", "until"])
     if (query.get(key)?.trim()) filter.set(key, query.get(key)!.trim());
@@ -260,10 +270,20 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
   useEffect(() => {
     if (!request) return;
     const controller = new AbortController();
+    searchControllerRef.current = controller;
     let active = true;
     setSearching(true);
     setSearchError(null);
     setSuggestions(null);
+    setSearchStep("Đang tải ảnh lên và mã hóa dữ liệu…");
+
+    const t1 = setTimeout(() => {
+      if (active) setSearchStep("AI đang phân tích đặc trưng hình ảnh…");
+    }, 1500);
+    const t2 = setTimeout(() => {
+      if (active) setSearchStep("Đang so khớp với cơ sở dữ liệu tìm kiếm…");
+    }, 3500);
+
     const signal = AbortSignal.any([
       controller.signal,
       AbortSignal.timeout(request.files.length ? 960000 : 45000),
@@ -277,18 +297,22 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
         if (active) setSuggestions(value);
       })
       .catch((cause) => {
-        if (active)
+        if (active) {
+          if (controller.signal.aborted) return;
           setSearchError(
             cause instanceof Error && !signal.aborted
               ? cause
               : new Error("Máy chủ phản hồi quá lâu. Vui lòng thử lại."),
           );
+        }
       })
       .finally(() => {
         if (active) setSearching(false);
       });
     return () => {
       active = false;
+      clearTimeout(t1);
+      clearTimeout(t2);
       controller.abort();
     };
   }, [request, attempt]);
@@ -405,10 +429,21 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
             {mode !== "basic" && (
               <LostTimeInput defaultValue={initialRequest?.filters.lostAt ?? query.get("lostAt") ?? undefined} />
             )}
-            <button className="button" type="submit" disabled={searching}>
-              <Icon name="search" size={17} />
-              {searching ? "Đang tìm kiếm…" : "Tìm kiếm"}
-            </button>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <button className="button" type="submit" disabled={searching}>
+                <Icon name="search" size={17} />
+                {searching ? "Đang tìm kiếm…" : "Tìm kiếm"}
+              </button>
+              {searching && (
+                <button
+                  type="button"
+                  className="button button-secondary button-danger"
+                  onClick={cancelSearch}
+                >
+                  Hủy
+                </button>
+              )}
+            </div>
           </form>
           <div className="filter-legend">
             <p className="eyebrow">Ba cách nhận lại đồ</p>
@@ -455,7 +490,27 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
               )}
             </Notice>
           )}
-          {loading && <Loading />}
+          {loading && (
+            <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
+              <Loading />
+              {searching && request?.files.length ? (
+                <div style={{ marginTop: "1rem" }}>
+                  <p style={{ fontWeight: 600, color: "#0f172a" }}>{searchStep}</p>
+                  <p style={{ fontSize: "0.875rem", color: "#64748b" }}>
+                    Quá trình phân tích hình ảnh AI có thể mất vài giây...
+                  </p>
+                  <button
+                    type="button"
+                    className="button button-secondary button-danger button-small"
+                    style={{ marginTop: "0.75rem" }}
+                    onClick={cancelSearch}
+                  >
+                    Hủy tìm kiếm
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
           {suggestions && (
             <Notice>
               <p>
@@ -531,15 +586,36 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
 export function ItemDetail({ id }: { id: string }) {
   const resource = useResource<Item>(`/api/items/${id}`);
   const [photo, setPhoto] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const item = resource.data;
   const point = useResource<Point>(
     item?.custody.kind === "point" && item.custody.pointId
       ? `/api/reception-points/${item.custody.pointId}`
       : null,
   );
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxOpen]);
   if (resource.loading) return <Loading />;
-  if (!item)
+  if (!item) {
+    if (resource.error instanceof ApiError && resource.error.status === 404) {
+      return (
+        <EmptyState title="Món đồ không tồn tại hoặc đã được gỡ" icon="document">
+          <p>Nội dung này có thể đã được chủ sở hữu gỡ bỏ hoặc liên kết không chính xác.</p>
+          <a className="button" href="/">
+            Quay về trang chủ
+          </a>
+        </EmptyState>
+      );
+    }
     return <ErrorNotice error={resource.error} retry={resource.reload} />;
+  }
   const custody = item.custody;
   const address = custody.publicAddress ?? point.data?.publicAddress;
   return (
@@ -570,7 +646,20 @@ export function ItemDetail({ id }: { id: string }) {
               <Icon name="shield" size={15} />
               Chỉ hiển thị ảnh đã được duyệt
             </div>
-            <ItemPhoto item={item} large index={photo} />
+            <div
+              style={{
+                cursor: item.images[photo]?.url ? "zoom-in" : "default",
+                position: "relative",
+              }}
+              onClick={() => {
+                if (item.images[photo]?.url) setLightboxOpen(true);
+              }}
+              title={
+                item.images[photo]?.url ? "Bấm để xem ảnh phóng to" : undefined
+              }
+            >
+              <ItemPhoto item={item} large index={photo} />
+            </div>
             {item.images.length > 1 && (
               <div className="photo-thumbnails">
                 {item.images.map((image, index) => (
@@ -708,6 +797,35 @@ export function ItemDetail({ id }: { id: string }) {
           </a>
         </aside>
       </div>
+
+      {lightboxOpen && item.images[photo]?.url && (
+        <div className="lightbox-backdrop" onClick={() => setLightboxOpen(false)}>
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="lightbox-close-btn"
+              onClick={() => setLightboxOpen(false)}
+              aria-label="Đóng ảnh"
+            >
+              ✕
+            </button>
+            <img
+              src={imageUrl(item.images[photo]?.url)}
+              alt={item.title}
+            />
+            <div
+              style={{
+                color: "#e2e8f0",
+                marginTop: "0.75rem",
+                fontSize: "0.875rem",
+                textAlign: "center",
+              }}
+            >
+              {item.title} — Ảnh {photo + 1}/{item.images.length} (Bấm Esc hoặc ngoài ảnh để đóng)
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

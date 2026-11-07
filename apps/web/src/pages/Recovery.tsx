@@ -584,14 +584,30 @@ export function MyPosts() {
                                   </a>
                                 </>
                               )}
-                              {item.custody.kind !== "person" && <a
-                                className="button button-secondary"
-                                href={`/items/${item.id}/return`}
-                              >Xác nhận trao trả</a>}
-                              {item.custody.kind !== "person" && <a
-                                className="text-button"
-                                href={`/items/${item.id}/transfer`}
-                              >Chuyển vào Hub</a>}
+                              {item.custody.kind === "external" && (
+                                <>
+                                  <a
+                                    className="button button-secondary"
+                                    href={`/items/${item.id}/return`}
+                                  >
+                                    Xác nhận trao trả
+                                  </a>
+                                  <a
+                                    className="text-button"
+                                    href={`/items/${item.id}/transfer`}
+                                  >
+                                    Chuyển vào Hub
+                                  </a>
+                                </>
+                              )}
+                              {item.custody.kind === "point" && managed && (
+                                <a
+                                  className="button button-secondary"
+                                  href={`/items/${item.id}/return`}
+                                >
+                                  Xác nhận trao trả tại Hub
+                                </a>
+                              )}
                               {(item.publicationState === "published" ||
                                 item.images.length > 0) && (
                                 <button
@@ -938,6 +954,17 @@ function MessageThread({
   const incoming = useResource<MessagePage>(
     `/api/conversations/${chat.id}/messages?after=${after}&limit=50`,
   );
+  const reloadRef = useRef(incoming.reload);
+  reloadRef.current = incoming.reload;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        reloadRef.current();
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
   const [messages, setMessages] = useState<Message[]>([]);
   const history = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState("");

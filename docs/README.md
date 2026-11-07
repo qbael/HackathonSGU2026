@@ -16,6 +16,7 @@ demo/           Ảnh, video và tóm tắt demo
 
 ## Sản phẩm và thiết kế
 
+- [Kế hoạch Tối ưu hóa UI/UX & Tinh gọn Mã nguồn](KE_HOACH_TOI_UU_UI_UX.md): Đánh giá chi tiết trải nghiệm người dùng, loại bỏ dev/test artifacts, chuẩn hóa thông báo lỗi và lộ trình cải tiến giao diện Findie.
 - Đặc tả ứng dụng: [Markdown](product/DAC_TA_FINDIE.md), [Word](product/DAC_TA_FINDIE.docx), [PDF](product/DAC_TA_FINDIE.pdf).
 - [Kiến trúc hệ thống](architecture/system-architecture.md): .NET xử lý nghiệp vụ, quyền và R2; RabbitMQ chuyển lệnh/kết quả; Python xử lý ảnh, embedding và hybrid search. Redis cache embedding và ứng viên từ khóa/vị trí. Ảnh gốc chỉ xử lý tạm; R2 giữ đầu ra đã xử lý và được duyệt trước khi công khai.
 - [Thiết kế cơ sở dữ liệu đích](database/database-design.md): phân quyền hai database logic cho .NET và Python. Runtime .NET có EF Core/Identity, outbox và migration có bảo vệ dữ liệu bootstrap cũ; xem [API](api/README.md).

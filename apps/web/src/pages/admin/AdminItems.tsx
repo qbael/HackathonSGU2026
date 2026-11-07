@@ -7,9 +7,10 @@ import {
   type AdminItemImage,
 } from "../../lib/adminApi";
 import { formatDate, type Page } from "../../lib/api";
-import { Badge, ErrorNotice, Icon, Loading } from "../../components/ui";
+import { Badge, ConfirmModal, ErrorNotice, Icon, Loading, useToast } from "../../components/ui";
 
 export default function AdminItems() {
+  const toast = useToast();
   const [data, setData] = useState<Page<AdminItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -21,6 +22,12 @@ export default function AdminItems() {
   const [inspectItem, setInspectItem] = useState<AdminItem | null>(null);
   const [actionItemId, setActionItemId] = useState<string | null>(null);
   const [actionImageId, setActionImageId] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    danger?: boolean;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const loadItems = () => {
     setLoading(true);
@@ -41,62 +48,72 @@ export default function AdminItems() {
     loadItems();
   }, [searchTerm, publicationState, lifecycle, page]);
 
-  const handleTogglePublication = async (item: AdminItem) => {
+  const handleTogglePublication = (item: AdminItem) => {
     const nextState = item.publicationState === "hidden" ? "published" : "hidden";
-    const confirmMsg =
-      nextState === "hidden"
+    const isHiding = nextState === "hidden";
+    setConfirmDialog({
+      title: isHiding ? "Tạm ẩn bài đăng" : "Công khai bài đăng",
+      message: isHiding
         ? `Tạm ẩn bài viết "${item.title}"? Bài viết sẽ không còn xuất hiện trên trang tìm kiếm công khai.`
-        : `Công khai lại bài viết "${item.title}"?`;
-
-    if (!window.confirm(confirmMsg)) return;
-
-    setActionItemId(item.id);
-    try {
-      await setPublicationState(item.id, nextState);
-      setData((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          items: prev.items.map((i) => (i.id === item.id ? { ...i, publicationState: nextState } : i)),
-        };
-      });
-      if (inspectItem?.id === item.id) {
-        setInspectItem((prev) => (prev ? { ...prev, publicationState: nextState } : null));
-      }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Thao tác thay đổi trạng thái thất bại.");
-    } finally {
-      setActionItemId(null);
-    }
+        : `Công khai lại bài viết "${item.title}"?`,
+      danger: isHiding,
+      onConfirm: async () => {
+        setActionItemId(item.id);
+        try {
+          await setPublicationState(item.id, nextState);
+          setData((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              items: prev.items.map((i) => (i.id === item.id ? { ...i, publicationState: nextState } : i)),
+            };
+          });
+          if (inspectItem?.id === item.id) {
+            setInspectItem((prev) => (prev ? { ...prev, publicationState: nextState } : null));
+          }
+          toast.success(isHiding ? `Đã tạm ẩn tin "${item.title}".` : `Đã công khai tin "${item.title}".`);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Thao tác thay đổi trạng thái thất bại.");
+        } finally {
+          setActionItemId(null);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
-  const handleRetireImage = async (item: AdminItem, image: AdminItemImage) => {
-    if (!window.confirm("Bạn có chắc chắn muốn THU HỒI ảnh này do phát hiện thông tin nhạy cảm / PII chưa che mờ hết không?")) {
-      return;
-    }
+  const handleRetireImage = (item: AdminItem, image: AdminItemImage) => {
+    setConfirmDialog({
+      title: "Thu hồi hình ảnh",
+      message: "Bạn có chắc chắn muốn thu hồi ảnh này do phát hiện thông tin nhạy cảm / PII chưa che mờ hết không? Thao tác này không thể hoàn tác.",
+      danger: true,
+      onConfirm: async () => {
+        setActionImageId(image.id);
+        try {
+          const result = await retireAdminImage(item.id, image.id);
+          const updateImages = (imgs: AdminItemImage[]) =>
+            imgs.map((img) => (img.id === image.id ? { ...img, retiredAt: result.retiredAt, reviewState: "retired" } : img));
 
-    setActionImageId(image.id);
-    try {
-      const result = await retireAdminImage(item.id, image.id);
-      const updateImages = (imgs: AdminItemImage[]) =>
-        imgs.map((img) => (img.id === image.id ? { ...img, retiredAt: result.retiredAt, reviewState: "retired" } : img));
+          setData((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              items: prev.items.map((i) => (i.id === item.id ? { ...i, images: updateImages(i.images) } : i)),
+            };
+          });
 
-      setData((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          items: prev.items.map((i) => (i.id === item.id ? { ...i, images: updateImages(i.images) } : i)),
-        };
-      });
-
-      if (inspectItem?.id === item.id) {
-        setInspectItem((prev) => (prev ? { ...prev, images: updateImages(prev.images) } : null));
-      }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Không thể thu hồi ảnh.");
-    } finally {
-      setActionImageId(null);
-    }
+          if (inspectItem?.id === item.id) {
+            setInspectItem((prev) => (prev ? { ...prev, images: updateImages(prev.images) } : null));
+          }
+          toast.success("Đã thu hồi hình ảnh vi phạm thành công.");
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Không thể thu hồi ảnh.");
+        } finally {
+          setActionImageId(null);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
   return (
@@ -429,6 +446,17 @@ export default function AdminItems() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDialog && (
+        <ConfirmModal
+          open={Boolean(confirmDialog)}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          danger={confirmDialog.danger}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );

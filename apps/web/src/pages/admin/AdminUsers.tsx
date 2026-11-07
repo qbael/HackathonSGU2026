@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { fetchAdminUsers, toggleUserStatus, type AdminUser } from "../../lib/adminApi";
 import { formatDate, type Page } from "../../lib/api";
 import { type UserProfile } from "../../lib/auth";
-import { ErrorNotice, Icon, Loading } from "../../components/ui";
+import { ConfirmModal, ErrorNotice, Icon, Loading, useToast } from "../../components/ui";
 
 export default function AdminUsers({ currentUser }: { currentUser: UserProfile }) {
+  const toast = useToast();
   const [data, setData] = useState<Page<AdminUser> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -12,6 +13,12 @@ export default function AdminUsers({ currentUser }: { currentUser: UserProfile }
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    danger?: boolean;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const loadUsers = () => {
     setLoading(true);
@@ -26,29 +33,34 @@ export default function AdminUsers({ currentUser }: { currentUser: UserProfile }
     loadUsers();
   }, [searchTerm, page]);
 
-  const handleToggleStatus = async (user: AdminUser) => {
+  const handleToggleStatus = (user: AdminUser) => {
     const isLocking = !user.disabledAt;
-    const confirmMsg = isLocking
-      ? `Bạn có chắc chắn muốn KHÓA tài khoản "${user.displayName}" (${user.email ?? "Không có email"}) không? Người dùng này sẽ không thể đăng nhập hoặc thao tác.`
-      : `Bạn có muốn MỞ KHÓA tài khoản "${user.displayName}" không?`;
-
-    if (!window.confirm(confirmMsg)) return;
-
-    setActionUserId(user.id);
-    try {
-      const updated = await toggleUserStatus(user.id);
-      setData((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          items: prev.items.map((u) => (u.id === user.id ? updated : u)),
-        };
-      });
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Thao tác không thành công.");
-    } finally {
-      setActionUserId(null);
-    }
+    setConfirmDialog({
+      title: isLocking ? "Khóa tài khoản người dùng" : "Mở khóa tài khoản",
+      message: isLocking
+        ? `Bạn có chắc chắn muốn khóa tài khoản "${user.displayName}" (${user.email ?? "Không có email"}) không? Người dùng này sẽ không thể đăng nhập hoặc thao tác.`
+        : `Bạn có muốn mở khóa tài khoản "${user.displayName}" không?`,
+      danger: isLocking,
+      onConfirm: async () => {
+        setActionUserId(user.id);
+        try {
+          const updated = await toggleUserStatus(user.id);
+          setData((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              items: prev.items.map((u) => (u.id === user.id ? updated : u)),
+            };
+          });
+          toast.success(isLocking ? `Đã khóa tài khoản "${user.displayName}".` : `Đã mở khóa tài khoản "${user.displayName}".`);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Thao tác không thành công.");
+        } finally {
+          setActionUserId(null);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
   return (
@@ -242,6 +254,17 @@ export default function AdminUsers({ currentUser }: { currentUser: UserProfile }
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDialog && (
+        <ConfirmModal
+          open={Boolean(confirmDialog)}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          danger={confirmDialog.danger}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );
