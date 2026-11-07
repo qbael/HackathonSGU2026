@@ -352,4 +352,4 @@ Findie.sln                  Solution .NET
 - [API .NET](docs/api/README.md), [kiểm thử API](docs/api/testing.md), [API ảnh/tìm kiếm](docs/api/media-search.md).
 - [AI service](docs/guides/ai-service.md) và [hướng dẫn Colab](docs/guides/colab.md).
 - [Kiến trúc hệ thống](docs/architecture/system-architecture.md) và [thiết kế database](docs/database/database-design.md).
-- [Đặc tả sản phẩm](docs/product/DAC_TA_FINDIE.md).
+- [Đặc tả sản phẩm](docs/product/DAC_TA_FINDIE.md) và [thiết kế giao diện](docs/design/stitch/README.md).

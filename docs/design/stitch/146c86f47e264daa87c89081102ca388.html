@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>S04 — Đăng nhập xác thực để tiếp tục | findie.</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Be Vietnam Pro Font Family -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-tertiary": "#ffffff",
+            "secondary-container": "#fd6b36",
+            "surface-variant": "#d9e3f6",
+            "outline-variant": "#bdc9c6",
+            "on-primary": "#ffffff",
+            "on-primary-fixed": "#00201d",
+            "error-container": "#ffdad6",
+            "primary-fixed-dim": "#80d5cb",
+            "on-surface-variant": "#3e4947",
+            "surface-tint": "#006a63",
+            "tertiary-fixed": "#89f5e7",
+            "surface-bright": "#f8f9ff",
+            "on-primary-fixed-variant": "#00504a",
+            "on-secondary-fixed-variant": "#832600",
+            "secondary-fixed-dim": "#ffb59d",
+            "on-secondary-fixed": "#390c00",
+            "on-error-container": "#93000a",
+            "on-primary-container": "#a3faef",
+            "inverse-surface": "#27313f",
+            "inverse-on-surface": "#eaf1ff",
+            "primary-container": "#0f766e",
+            "surface-container": "#e6eeff",
+            "surface-container-lowest": "#ffffff",
+            "primary-fixed": "#9cf2e8",
+            "on-surface": "#121c2a",
+            "inverse-primary": "#80d5cb",
+            "outline": "#6e7977",
+            "primary": "#005c55",
+            "surface-container-highest": "#d9e3f6",
+            "on-tertiary-fixed": "#00201d",
+            "on-tertiary-container": "#91fdef",
+            "error": "#ba1a1a",
+            "surface-dim": "#d0dbed",
+            "secondary": "#ac3400",
+            "secondary-fixed": "#ffdbd0",
+            "background": "#f8f9ff",
+            "on-error": "#ffffff",
+            "surface-container-high": "#dee9fc",
+            "on-secondary-container": "#5d1900",
+            "tertiary-container": "#00776d",
+            "on-background": "#121c2a",
+            "surface-container-low": "#eff4ff",
+            "tertiary": "#005c54",
+            "surface": "#f8f9ff",
+            "on-tertiary-fixed-variant": "#005049",
+            "on-secondary": "#ffffff",
+            "tertiary-fixed-dim": "#6bd8cb"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-xl": "2.5rem",
+            "margin": "1rem",
+            "space-xs": "0.25rem",
+            "space-lg": "1.5rem",
+            "margin-md": "2rem",
+            "space-sm": "0.5rem",
+            "gutter": "1rem",
+            "gutter-md": "1.5rem",
+            "gutter-lg": "2rem",
+            "margin-lg": "3.5rem",
+            "space-md": "1rem"
+          },
+          "fontFamily": {
+            "body-sm": ["Be Vietnam Pro"],
+            "body-lg": ["Be Vietnam Pro"],
+            "headline-lg": ["Be Vietnam Pro"],
+            "label-md": ["Be Vietnam Pro"],
+            "display-mobile": ["Be Vietnam Pro"],
+            "headline-lg-mobile": ["Be Vietnam Pro"],
+            "headline-md": ["Be Vietnam Pro"],
+            "display": ["Be Vietnam Pro"],
+            "caption": ["Be Vietnam Pro"],
+            "headline-sm": ["Be Vietnam Pro"],
+            "label-lg": ["Be Vietnam Pro"],
+            "title-md": ["Be Vietnam Pro"],
+            "body-md": ["Be Vietnam Pro"]
+          },
+          "fontSize": {
+            "body-sm": ["0.875rem", { "lineHeight": "1.25rem", "fontWeight": "400" }],
+            "body-lg": ["1.125rem", { "lineHeight": "1.75rem", "fontWeight": "400" }],
+            "headline-lg": ["2rem", { "lineHeight": "2.5rem", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "label-md": ["0.75rem", { "lineHeight": "1rem", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "display-mobile": ["2.25rem", { "lineHeight": "2.75rem", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+            "headline-lg-mobile": ["1.625rem", { "lineHeight": "2.125rem", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "headline-md": ["1.5rem", { "lineHeight": "2rem", "fontWeight": "600" }],
+            "display": ["3rem", { "lineHeight": "3.75rem", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "caption": ["0.75rem", { "lineHeight": "1rem", "fontWeight": "400" }],
+            "headline-sm": ["1.25rem", { "lineHeight": "1.75rem", "fontWeight": "600" }],
+            "label-lg": ["0.875rem", { "lineHeight": "1.25rem", "letterSpacing": "0.01em", "fontWeight": "600" }],
+            "title-md": ["1.125rem", { "lineHeight": "1.5rem", "fontWeight": "600" }],
+            "body-md": ["1rem", { "lineHeight": "1.5rem", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .civic-card-shadow {
+      box-shadow: 0 1px 3px 0 rgba(15, 118, 110, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    }
+    .civic-glow {
+      background: radial-gradient(circle at 50% 18%, rgba(15, 118, 110, 0.08) 0%, rgba(248, 249, 255, 0) 65%);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col justify-between selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- Ambient Civic Texture Backdrop -->
+<div class="fixed inset-0 pointer-events-none civic-glow -z-10"></div>
+<!-- Top Slim Utility Bar (Minimal context anchor for auth flow) -->
+<header class="w-full border-b border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-30">
+<div class="max-w-7xl mx-auto px-4 lg:px-14 h-14 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="text-headline-md font-headline-md text-primary tracking-tight font-bold">findie.</span>
+<span class="h-4 w-px bg-outline-variant/40"></span>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-caption font-caption bg-surface-container text-on-surface-variant font-medium">
+<span class="material-symbols-outlined text-sm text-primary">verified_user</span>
+          Xác thực an toàn
+        </span>
+</div>
+<a class="inline-flex items-center gap-1.5 text-label-md font-label-md text-on-surface-variant hover:text-primary transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-base">help_outline</span>
+<span>Hỗ trợ Findie</span>
+</a>
+</div>
+</header>
+<!-- Main Focus Container -->
+<main class="flex-grow flex items-center justify-center px-4 py-8 md:py-14">
+<div class="w-full max-w-[520px]">
+<!-- Back Link Trigger -->
+<div class="mb-4">
+<a class="inline-flex items-center gap-2 text-label-md font-label-md text-on-surface-variant hover:text-primary transition-colors duration-150 group" href="#">
+<span class="material-symbols-outlined text-base transition-transform group-hover:-translate-x-0.5">arrow_back</span>
+<span>Quay lại chi tiết món đồ</span>
+</a>
+</div>
+<!-- Centered Card Container -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-xl p-6 sm:p-8 civic-card-shadow relative overflow-hidden">
+<!-- Subtle Top Accent Ribbon -->
+<div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary-container to-secondary-container"></div>
+<!-- Identity & Heading Area -->
+<div class="text-center mb-6">
+<div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary-container/10 text-primary mb-3">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">shield_with_heart</span>
+</div>
+<h1 class="text-headline-sm font-headline-sm text-on-surface tracking-tight mb-1">
+            Đăng nhập để xác thực tiếp tục
+          </h1>
+<p class="text-body-sm font-body-sm text-on-surface-variant">
+            Bước bảo vệ cộng đồng từ hệ sinh thái <span class="font-semibold text-primary">findie.</span>
+</p>
+</div>
+<!-- Protection Banner / Context Callout -->
+<div class="bg-[#EFF8F7] border border-[#99F6E4]/70 rounded-lg p-3.5 mb-6 flex items-start gap-3">
+<div class="text-primary mt-0.5 flex-shrink-0">
+<span class="material-symbols-outlined text-xl">gpp_maybe</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant leading-relaxed">
+            Để bảo vệ quyền riêng tư và ngăn ngừa mạo danh nhận đồ của người khác, vui lòng đăng nhập tài khoản trước khi tiếp tục gửi yêu cầu đối chiếu.
+          </p>
+</div>
+<!-- Identity Providers Action Group -->
+<div class="space-y-3 mb-6">
+<!-- Identity Provider 1: CCCD / Citizen ID -->
+<button class="w-full flex items-center justify-between px-4 py-3 bg-surface-container-low hover:bg-surface-container border border-outline-variant/50 hover:border-primary/50 rounded-lg text-on-surface transition-all duration-150 active:scale-[0.99] group" type="button">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-xl text-primary" style="font-variation-settings: 'FILL' 1;">badge</span>
+<span class="text-label-lg font-label-lg text-on-surface text-left">
+                Tiếp tục với Tài khoản Định danh Công dân
+              </span>
+</div>
+<span class="material-symbols-outlined text-base text-outline-variant group-hover:text-primary transition-colors">
+              chevron_right
+            </span>
+</button>
+<!-- Identity Provider 2: Email / Google -->
+<button class="w-full flex items-center justify-between px-4 py-3 bg-surface-container-lowest hover:bg-surface-container-low border border-outline-variant/60 hover:border-outline rounded-lg text-on-surface transition-all duration-150 active:scale-[0.99] group" type="button">
+<div class="flex items-center gap-3">
+<svg class="w-5 h-5 flex-shrink-0" viewbox="0 0 24 24">
+<path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" fill="#4285F4"></path>
+<path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.36 24 12 24z" fill="#34A853"></path>
+<path d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.02 0 12s.45 3.82 1.25 5.42l4.03-3.15z" fill="#FBBC05"></path>
+<path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.36 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" fill="#EA4335"></path>
+</svg>
+<span class="text-label-lg font-label-lg text-on-surface text-left">
+                Tiếp tục với Tài khoản Email / Google
+              </span>
+</div>
+<span class="material-symbols-outlined text-base text-outline-variant group-hover:text-primary transition-colors">
+              chevron_right
+            </span>
+</button>
+</div>
+<!-- Divider with Text -->
+<div class="relative flex items-center justify-center my-6">
+<div class="border-t border-outline-variant/40 w-full"></div>
+<span class="bg-surface-container-lowest px-3 text-caption font-caption text-outline uppercase tracking-wider whitespace-nowrap">
+            Hoặc đăng nhập nhanh bằng số điện thoại
+          </span>
+<div class="border-t border-outline-variant/40 w-full"></div>
+</div>
+<!-- Phone Verification Flow Form -->
+<form class="space-y-4" onsubmit="event.preventDefault();">
+<div>
+<label class="block text-label-md font-label-md text-on-surface mb-1.5" for="phone-input">
+              Số điện thoại di động
+            </label>
+<div class="relative flex rounded-lg shadow-sm">
+<span class="inline-flex items-center px-3.5 rounded-l-lg border border-r-0 border-outline-variant/60 bg-surface-container-low text-on-surface-variant font-medium text-body-sm font-body-sm select-none">
+<span class="mr-1.5 inline-block w-4 text-center">🇻🇳</span>
+                +84
+              </span>
+<input class="block w-full min-w-0 flex-1 rounded-none rounded-r-lg border border-outline-variant/60 bg-surface-container-lowest text-on-surface placeholder:text-outline-variant focus:border-primary focus:ring-1 focus:ring-primary text-body-sm font-body-sm py-2.5 px-3 transition-colors" id="phone-input" name="phone" pattern="[0-9]{9,10}" placeholder="912 345 678" required="" type="tel"/>
+</div>
+<p class="mt-1.5 text-caption font-caption text-outline">
+              Mã xác thực OTP gồm 6 chữ số sẽ được gửi qua SMS/Zalo.
+            </p>
+</div>
+<!-- Primary CTA Button (Teal #0F766E) -->
+<button class="w-full flex items-center justify-center gap-2 bg-primary-container text-on-primary hover:bg-primary font-semibold text-label-lg font-label-lg py-3 px-5 rounded-lg shadow-sm transition-all duration-150 active:scale-[0.98]" type="submit">
+<span>Tiếp tục</span>
+<span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+</form>
+<!-- Trust & Security Assurance Footnote -->
+<div class="mt-6 pt-5 border-t border-outline-variant/30 flex items-start gap-2.5">
+<span class="material-symbols-outlined text-base text-primary-container mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">
+            verified
+          </span>
+<p class="text-caption font-caption text-on-surface-variant leading-relaxed">
+            Dữ liệu được bảo mật bởi <span class="font-medium text-on-surface">Findie Trust Shield</span>. Chúng tôi không bao giờ chia sẻ thông tin cá nhân của bạn ra công cộng.
+          </p>
+</div>
+</div>
+<!-- Trust Badges Strip -->
+<div class="mt-6 flex items-center justify-center gap-6 text-on-surface-variant">
+<div class="inline-flex items-center gap-1.5 text-caption font-caption">
+<span class="material-symbols-outlined text-base text-primary">lock</span>
+<span>Mã hóa SSL 256-bit</span>
+</div>
+<span class="h-3 w-px bg-outline-variant/40"></span>
+<div class="inline-flex items-center gap-1.5 text-caption font-caption">
+<span class="material-symbols-outlined text-base text-primary">cloud_done</span>
+<span>Findie AI Masking 2.0</span>
+</div>
+<span class="h-3 w-px bg-outline-variant/40"></span>
+<div class="inline-flex items-center gap-1.5 text-caption font-caption">
+<span class="material-symbols-outlined text-base text-primary">hub</span>
+<span>Liên kết Hub bàn giao</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Elegant Minimalist Shared Footer -->
+<footer class="bg-surface-container-low border-t border-outline-variant/30">
+<div class="w-full py-8 px-4 lg:px-14 max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+<!-- Brand & Community Tagline -->
+<div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+<span class="text-title-md font-title-md text-primary font-bold">findie.</span>
+<span class="hidden sm:inline-block h-3.5 w-px bg-outline-variant/40"></span>
+<p class="text-caption font-caption text-on-surface-variant">
+          © 2025 Findie Vietnam. Hệ sinh thái kết nối và hỗ trợ trao trả đồ thất lạc vì cộng đồng.
+        </p>
+</div>
+<!-- Essential Civic Links -->
+<div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-caption font-caption text-on-surface-variant">
+<a class="hover:text-primary transition-colors duration-150" href="#">Về Findie</a>
+<a class="hover:text-primary transition-colors duration-150" href="#">Mạng lưới Điểm tiếp nhận</a>
+<a class="hover:text-primary transition-colors duration-150" href="#">Bảo mật dữ liệu Findie AI</a>
+<a class="hover:text-primary transition-colors duration-150" href="#">Quy trình xác minh CCCD/CMND</a>
+<a class="hover:text-primary transition-colors duration-150" href="#">Hướng dẫn trao trả an toàn</a>
+<a class="hover:text-primary transition-colors duration-150" href="#">Liên hệ điều hành</a>
+</div>
+</div>
+</footer>
+</body></html>

@@ -8,7 +8,8 @@ architecture/   Kiến trúc hệ thống
 database/       Thiết kế dữ liệu, từ điển cột, SQL và ERD
 api/            Tổng quan API, endpoint, AMQP và kiểm thử
 guides/         Hướng dẫn phát triển, AI service và Colab
-specs/          Đặc tả và hồ sơ triển khai bootstrap, API, local full stack
+design/         Thiết kế giao diện Stitch
+specs/          Phạm vi, kế hoạch và nhiệm vụ theo tính năng
 assets/         Hình minh họa dùng trong tài liệu
 demo/           Ảnh, video và tóm tắt demo
 ```
@@ -27,7 +28,7 @@ demo/           Ảnh, video và tóm tắt demo
 - [API .NET](api/README.md): Google cookie/CSRF, hồ sơ/điểm, món đồ, claim/chat, tiếp nhận/trao trả, ảnh/search; tài liệu từng endpoint, AMQP và kiểm thử.
 - [Python AI service với Ollama](guides/ai-service.md): tìm bằng mô tả tiếng Việt, vị trí phòng/hội trường, đổi model và cấu hình chỉ mục.
 - [Thử AI trên Google Colab](guides/colab.md).
-- Hồ sơ khởi tạo: [phạm vi](specs/001-project-bootstrap/spec.md), [kế hoạch](specs/001-project-bootstrap/plan.md), [nhiệm vụ](specs/001-project-bootstrap/tasks.md).
+- Hồ sơ khởi tạo: [phạm vi](specs/001-project-bootstrap/spec.md), [kế hoạch](specs/001-project-bootstrap/plan.md), [nhiệm vụ](specs/001-project-bootstrap/tasks.md), [đánh giá sẵn sàng](specs/001-project-bootstrap/readiness-review.md).
 - [Kiểm thử E2E](guides/e2e-testing-guide.md): cấu hình và cách chạy Playwright hiện hành.
 
 ## Tư liệu demo
@@ -35,6 +36,16 @@ demo/           Ảnh, video và tóm tắt demo
 - [Tóm tắt Findie](demo/findie-dang-bai/TOM_TAT_FINDIE.txt) và [video demo](demo/findie-dang-bai/findie-demo.mp4).
 - Các luồng: [đăng đồ nhặt được](demo/findie-dang-bai/01-dang-do-nhat-duoc.png), [tìm đồ](demo/findie-dang-bai/02-tim-do-that-lac.png), [yêu cầu và hẹn trả](demo/findie-dang-bai/03-yeu-cau-va-hen-trao-tra.png), [nhận tại điểm tiếp nhận](demo/findie-dang-bai/04-nhan-tai-diem-tiep-nhan.png).
 
-## Sơ đồ
+## Tạo lại sơ đồ
 
 Nguồn sơ đồ được giữ trong `docs/database/findie-erd.drawio` và `docs/assets/kien-truc-he-thong.svg`; các ảnh minh họa hiện có nằm trong `docs/assets/`.
+
+Chạy từ thư mục gốc dự án. Các script render dùng Playwright của runtime Codex và Google Chrome trên máy hiện tại.
+
+```sh
+python3 scripts/docs/erd/build_erd.py
+node scripts/docs/erd/render_local.cjs
+node scripts/docs/render_architecture.cjs
+```
+
+Script cập nhật ERD trong `docs/database/` và ảnh trong `docs/assets/`; đầu ra kiểm tra tạm nằm trong `.cache/docs/`.
