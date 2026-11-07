@@ -1,0 +1,24 @@
+[project]
+name = "findie-ai"
+version = "0.2.0"
+description = "Findie image privacy and multimodal search worker with Ollama, AMQP and PostgreSQL."
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "aio-pika==9.6.2",
+  "fastapi==0.159.1",
+  "httpx2==2.16.0",
+  "pydantic==2.14.1",
+  "psycopg[binary]==3.3.6",
+  "redis==8.1.0",
+  "uvicorn==0.54.0",
+  "pillow==13.0.0",
+  "opencv-python-headless==5.0.0.93",
+  "numpy==2.5.4",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
