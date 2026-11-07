@@ -54,7 +54,7 @@ Khi truy vấn thông tin người dùng tại `GetProfileAsync`:
 
 ### Bước 2: Tự động chuyển hướng tại Callback đăng nhập (`GoogleAuthController.cs`)
 
-Tại endpoint `Callback` của [`GoogleAuthController.cs`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Controllers/GoogleAuthController.cs):
+Tại endpoint `Callback` của [`GoogleAuthController.cs`](apps/api/Controllers/GoogleAuthController.cs):
 - Sau khi `CompleteSignInAsync()` thành công:
   - Nếu `returnUrl` là `"/"` hoặc rỗng:
     - Đọc profile của user vừa đăng nhập.
@@ -110,13 +110,13 @@ Thay vì giấu các lối tắt trong menu con:
 ## 3. Danh sách tệp cần chỉnh sửa & Kiểm thử
 
 ### Các tệp thay đổi:
-1. [`apps/api/Contracts/UserProfile.cs`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Contracts/UserProfile.cs)
-2. [`apps/api/Services/UserService.cs`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Services/UserService.cs)
-3. [`apps/api/Controllers/GoogleAuthController.cs`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Controllers/GoogleAuthController.cs)
-4. [`apps/web/src/lib/auth.ts`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/lib/auth.ts)
-5. [`apps/web/src/lib/auth.test.ts`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/lib/auth.test.ts)
-6. [`apps/web/src/pages/SignIn.tsx`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/pages/SignIn.tsx)
-7. [`apps/web/src/App.tsx`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/App.tsx)
+1. [`apps/api/Contracts/UserProfile.cs`](apps/api/Contracts/UserProfile.cs)
+2. [`apps/api/Services/UserService.cs`](apps/api/Services/UserService.cs)
+3. [`apps/api/Controllers/GoogleAuthController.cs`](apps/api/Controllers/GoogleAuthController.cs)
+4. [`apps/web/src/lib/auth.ts`](apps/web/src/lib/auth.ts)
+5. [`apps/web/src/lib/auth.test.ts`](apps/web/src/lib/auth.test.ts)
+6. [`apps/web/src/pages/SignIn.tsx`](apps/web/src/pages/SignIn.tsx)
+7. [`apps/web/src/App.tsx`](apps/web/src/App.tsx)
 
 ### Kịch bản kiểm thử (Verification Checklist):
 - [ ] **Kịch bản 1 (Super Admin)**: Đăng nhập bằng email trong `ADMIN_EMAILS` $\rightarrow$ Tự động vào `/admin`, thấy badge `Super Admin`.

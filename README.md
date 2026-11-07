@@ -63,8 +63,8 @@ Colab có giới hạn tài nguyên và hạn chế đối với dịch vụ/pro
 ## 2. Lấy mã nguồn và tạo cấu hình local
 
 ```sh
-git clone https://github.com/qbael/FindieHackathon.git
-cd FindieHackathon
+git clone https://github.com/qbael/HackathonSGU2026.git
+cd HackathonSGU2026
 ```
 
 Nếu đã có mã nguồn, mở terminal tại thư mục chứa `Makefile` và `compose.yaml`. **Tất cả lệnh local trong README chạy từ thư mục gốc này**, kể cả khi mở terminal mới.

@@ -9,7 +9,7 @@ import {
 } from "../../lib/api";
 import { intakeDecision } from "../../lib/intakeDecision";
 import { type UserProfile } from "../../lib/auth";
-import { Badge, EmptyState, ErrorNotice, Icon, Loading, Notice, Pagination } from "../../components/ui";
+import { Badge, EmptyState, ErrorNotice, Icon, Loading, Notice, Pagination, useToast } from "../../components/ui";
 
 export default function HubIntakes({
   user,
@@ -18,6 +18,7 @@ export default function HubIntakes({
   user: UserProfile;
   selectedPointId: string;
 }) {
+  const toast = useToast();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [intakesPage, setIntakesPage] = useState<Page<Intake> | null>(null);
@@ -46,7 +47,7 @@ export default function HubIntakes({
       const item = await api<Item>(`/api/items/${intake.itemId}`);
       setPreviewIntakeItem({ intake, item });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Không thể tải thông tin món đồ.");
+      toast.error(err instanceof Error ? err.message : "Không thể tải thông tin món đồ.");
     } finally {
       setLoadingPreviewId(null);
     }

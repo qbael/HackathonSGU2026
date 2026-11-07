@@ -19,8 +19,8 @@ Pipeline GitHub Actions trên nhánh `main` (commit `3ffa97a`) đã chạy thàn
 
 ### 1.2 Các thay đổi & Phân hệ mới được bổ sung
 Trong quá trình phát triển tiếp theo, dự án đã bổ sung 3 khối tính năng mới:
-1. **Google Auth & Quản lý Đa vai trò ([`UserProfile.cs`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Contracts/UserProfile.cs), [`AdminOptions.cs`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Security/AdminOptions.cs)):** Bổ sung thuộc tính `isAdmin`, `isStaff`, `managedPoints` vào hồ sơ người dùng; logic phân luồng sau đăng nhập (`landingPath` dẫn về `/admin`, `/hub`, hoặc `/`).
-2. **Phân hệ Quản trị Super Admin (`004-admin-portal`):** 4 Controller Backend ([`AdminOverviewController`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Controllers/Admin/AdminOverviewController.cs), [`AdminUsersController`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Controllers/Admin/AdminUsersController.cs), [`AdminItemsController`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Controllers/Admin/AdminItemsController.cs), [`AdminPointsController`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/Controllers/Admin/AdminPointsController.cs)), chính sách phân quyền `AdminOnly`, giao diện Frontend `/admin/*` (`Dashboard`, `Users`, `Items`, `Hubs`).
+1. **Google Auth & Quản lý Đa vai trò ([`UserProfile.cs`](apps/api/Contracts/UserProfile.cs), [`AdminOptions.cs`](apps/api/Security/AdminOptions.cs)):** Bổ sung thuộc tính `isAdmin`, `isStaff`, `managedPoints` vào hồ sơ người dùng; logic phân luồng sau đăng nhập (`landingPath` dẫn về `/admin`, `/hub`, hoặc `/`).
+2. **Phân hệ Quản trị Super Admin (`004-admin-portal`):** 4 Controller Backend ([`AdminOverviewController`](apps/api/Controllers/Admin/AdminOverviewController.cs), [`AdminUsersController`](apps/api/Controllers/Admin/AdminUsersController.cs), [`AdminItemsController`](apps/api/Controllers/Admin/AdminItemsController.cs), [`AdminPointsController`](apps/api/Controllers/Admin/AdminPointsController.cs)), chính sách phân quyền `AdminOnly`, giao diện Frontend `/admin/*` (`Dashboard`, `Users`, `Items`, `Hubs`).
 3. **Phân hệ Không gian làm việc Findie Hub (`005-hub-workspace`):** Portal riêng biệt cho nhân viên trực trạm `/hub/*` (`intakes`, `inventory`, `history`); chuẩn hóa hiển thị thông điệp lỗi chi tiết theo chuẩn RFC 7807 `ProblemDetails`.
 
 ### 1.3 Mục tiêu Kế hoạch Cải thiện
@@ -55,7 +55,7 @@ flowchart TD
 ```
 
 ### 2.1 Rủi ro Chí tử: Breaking Assertion trong Backend Integration
-- **Vị trí:** [`apps/api/tests/integration/Integration.cs`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/tests/integration/Integration.cs#L89-L90) dòng 89-90:
+- **Vị trí:** [`apps/api/tests/integration/Integration.cs`](apps/api/tests/integration/Integration.cs#L89-L90) dòng 89-90:
   ```csharp
   Check(profile.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(
       new[] { "createdAt", "displayName", "email", "id" }), "profile DTO exposes only safe fields");
@@ -76,12 +76,12 @@ flowchart TD
      - `DELETE /api/admin/points/{id}/staff/{userId}`: Cập nhật `revoked_at`.
 
 ### 2.3 Thiếu hụt trong Mock API & Kịch bản Playwright E2E
-- **Vấn đề trong [`apps/web/e2e/utils/mockApi.ts`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/e2e/utils/mockApi.ts):**
+- **Vấn đề trong [`apps/web/e2e/utils/mockApi.ts`](apps/web/e2e/utils/mockApi.ts):**
   - Type `MockUser` chỉ có 4 trường cơ bản (`id`, `email`, `displayName`, `createdAt`), thiếu cờ `isAdmin`, `isStaff`, `managedPoints`.
   - Chưa mock các route `/api/admin/*` và `/api/intake-requests`.
 - **Thiếu kịch bản E2E:**
   - 5 specs hiện tại (`01` đến `05`) chỉ bao phủ người dùng công cộng (CUJ 1-5).
-  - Chưa kiểm tra **Bảo vệ vai trò (Role Guards)** trong [`apps/web/src/App.tsx`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/App.tsx#L184-L245): Khi người dùng thông thường cố tình truy cập URL `/admin` hoặc `/hub`, hệ thống phải hiển thị màn hình EmptyState *"Không có quyền truy cập"* thay vì để lộ thông tin nội bộ.
+  - Chưa kiểm tra **Bảo vệ vai trò (Role Guards)** trong [`apps/web/src/App.tsx`](apps/web/src/App.tsx#L184-L245): Khi người dùng thông thường cố tình truy cập URL `/admin` hoặc `/hub`, hệ thống phải hiển thị màn hình EmptyState *"Không có quyền truy cập"* thay vì để lộ thông tin nội bộ.
   - Chưa có spec E2E cho **Super Admin Portal** (`/admin`).
   - Chưa có spec E2E cho **Findie Hub Workspace** (`/hub`).
 
@@ -107,7 +107,7 @@ flowchart TD
 ### Giai đoạn 1: Khắc phục Nguy cơ Gãy CI & Hoàn thiện Smoke Test (Ưu tiên cao nhất)
 
 #### Nhiệm vụ 1.1: Sửa assertion `UserProfile` trong `Integration.cs`
-- **Tệp cần sửa:** [`apps/api/tests/integration/Integration.cs`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/tests/integration/Integration.cs)
+- **Tệp cần sửa:** [`apps/api/tests/integration/Integration.cs`](apps/api/tests/integration/Integration.cs)
 - **Hành động:**
   Cập nhật dòng 89-90 thành:
   ```csharp
@@ -117,7 +117,7 @@ flowchart TD
   ```
 
 #### Nhiệm vụ 1.2: Bổ sung kiểm tra 401 cho các route Admin trong `smoke.py`
-- **Tệp cần sửa:** [`apps/api/tests/smoke.py`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/tests/smoke.py)
+- **Tệp cần sửa:** [`apps/api/tests/smoke.py`](apps/api/tests/smoke.py)
 - **Hành động:**
   Bổ sung các route Admin vào vòng lặp kiểm tra truy cập ẩn danh (unauthorized endpoints):
   ```python
@@ -161,7 +161,7 @@ flowchart TD
      - Admin gửi `DELETE /api/admin/points/{pointId}/staff/{userId}` $\rightarrow$ Kiểm tra bản ghi bị thu hồi (`revoked_at != null`).
 
 #### Nhiệm vụ 2.2: Tích hợp `AdminChecks` vào luồng chạy chính
-- **Tệp cần sửa:** [`apps/api/tests/integration/Integration.cs`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/api/tests/integration/Integration.cs)
+- **Tệp cần sửa:** [`apps/api/tests/integration/Integration.cs`](apps/api/tests/integration/Integration.cs)
 - **Hành động:**
   Gọi `await AdminChecks.RunAsync(factory, async (browser, email) => await GoogleLogin(browser, email.Split('@')[0], email, true, HttpStatusCode.Redirect));` ngay sau các kiểm thử hiện có.
 
@@ -170,7 +170,7 @@ flowchart TD
 ### Giai đoạn 3: Nâng cấp Mock API & Thiết lập Fixtures cho E2E Testing
 
 #### Nhiệm vụ 3.1: Mở rộng `MockUser` và cấu hình Role trong `mockApi.ts`
-- **Tệp cần sửa:** [`apps/web/e2e/utils/mockApi.ts`](file:///d:/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/e2e/utils/mockApi.ts)
+- **Tệp cần sửa:** [`apps/web/e2e/utils/mockApi.ts`](apps/web/e2e/utils/mockApi.ts)
 - **Nội dung cập nhật:**
   ```typescript
   export type MockUser = {

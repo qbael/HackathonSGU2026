@@ -8,7 +8,7 @@ import {
   type Page,
 } from "../../lib/api";
 import { type UserProfile } from "../../lib/auth";
-import { Badge, EmptyState, ErrorNotice, Icon, Loading, Pagination } from "../../components/ui";
+import { Badge, EmptyState, ErrorNotice, Icon, Loading, Pagination, useToast } from "../../components/ui";
 
 type HistoryFilter = "all" | "intakes" | "returns";
 
@@ -19,13 +19,14 @@ export default function HubHistory({
   user: UserProfile;
   selectedPointId: string;
 }) {
+  const toast = useToast();
   const [filter, setFilter] = useState<HistoryFilter>("all");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const [receivedIntakes, setReceivedIntakes] = useState<Intake[]>([]);
-  const [returnedItems, setReturnedItems] = useState<Item[]>([]);
+  const [returnedItems, setReturnedItems] = useState<Array<{ item: Item; occurredAt: string }>>([]);
 
   // Modal xem dòng thời gian lưu chuyển
   const [timelineEvents, setTimelineEvents] = useState<{ itemId: string; events: CustodyEvent[] } | null>(null);
@@ -37,7 +38,7 @@ export default function HubHistory({
       const res = await api<Page<CustodyEvent>>(`/api/items/${itemId}/custody-events?page=1&pageSize=20`);
       setTimelineEvents({ itemId, events: res.items });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Không thể tải lịch sử bàn giao.");
+      toast.error(err instanceof Error ? err.message : "Không thể tải lịch sử bàn giao.");
     } finally {
       setLoadingTimelineId(null);
     }
@@ -54,11 +55,26 @@ export default function HubHistory({
       );
       setReceivedIntakes(intakeRes.items.filter((i) => i.status === "received"));
 
-      // 2. Tải các đồ vật tại trạm đã trao trả
+      // 2. Tải các đồ vật tại trạm đã trao trả và lấy mốc thời gian trao trả chính xác
       const itemsRes = await api<Page<Item>>(
         `/api/items?scope=managed&pointId=${selectedPointId}&page=1&pageSize=50`,
       );
-      setReturnedItems(itemsRes.items.filter((item) => item.lifecycle === "returned"));
+      const returned = itemsRes.items.filter((item) => item.lifecycle === "returned");
+      const returnedWithDates = await Promise.all(
+        returned.map(async (item) => {
+          try {
+            const evRes = await api<Page<CustodyEvent>>(`/api/items/${item.id}/custody-events?page=1&pageSize=10`);
+            const returnedEv = evRes.items.find((e) => e.eventKind === "returned");
+            return {
+              item,
+              occurredAt: returnedEv?.occurredAt ?? item.createdAt,
+            };
+          } catch {
+            return { item, occurredAt: item.createdAt };
+          }
+        }),
+      );
+      setReturnedItems(returnedWithDates);
     } catch (err) {
       setError(
         err instanceof Error ? err : new Error("Không thể tải nhật ký lưu chuyển trạm."),
@@ -102,13 +118,13 @@ export default function HubHistory({
     }
   }
   if (filter === "all" || filter === "returns") {
-    for (const item of returnedItems) {
+    for (const { item, occurredAt } of returnedItems) {
       entries.push({
         kind: "return",
         id: item.id,
         itemId: item.id,
         title: item.title,
-        occurredAt: item.createdAt, // item có rowVersion & lifecycle returned
+        occurredAt,
       });
     }
   }

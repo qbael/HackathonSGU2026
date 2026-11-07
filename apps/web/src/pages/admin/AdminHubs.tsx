@@ -10,12 +10,19 @@ import {
   type AdminStaff,
 } from "../../lib/adminApi";
 import { formatDate } from "../../lib/api";
-import { ErrorNotice, Icon, Loading, Notice } from "../../components/ui";
+import { ConfirmModal, ErrorNotice, Icon, Loading, Notice, useToast } from "../../components/ui";
 
 export default function AdminHubs() {
+  const toast = useToast();
   const [points, setPoints] = useState<AdminPoint[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    danger?: boolean;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   // Modal thêm trạm mới
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -53,27 +60,28 @@ export default function AdminHubs() {
     loadPoints();
   }, []);
 
-  const handleTogglePoint = async (point: AdminPoint) => {
+  const handleTogglePoint = (point: AdminPoint) => {
     const isDeactivating = point.active;
-    if (
-      !window.confirm(
-        isDeactivating
-          ? `Tạm đóng trạm "${point.name}"? Người dùng sẽ không thể chọn trạm này làm nơi tiếp nhận mới.`
-          : `Mở lại hoạt động cho trạm "${point.name}"?`,
-      )
-    ) {
-      return;
-    }
-
-    setTogglingPointId(point.id);
-    try {
-      const updated = await togglePointActive(point.id);
-      setPoints((prev) => prev?.map((p) => (p.id === point.id ? updated : p)) ?? null);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Không thể thay đổi trạng thái trạm.");
-    } finally {
-      setTogglingPointId(null);
-    }
+    setConfirmDialog({
+      title: isDeactivating ? "Tạm đóng trạm tiếp nhận" : "Mở lại hoạt động trạm",
+      message: isDeactivating
+        ? `Tạm đóng trạm "${point.name}"? Người dùng sẽ không thể chọn trạm này làm nơi tiếp nhận mới.`
+        : `Mở lại hoạt động cho trạm "${point.name}"?`,
+      danger: isDeactivating,
+      onConfirm: async () => {
+        setTogglingPointId(point.id);
+        try {
+          const updated = await togglePointActive(point.id);
+          setPoints((prev) => prev?.map((p) => (p.id === point.id ? updated : p)) ?? null);
+          toast.success(isDeactivating ? `Đã tạm đóng trạm "${point.name}".` : `Đã mở lại hoạt động trạm "${point.name}".`);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Không thể thay đổi trạng thái trạm.");
+        } finally {
+          setTogglingPointId(null);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
   const handleCreatePoint = async (e: React.FormEvent) => {
@@ -168,31 +176,33 @@ export default function AdminHubs() {
     }
   };
 
-  const handleRevokeStaff = async (staff: AdminStaff) => {
+  const handleRevokeStaff = (staff: AdminStaff) => {
     if (!selectedPoint) return;
-    if (
-      !window.confirm(
-        `Thu hồi quyền nhân sự của "${staff.displayName}" (${staff.email ?? ""}) tại trạm này?`,
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await revokePointStaff(selectedPoint.id, staff.userId);
-      setStaffList((prev) =>
-        prev?.map((s) =>
-          s.userId === staff.userId ? { ...s, revokedAt: new Date().toISOString() } : s,
-        ) ?? null,
-      );
-      setPoints((prev) =>
-        prev?.map((p) =>
-          p.id === selectedPoint.id ? { ...p, staffCount: Math.max(0, p.staffCount - 1) } : p,
-        ) ?? null,
-      );
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Thu hồi quyền thất bại.");
-    }
+    setConfirmDialog({
+      title: "Thu hồi quyền nhân sự",
+      message: `Thu hồi quyền nhân sự của "${staff.displayName}" (${staff.email ?? ""}) tại trạm này?`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await revokePointStaff(selectedPoint.id, staff.userId);
+          setStaffList((prev) =>
+            prev?.map((s) =>
+              s.userId === staff.userId ? { ...s, revokedAt: new Date().toISOString() } : s,
+            ) ?? null,
+          );
+          setPoints((prev) =>
+            prev?.map((p) =>
+              p.id === selectedPoint.id ? { ...p, staffCount: Math.max(0, p.staffCount - 1) } : p,
+            ) ?? null,
+          );
+          toast.success(`Đã thu hồi quyền của "${staff.displayName}".`);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Thu hồi quyền thất bại.");
+        } finally {
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
   return (
@@ -589,6 +599,17 @@ export default function AdminHubs() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDialog && (
+        <ConfirmModal
+          open={Boolean(confirmDialog)}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          danger={confirmDialog.danger}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );

@@ -122,6 +122,55 @@ export type ProblemDetails = {
   message?: string;
 };
 
+const fieldTranslations: Record<string, string> = {
+  TargetPointId: "Điểm tiếp nhận",
+  PointId: "Điểm tiếp nhận",
+  Title: "Tiêu đề",
+  Content: "Nội dung",
+  Description: "Mô tả",
+  CategoryId: "Danh mục",
+  Location: "Địa điểm",
+  Phone: "Số điện thoại",
+  Email: "Email",
+  Reason: "Lý do",
+  DecisionNote: "Ghi chú xử lý",
+  Message: "Tin nhắn",
+  Password: "Mật khẩu",
+  Name: "Họ và tên",
+};
+
+export function localizeErrorMessage(raw: string): string {
+  let msg = raw.trim();
+
+  // Handle ASP.NET required field: "The {Field} field is required."
+  const requiredMatch = msg.match(/^The\s+([A-Za-z0-9_]+)\s+field is required\.?$/i);
+  if (requiredMatch) {
+    const field = requiredMatch[1];
+    const fieldName = fieldTranslations[field] ?? field;
+    return `Vui lòng nhập hoặc chọn ${fieldName}.`;
+  }
+
+  // Handle Concurrency / RowVersion conflict
+  if (/rowversion mismatch|concurrency conflict|the record has been modified/i.test(msg)) {
+    return "Dữ liệu đã được cập nhật bởi một phiên làm việc khác. Vui lòng tải lại trang để xem dữ liệu mới nhất.";
+  }
+
+  // Handle Unauthorized / Forbidden
+  if (/unauthorized/i.test(msg)) {
+    return "Bạn chưa đăng nhập hoặc phiên làm việc đã hết hạn.";
+  }
+  if (/forbidden|not allowed to access/i.test(msg)) {
+    return "Bạn không có quyền thực hiện thao tác này.";
+  }
+
+  // Handle Not Found
+  if (/not found/i.test(msg)) {
+    return "Không tìm thấy nội dung yêu cầu.";
+  }
+
+  return msg;
+}
+
 export function extractProblemMessage(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const problem = data as ProblemDetails;
@@ -131,10 +180,12 @@ export function extractProblemMessage(data: unknown): string | null {
     for (const val of Object.values(problem.errors)) {
       if (Array.isArray(val)) {
         for (const msg of val) {
-          if (typeof msg === "string" && msg.trim()) errorMessages.push(msg.trim());
+          if (typeof msg === "string" && msg.trim()) {
+            errorMessages.push(localizeErrorMessage(msg));
+          }
         }
       } else if (typeof val === "string" && val.trim()) {
-        errorMessages.push(val.trim());
+        errorMessages.push(localizeErrorMessage(val));
       }
     }
     if (errorMessages.length > 0) {
@@ -143,18 +194,18 @@ export function extractProblemMessage(data: unknown): string | null {
   }
 
   if (typeof problem.detail === "string" && problem.detail.trim()) {
-    return problem.detail.trim();
+    return localizeErrorMessage(problem.detail.trim());
   }
 
   if (typeof problem.title === "string" && problem.title.trim()) {
     const trimmed = problem.title.trim();
     if (trimmed !== "One or more validation errors occurred.") {
-      return trimmed;
+      return localizeErrorMessage(trimmed);
     }
   }
 
   if (typeof problem.message === "string" && problem.message.trim()) {
-    return problem.message.trim();
+    return localizeErrorMessage(problem.message.trim());
   }
 
   return null;

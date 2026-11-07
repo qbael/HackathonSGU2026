@@ -1,9 +1,14 @@
-# Model Findie trên Google Colab
+# Model Findie trên Google Colab & Kaggle
 
 Notebook 01–03 là thử nghiệm độc lập, mở bằng **File → Upload notebook** tại [Google Colab](https://colab.research.google.com/).
 Không cần clone project, chạy Docker hoặc cài model lên máy phát triển.
 
-## Phiên chạy đầy đủ qua ngrok
+## Phiên chạy đầy đủ qua ngrok (Colab hoặc Kaggle)
+
+Notebook `04_full_stack_ollama_ngrok.ipynb` hỗ trợ chạy đa nền tảng trên cả **Google Colab (GPU T4)** lẫn **Kaggle Notebooks (GPU T4 x2)**:
+- **Trên Colab:** Chọn **Runtime → Change runtime type → T4 GPU**.
+- **Trên Kaggle:** Chọn **Accelerator → GPU T4 x2** (30GB VRAM) và bật **Internet ON** ở menu bên phải.
+- **Hỗ trợ Static Domain:** Nếu có static domain của ngrok (ví dụ `your-domain.ngrok-free.app`), nhập vào secret `NGROK_DOMAIN` hoặc điền khi prompt để cố định URL gateway vĩnh viễn.
 
 [04_full_stack_ollama_ngrok.ipynb](../../notebooks/colab/04_full_stack_ollama_ngrok.ipynb) là notebook cho phiên local đầy đủ: `Qwen/Qwen3-VL-Embedding-2B` chạy bằng Transformers tạo embedding văn bản/ảnh 2048 chiều; `qwen3-vl:4b-instruct` chạy qua Ollama nhận diện vùng nhạy cảm. HTTPS ngrok chỉ expose gateway có Bearer token, không DB/broker. Cần ngrok account/authtoken, Colab GPU phù hợp và `FINDIE_OLLAMA_TOKEN` riêng. Chạy từng cell, tải JSON không chứa token rồi import bằng `python3 scripts/configure_ollama.py /path/findie-colab.json`; tiếp theo `make local-run`. Khi chuyển từ model cũ, chạy `make local-reindex` sau khi worker ready; không dùng lẫn vector của hai model.
 

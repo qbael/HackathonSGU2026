@@ -190,12 +190,20 @@ if (importPublicSamples)
     return;
 }
 
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var forwardedOptions = new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedHost
-        | ForwardedHeaders.XForwardedProto,
-    AllowedHosts = { "zfjnvx2f-5173.asse.devtunnels.ms" }
-});
+    ForwardedHeaders = ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto,
+};
+var configuredForwardedHosts = builder.Configuration["ForwardedHosts"]
+    ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+if (configuredForwardedHosts is { Length: > 0 })
+{
+    foreach (var host in configuredForwardedHosts)
+    {
+        forwardedOptions.AllowedHosts.Add(host);
+    }
+}
+app.UseForwardedHeaders(forwardedOptions);
 
 app.UseExceptionHandler();
 app.UseAuthentication();

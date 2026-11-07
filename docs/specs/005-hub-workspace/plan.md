@@ -10,7 +10,7 @@
 ## 1. Cải tiến Cơ chế Thông báo lỗi thân thiện (Friendly Error Handling)
 
 ### 1.1. Vấn đề hiện tại
-Trong [`apps/web/src/lib/api.ts`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/lib/api.ts#L123-L158), khi máy chủ trả về mã lỗi (`!response.ok`), hàm `api<T>` vứt bỏ toàn bộ nội dung JSON phản hồi và thay bằng chuỗi tĩnh:
+Trong [`apps/web/src/lib/api.ts`](apps/web/src/lib/api.ts#L123-L158), khi máy chủ trả về mã lỗi (`!response.ok`), hàm `api<T>` vứt bỏ toàn bộ nội dung JSON phản hồi và thay bằng chuỗi tĩnh:
 ```typescript
 // Hiện tại: Luôn ép lỗi 404 thành câu tĩnh này:
 404: "Nội dung không còn khả dụng hoặc bạn chưa được cấp quyền truy cập."
@@ -25,7 +25,7 @@ Trong khi Backend trả về rất cụ thể:
    - Khi `!response.ok`, hàm `api()` sẽ đọc `response.json()` để trích xuất `title`, `detail` hoặc `errors` từ cấu trúc RFC 7807 `ProblemDetails`.
    - Nếu có thông điệp cụ thể từ máy chủ $\rightarrow$ Hiển thị thông điệp đó cho người dùng.
    - Nếu không có hoặc phản hồi không phải JSON $\rightarrow$ Mới dùng câu dự phòng trong `failureMessages`.
-2. **Bổ sung Client Validation tại Modal cấp quyền nhân sự ([`AdminHubs.tsx`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/pages/admin/AdminHubs.tsx))**:
+2. **Bổ sung Client Validation tại Modal cấp quyền nhân sự ([`AdminHubs.tsx`](apps/web/src/pages/admin/AdminHubs.tsx))**:
    - Kiểm tra định dạng email cơ bản qua regex trước khi gửi request.
    - Bắt các lỗi phổ biến (như gõ nhầm đuôi `.con`, khoảng trắng đầu/cuối).
 
@@ -71,7 +71,7 @@ Giao diện Findie Hub Portal (/hub/*)
 - Tìm kiếm nhanh đồ vật trong kho theo tên, đặc điểm, vị trí.
 - Thao tác nhanh:
   - Xem chi tiết món đồ, ảnh đã che mờ.
-  - Nút **"Tiến hành trao trả cho chủ sở hữu"** $\rightarrow$ Mở modal xác nhận trao trả tận tay tại trạm ([`Custody.tsx:ReturnItem`](file:///mnt/d/CNTT-SGU/HK7/Hackathon/FindieHackathon/apps/web/src/pages/Custody.tsx#L30)).
+  - Nút **"Tiến hành trao trả cho chủ sở hữu"** $\rightarrow$ Mở modal xác nhận trao trả tận tay tại trạm ([`Custody.tsx:ReturnItem`](apps/web/src/pages/Custody.tsx#L30)).
 
 #### 4. `HubHistory.tsx` (Nhật ký lưu chuyển trạm)
 - Hiển thị lịch sử các lần tiếp nhận thành công (`received`) và các lần bàn giao trả đồ cho khách (`returned`) tại trạm này.

@@ -2890,3 +2890,168 @@ input::file-selector-button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   Destructive Button, Toast Notifications & Lightbox Styles
+   ========================================================================== */
+
+.button.button-danger {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+}
+
+.button.button-danger:hover {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+}
+
+.button.button-danger:disabled {
+  background: #fca5a5 !important;
+  border-color: #fca5a5 !important;
+  cursor: not-allowed;
+}
+
+/* Toast Container */
+.toast-container {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  max-width: 380px;
+  width: calc(100% - 2.5rem);
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  border-left-width: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0f172a;
+  animation: toast-slide-in 0.22s ease-out;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.toast-item.toast-success {
+  border-left-color: #0f766e;
+}
+
+.toast-item.toast-success .toast-icon {
+  color: #0f766e;
+}
+
+.toast-item.toast-error {
+  border-left-color: #dc2626;
+}
+
+.toast-item.toast-error .toast-icon {
+  color: #dc2626;
+}
+
+.toast-item.toast-warning {
+  border-left-color: #f59e0b;
+}
+
+.toast-item.toast-warning .toast-icon {
+  color: #f59e0b;
+}
+
+.toast-item.toast-info {
+  border-left-color: #2563eb;
+}
+
+.toast-item.toast-info .toast-icon {
+  color: #2563eb;
+}
+
+.toast-close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 0.25rem;
+  cursor: pointer;
+  margin-left: auto;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.toast-close-btn:hover {
+  color: #0f172a;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Image Lightbox Modal */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(6px);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: min(92vw, 1100px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lightbox-content img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-close-btn {
+  position: absolute;
+  top: -2.5rem;
+  right: 0;
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 1.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+
+.lightbox-close-btn:hover {
+  opacity: 0.75;
+}
+

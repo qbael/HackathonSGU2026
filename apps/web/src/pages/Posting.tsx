@@ -23,6 +23,7 @@ import { useAction, useResource } from "../hooks/hooks";
 import { ImagePreviews } from "../components/ImagePreviews";
 import {
   Badge,
+  ConfirmModal,
   EmptyState,
   ErrorNotice,
   Icon,
@@ -30,6 +31,7 @@ import {
   Loading,
   Notice,
   PageHeader,
+  useToast,
 } from "../components/ui";
 
 export function PostItem({ id }: { id?: string }) {
@@ -635,6 +637,8 @@ function PostEditor({
 }
 
 export function ReviewImages({ id }: { id: string }) {
+  const toast = useToast();
+  const [retireConfirmOpen, setRetireConfirmOpen] = useState(false);
   const item = useResource<Item>(`/api/items/${id}`);
   const images = useResource<ItemImage[]>(`/api/items/${id}/images`);
   const [selectedId, setSelectedId] = useState("");
@@ -822,24 +826,7 @@ export function ReviewImages({ id }: { id: string }) {
                 className="text-button danger-text"
                 type="button"
                 disabled={action.busy}
-                onClick={async () => {
-                  if (
-                    !window.confirm(
-                      "Gỡ bản ảnh này khỏi tin? Bạn cần tải ảnh khác nếu muốn thay thế.",
-                    )
-                  )
-                    return;
-                  const result = await action.run(() =>
-                    write<ItemImage>(
-                      `/api/items/${id}/images/${selected.id}/retire`,
-                      { contentVersion: selected.contentVersion },
-                    ),
-                  );
-                  if (result) {
-                    setSelectedId("");
-                    reload();
-                  }
-                }}
+                onClick={() => setRetireConfirmOpen(true)}
               >
                 Gỡ ảnh khỏi tin
               </button>
@@ -885,6 +872,31 @@ export function ReviewImages({ id }: { id: string }) {
           </div>
         </aside>
       </div>
+
+      <ConfirmModal
+        open={retireConfirmOpen}
+        title="Gỡ ảnh khỏi tin"
+        message="Gỡ bản ảnh này khỏi tin? Bạn cần tải ảnh khác nếu muốn thay thế."
+        confirmText="Gỡ ảnh"
+        danger
+        busy={action.busy}
+        onConfirm={async () => {
+          if (!selected) return;
+          const result = await action.run(() =>
+            write<ItemImage>(
+              `/api/items/${id}/images/${selected.id}/retire`,
+              { contentVersion: selected.contentVersion },
+            ),
+          );
+          if (result) {
+            setSelectedId("");
+            reload();
+            setRetireConfirmOpen(false);
+            toast.success("Đã gỡ ảnh thành công.");
+          }
+        }}
+        onCancel={() => setRetireConfirmOpen(false)}
+      />
     </>
   );
 }

@@ -16,6 +16,7 @@ demo/           Ảnh, video và tóm tắt demo
 
 ## Sản phẩm và thiết kế
 
+- [Kế hoạch Tối ưu hóa UI/UX & Tinh gọn Mã nguồn](KE_HOACH_TOI_UU_UI_UX.md): Đánh giá chi tiết trải nghiệm người dùng, loại bỏ dev/test artifacts, chuẩn hóa thông báo lỗi và lộ trình cải tiến giao diện Findie.
 - Đặc tả ứng dụng: [Markdown](product/DAC_TA_FINDIE.md), [Word](product/DAC_TA_FINDIE.docx), [PDF](product/DAC_TA_FINDIE.pdf).
 - [Kiến trúc hệ thống](architecture/system-architecture.md): v1.4.0 ngày 23/10/2026; .NET nghiệp vụ/R2/quyền/DTO cuối ↔ RabbitMQ lâu dài ↔ Python AI/ảnh, lưu embedding và hybrid search theo profile. Đã có schema `findie` (.NET) với role runtime riêng; adapter AMQP/R2 và API .NET đã có; worker Python/database tìm kiếm/hybrid search văn bản đã có qua Ollama; phần ảnh chưa triển khai. Ảnh gốc chỉ tạm để xử lý, không lưu R2; R2 chỉ giữ ảnh đầu ra đã che/mờ hoặc ảnh sạch chuẩn hóa khi không có PII, phải duyệt trước công khai.
 - [Thiết kế cơ sở dữ liệu đích](database/database-design.md): phân quyền hai database logic cho .NET và Python. Runtime .NET có EF Core/Identity, outbox và migration có bảo vệ dữ liệu bootstrap cũ; xem [API](api/README.md).
