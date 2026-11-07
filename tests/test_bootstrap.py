@@ -134,6 +134,8 @@ class RabbitMqBootstrapTest(unittest.TestCase):
             for resource in ("amq.gen-example", "findie.api.results"):
                 self.assertRegex(resource, api["read"])
             self.assertRegex("amq.gen-example", api["configure"])
+            self.assertRegex("findie.api.materials", api["configure"])
+            self.assertRegex("findie.api.materials", api["read"])
             self.assertNotRegex("findie.ai.commands", api["configure"])
             self.assertNotRegex("findie.ai.commands", api["read"])
             for permission in (api, ai):
@@ -142,7 +144,7 @@ class RabbitMqBootstrapTest(unittest.TestCase):
                 self.assertNotRegex("findie.ai.dlx", permission["write"])
             self.assertRegex("findie.api.results", ai["write"])
             self.assertNotRegex("findie.api.results", ai["read"])
-            for resource in ("findie.ai.query", "findie.ai.image"):
+            for resource in ("findie.ai.query", "findie.ai.image", "findie.ai.materials.results"):
                 self.assertRegex(resource, ai["configure"])
                 self.assertRegex(resource, ai["read"])
             self.assertRegex("findie.ai.commands", ai["read"])

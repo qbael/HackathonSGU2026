@@ -124,18 +124,25 @@ COMMIT;
     print("Search database/schema and separate runtime grants ready; existing data preserved.")
 
 
+def start_infrastructure(environment):
+    subprocess.run(["python3", "scripts/init_rabbitmq.py"], cwd=ROOT, env=environment, check=True)
+    subprocess.run(["docker", "compose", "up", "-d", "--wait", "db", "rabbitmq", "redis"],
+                   cwd=ROOT, env=environment, check=True)
+    # Atomic file replacement can leave a running container's bind mount on the old definitions.
+    with (ROOT / ".cache/rabbitmq/definitions.json").open("rb") as definitions:
+        result = subprocess.run(["docker", "compose", "exec", "-T", "rabbitmq", "rabbitmqctl", "-q", "import_definitions", "/dev/stdin"],
+                                cwd=ROOT, env=environment, stdin=definitions, capture_output=True)
+    if result.returncode:
+        raise RuntimeError("RabbitMQ definitions import failed; check broker health and local provisioning configuration.")
+    print("Local RabbitMQ users, permissions and queues synchronized.", flush=True)
+
+
 def main():
     initialize(ROOT)
     environment = complete_local_connections(ROOT, load_environment())
     search_preflight(environment)
-    commands = (
-        ["python3", "scripts/init_rabbitmq.py"],
-        ["docker", "compose", "up", "-d", "--wait", "db", "rabbitmq", "redis"],
-        ["docker", "compose", "exec", "-T", "rabbitmq", "rabbitmqctl", "-q", "import_definitions", "/etc/rabbitmq/definitions.json"],
-        ["python3", "scripts/db/migrate.py"],
-    )
-    for command in commands:
-        subprocess.run(command, cwd=ROOT, env=environment, check=True)
+    start_infrastructure(environment)
+    subprocess.run(["python3", "scripts/db/migrate.py"], cwd=ROOT, env=environment, check=True)
     container = subprocess.check_output(["docker", "compose", "ps", "-q", "db"], cwd=ROOT, env=environment, text=True).strip()
     provision_search(environment, container)
     subprocess.run(["dotnet", "run", "--project", "apps/api", "--no-launch-profile", "--", "--seed-local"],

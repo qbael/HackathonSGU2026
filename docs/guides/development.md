@@ -189,7 +189,8 @@ docker compose logs --tail=100 rabbitmq
 `make rabbitmq-up` chạy `make env` để sinh các mật khẩu còn thiếu và file
 `.cache/rabbitmq/definitions.json` chứa password hash cùng topology lấy từ
 `docs/api/rabbitmq-definitions.json`. File được bỏ qua bởi Git và mount read-only.
-Broker tự import khi khởi động: queue quorum `findie.ai.commands`, `findie.api.results`,
+`make rabbitmq-up`, `make local-setup` và `make local-run` nạp definitions mới từ host qua stdin sau khi broker sẵn sàng, kể cả khi container đang chạy và bind mount còn trỏ đến file cũ. Nếu import thất bại, setup/run dừng trước khi khởi động ứng dụng.
+Broker cũng tự import khi khởi động: queue quorum `findie.ai.commands`, `findie.api.results`,
 queue dead-letter `findie.ai.dead`, exchange và bindings tương ứng. Python tự tạo
 query/image queue tạm khi worker chạy; không tạo sẵn hai queue exclusive này.
 

@@ -38,6 +38,7 @@ db-down:
 
 rabbitmq-up: env
 	docker compose up -d --wait rabbitmq
+	docker compose exec -T rabbitmq rabbitmqctl -q import_definitions /dev/stdin < .cache/rabbitmq/definitions.json
 
 rabbitmq-down:
 	docker compose stop rabbitmq

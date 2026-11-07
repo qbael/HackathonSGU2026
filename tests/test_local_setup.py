@@ -72,6 +72,54 @@ class LocalSetupTest(unittest.TestCase):
         self.assertNotIn(values["SEARCH_POSTGRES_PASSWORD"], str(raised.exception))
 
 
+class LocalInfrastructureTest(unittest.TestCase):
+    def test_first_and_repeated_start_import_fresh_host_definitions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            definitions = root / ".cache/rabbitmq/definitions.json"
+            commands, imported = [], []
+            values = {"PATH": "/usr/bin"}
+
+            def execute(command, **kwargs):
+                commands.append(command)
+                self.assertEqual(kwargs["cwd"], root)
+                self.assertIs(kwargs["env"], values)
+                if command == ["python3", "scripts/init_rabbitmq.py"]:
+                    definitions.parent.mkdir(parents=True, exist_ok=True)
+                    replacement = definitions.with_suffix(".new")
+                    replacement.write_bytes(b'{"permissions":[' + str(len(imported)).encode() + b']}')
+                    replacement.replace(definitions)
+                elif "up" in command:
+                    self.assertTrue(definitions.exists())
+                    self.assertIn("--wait", command)
+                else:
+                    self.assertEqual(command, ["docker", "compose", "exec", "-T", "rabbitmq", "rabbitmqctl", "-q", "import_definitions", "/dev/stdin"])
+                    self.assertTrue(kwargs["capture_output"])
+                    imported.append(kwargs["stdin"].read())
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch.object(local_setup, "ROOT", root), patch.object(local_setup.subprocess, "run", side_effect=execute), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                local_setup.start_infrastructure(values)
+                local_setup.start_infrastructure(values)
+            self.assertEqual(imported, [b'{"permissions":[0]}', b'{"permissions":[1]}'])
+            self.assertEqual(len(commands), 6)
+
+    def test_import_failure_reports_safe_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            definitions = root / ".cache/rabbitmq/definitions.json"
+            definitions.parent.mkdir(parents=True)
+            definitions.write_bytes(b"{}")
+            results = [subprocess.CompletedProcess([], code, stdout=b"private-output", stderr=b"private-error")
+                       for code in (0, 0, 1)]
+            with patch.object(local_setup, "ROOT", root), patch.object(local_setup.subprocess, "run", side_effect=results), \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaisesRegex(RuntimeError, "RabbitMQ definitions import failed") as raised:
+                    local_setup.start_infrastructure({})
+            self.assertNotIn("private", str(raised.exception) + output.getvalue())
+
+
 class LocalDoctorTest(unittest.TestCase):
     def configured(self):
         values = environment() | local_setup.local_connections(environment())

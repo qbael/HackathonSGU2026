@@ -194,7 +194,7 @@ Khởi chạy toàn bộ ứng dụng trong **terminal 1** và giữ terminal m�
 make local-run
 ```
 
-Lệnh kiểm cấu hình đầy đủ và cổng 5173/5080/8000, bật lại database/broker nếu cần, build API, rồi:
+Lệnh kiểm cấu hình đầy đủ và cổng 5173/5080/8000, tạo lại definitions và đồng bộ user/quyền/queue RabbitMQ sau khi hạ tầng sẵn sàng, build API, rồi:
 
 1. Chạy worker Python, chờ model/phụ thuộc sẵn sàng với đủ ba capability: tìm văn bản, tìm ảnh và che ảnh.
 2. Chạy API .NET, chờ kết nối database sẵn sàng.
@@ -308,6 +308,7 @@ Lệnh phát lại snapshot/tombstone hiện hành để lập chỉ mục, khô
 | Colab lỗi import Transformers/`GenerationMixin` | Restart session sau cài dependency, chạy lại notebook từ đầu; xem [hướng dẫn Colab](docs/guides/colab.md). |
 | Colab thiếu GPU hoặc hết bộ nhớ | Dùng runtime GPU phù hợp, dọn phiên cũ rồi chạy lại; hai model phải nạp và qua kiểm inference trước khi import. |
 | Import không xác minh được gateway/token/revision | Giữ notebook/gateway đang chạy, dùng JSON mới nhất và đúng `FINDIE_OLLAMA_TOKEN`; không dùng `NGROK_AUTHTOKEN`. `.env` được giữ nguyên nếu xác minh thất bại. |
+| `AI broker unavailable; reconnecting.` sau khi cập nhật code | Dừng phiên cũ và chạy `make local-run` để đồng bộ lại quyền broker, kể cả khi container đang chạy. Nếu bước import definitions thất bại, xử lý lỗi broker trước; không xóa volume. |
 | `local-run` chờ worker rồi dừng, AI báo unavailable | Kiểm log Python, runtime Colab/ngrok, schema tìm kiếm và broker; chạy doctor. Model phải đủ cả ba capability. |
 | `/v1/status` hoặc readiness Python trả 401 | Thêm `X-Service-Token` bằng `AI_SERVICE_TOKEN` local, không dùng token ngrok/gateway. |
 | Upload ảnh lỗi hoặc R2 trả lỗi | Kiểm đủ bốn biến R2, endpoint/bucket, credential và quyền đọc/ghi/xóa; `storage: true` chỉ xác nhận cấu hình. |

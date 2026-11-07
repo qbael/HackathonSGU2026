@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +42,25 @@ class LocalRunTests(unittest.TestCase):
         self.assertEqual(set(api), {"PATH", "HOME", "ConnectionStrings__Database", "Storage__SecretAccessKey",
                                     "Authentication__Google__ClientSecret", "RabbitMq__Uri", "Ai__ServiceToken"})
         self.assertEqual(web, {"PATH": "/usr/bin", "HOME": "/tmp"})
+
+    def test_infrastructure_sync_precedes_build_and_worker_and_failure_stops_startup(self):
+        for failure in (None, RuntimeError("sync failed")):
+            with self.subTest(failure=failure), \
+                    patch.object(module, "load_environment", return_value={}), \
+                    patch.object(module, "configuration_checks", return_value=[]), \
+                    patch.object(module.socket, "socket") as socket, \
+                    patch.object(module, "start_infrastructure", side_effect=failure) as synchronize, \
+                    patch.object(module.subprocess, "run") as build, \
+                    patch.object(module.subprocess, "Popen", side_effect=RuntimeError("worker launch reached")) as launch, \
+                    patch.object(module.signal, "signal"):
+                socket.return_value.__enter__.return_value.connect_ex.return_value = 1
+                order = Mock()
+                for name, mock in (("synchronize", synchronize), ("build", build), ("launch", launch)):
+                    order.attach_mock(mock, name)
+                with self.assertRaisesRegex(RuntimeError, "sync failed" if failure else "worker launch reached"):
+                    module.main()
+                self.assertEqual([call[0] for call in order.mock_calls],
+                                 ["synchronize"] if failure else ["synchronize", "build", "launch"])
 
     def test_shutdown_stops_only_owned_process_group(self):
         unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
