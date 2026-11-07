@@ -1,0 +1,68 @@
+[
+  {
+    "id": "e4b2d380-6bc7-4d98-b80c-e2f4a56c0001",
+    "title": "Chìa khóa Honda",
+    "publicDescription": "Chùm chìa khóa xe máy Honda có gắn móc khóa hoạt hình Doraemon nhặt được tại sảnh A.",
+    "foundArea": "Cơ sở 1 - Khu A",
+    "foundTimePrecision": "date",
+    "foundOn": "2026-11-01",
+    "foundFrom": null,
+    "foundUntil": null,
+    "foundTimezone": "Asia/Ho_Chi_Minh",
+    "custody": {
+      "kind": "person",
+      "displayName": "Nguyễn Văn Tìm",
+      "pointId": null,
+      "name": null,
+      "publicAddress": null,
+      "instructions": null
+    },
+    "lifecycle": "active",
+    "publicationState": "published",
+    "canClaim": true,
+    "canDelete": false,
+    "rowVersion": 1,
+    "createdAt": "2026-11-01T08:30:00Z",
+    "images": [
+      {
+        "id": "img-0001",
+        "position": 1,
+        "contentVersion": 1,
+        "url": "/assets/placeholder-key.jpg"
+      }
+    ]
+  },
+  {
+    "id": "e4b2d380-6bc7-4d98-b80c-e2f4a56c0002",
+    "title": "Ví da nam Pedro màu đen",
+    "publicDescription": "Ví da gấp đôi Pedro, nhặt tại khu vực thư viện lầu 2.",
+    "foundArea": "Cơ sở 1 - Khu B",
+    "foundTimePrecision": "date",
+    "foundOn": "2026-11-02",
+    "foundFrom": null,
+    "foundUntil": null,
+    "foundTimezone": "Asia/Ho_Chi_Minh",
+    "custody": {
+      "kind": "person",
+      "displayName": "Trần Thị Giữ",
+      "pointId": null,
+      "name": null,
+      "publicAddress": null,
+      "instructions": null
+    },
+    "lifecycle": "active",
+    "publicationState": "published",
+    "canClaim": true,
+    "canDelete": false,
+    "rowVersion": 1,
+    "createdAt": "2026-11-02T14:15:00Z",
+    "images": [
+      {
+        "id": "img-0002",
+        "position": 1,
+        "contentVersion": 1,
+        "url": "/assets/placeholder-wallet.jpg"
+      }
+    ]
+  }
+]
