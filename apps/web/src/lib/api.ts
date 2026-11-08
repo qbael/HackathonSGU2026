@@ -279,6 +279,21 @@ export async function api<T>(
     );
   }
   if (response.status === 204) return undefined as T;
+  if (response.status === 202) {
+    const location = response.headers.get("Location");
+    if (!location || !/^\/api\/jobs\/[\da-f-]{36}$/.test(location))
+      throw new Error("Địa chỉ tác vụ không hợp lệ.");
+    const started = Date.now();
+    while (Date.now() - started < 31 * 60 * 1000) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      options.signal?.throwIfAborted();
+      const pending = await fetch(location, { credentials: "same-origin", signal: options.signal ?? AbortSignal.timeout(20000) });
+      if (pending.status === 202) continue;
+      if (!pending.ok) throw new ApiError(pending.status, failureMessages[pending.status] ?? "Tác vụ đã gián đoạn. Hãy tải ảnh lên lại.");
+      return await pending.json() as T;
+    }
+    throw new Error("Tác vụ quá thời gian chờ. Hãy thử lại.");
+  }
   try {
     return (await response.json()) as T;
   } catch {

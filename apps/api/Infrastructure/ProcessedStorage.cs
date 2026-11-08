@@ -69,9 +69,9 @@ public static class BoundedImage
 {
     public const int MaxBytes = 10 * 1024 * 1024;
     public static bool Mime(string? type) => type is "image/jpeg" or "image/png" or "image/webp";
-    public static async Task<byte[]> ReadAsync(Stream stream, long? contentLength, CancellationToken ct)
+    public static async Task<byte[]> ReadAsync(Stream stream, long? contentLength, CancellationToken ct, int maxBytes = MaxBytes)
     {
-        if (contentLength > MaxBytes) throw new ApiException(413, "Image exceeds 10 MiB.");
+        if (contentLength > maxBytes) throw new ApiException(413, "Image upload exceeds the size limit.");
         using var memory = new MemoryStream();
         var buffer = new byte[65536];
         try
@@ -79,7 +79,7 @@ public static class BoundedImage
             int read;
             while ((read = await stream.ReadAsync(buffer, ct)) > 0)
             {
-                if (memory.Length + read > MaxBytes) throw new ApiException(413, "Image exceeds 10 MiB.");
+                if (memory.Length + read > maxBytes) throw new ApiException(413, "Image upload exceeds the size limit.");
                 memory.Write(buffer, 0, read);
             }
             if (memory.Length == 0) throw new ApiException(400, "Image body is empty.");

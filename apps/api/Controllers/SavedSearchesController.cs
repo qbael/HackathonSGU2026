@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Findie.Api.Controllers;
 
 [Route("api/saved-searches")]
-public sealed class SavedSearchesController(SavedSearchService searches) : RecoveryController
+public sealed class SavedSearchesController(SavedSearchService searches, AiJobs jobs, IConfiguration configuration) : RecoveryController
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<SavedSearchResponse>>> List(CancellationToken ct) => Ok(await searches.ListAsync(Actor, ct));
@@ -17,6 +17,13 @@ public sealed class SavedSearchesController(SavedSearchService searches) : Recov
     [RequestSizeLimit(3 * BoundedImage.MaxBytes + 65536)]
     public async Task<ActionResult<SavedSearchResponse>> Create([FromQuery] ImageSearchFilter filter, CancellationToken ct)
     {
+        if (jobs.Enabled(configuration))
+        {
+            var actor = Actor; var key = RequestKey; var mime = Request.ContentType; var length = Request.ContentLength;
+            return await jobs.UploadAsync(actor, Request, async (services, stream, token) =>
+                await services.GetRequiredService<SavedSearchService>().CreateAsync(actor, key, filter, mime, stream, length, token), ct,
+                3 * BoundedImage.MaxBytes + 65536);
+        }
         var result = await searches.CreateAsync(Actor, RequestKey, filter, Request.ContentType, Request.Body, Request.ContentLength, ct);
         return StatusCode(201, result);
     }

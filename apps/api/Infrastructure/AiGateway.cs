@@ -147,6 +147,9 @@ public sealed class RabbitMqGateway(IConfiguration configuration, ILogger<Rabbit
 
     public async Task<AiReply> RequestAsync(AiCommand command, CancellationToken ct)
     {
+        if (configuration["RabbitMq:Uri"]?.StartsWith("amqps:", StringComparison.OrdinalIgnoreCase) == true
+            && command.Kind is "image.embed" or "image.redact" or "search.hybrid.image" or "search.hybrid.images")
+            throw new ApiException(503, "Original images require the private HTTP transport on managed brokers.");
         if (!Ready) throw new ApiException(503, "AI service is unavailable; use GET /api/items for basic filters.");
         if (!await capacity.WaitAsync(0, ct)) throw new ApiException(503, "AI request capacity is exhausted; retry shortly.");
         var correlation = Guid.NewGuid().ToString();

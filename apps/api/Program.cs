@@ -15,9 +15,23 @@ using Npgsql;
 using System.Threading.RateLimiting;
 using Findie.Api.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.DataProtection;
 var seedLocal = args.Contains("--seed-local", StringComparer.Ordinal);
 var importPublicSamples = args.Contains("--import-public-samples", StringComparer.Ordinal);
 var builder = WebApplication.CreateBuilder(seedLocal || importPublicSamples ? [] : args);
+
+if (args.Contains("--migrate", StringComparer.Ordinal))
+{
+    var dsn = builder.Configuration.GetConnectionString("Database")
+        ?? throw new InvalidOperationException("Migration database is required.");
+    await using var migrationLock = new NpgsqlConnection(dsn);
+    await migrationLock.OpenAsync();
+    await using var gate = new NpgsqlCommand("SELECT pg_advisory_lock(643182015)", migrationLock);
+    await gate.ExecuteNonQueryAsync();
+    await using var db = new FindieDbContext(new DbContextOptionsBuilder<FindieDbContext>().UseNpgsql(dsn).Options);
+    await db.Database.MigrateAsync();
+    return;
+}
 
 if (importPublicSamples && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("Source sample import is allowed only in Development.");
@@ -162,6 +176,11 @@ builder.Services.AddSingleton<RabbitMqGateway>();
 builder.Services.AddSingleton<IAiGateway>(services => services.GetRequiredService<RabbitMqGateway>());
 builder.Services.AddHostedService(services => services.GetRequiredService<RabbitMqGateway>());
 builder.Services.AddSingleton<IProcessedStorage, ProcessedStorage>();
+builder.Services.AddSingleton<AiJobs>();
+if (builder.Configuration.GetValue<bool>("Ai:PrivateHttpImages"))
+    builder.Services.AddSingleton<IAiGateway, PrivateImageGateway>();
+if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
+    builder.Services.AddDataProtection().SetApplicationName("Findie").PersistKeysToFileSystem(new DirectoryInfo(keyPath));
 builder.Services.AddScoped<RecoveryMaintenance>();
 builder.Services.AddScoped<IndexReceiptService>();
 if (!string.IsNullOrWhiteSpace(builder.Configuration["RabbitMq:Uri"]) || !string.IsNullOrWhiteSpace(builder.Configuration["Storage:Endpoint"]))
@@ -262,6 +281,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseCors("FindieCors");
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -293,6 +314,20 @@ app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signInMana
     return Results.NoContent();
 }).RequireAuthorization();
 app.MapControllers();
+app.MapGet("/api/jobs/{id:guid}", (Guid id, HttpContext context, AiJobs jobs) =>
+    jobs.Get(id, Guid.Parse(context.User.FindFirstValue(ClaimTypes.NameIdentifier)!))).RequireAuthorization();
+app.MapFallback(async context =>
+{
+    if (context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/hubs")
+        || context.Request.Path.StartsWithSegments("/health") || !HttpMethods.IsGet(context.Request.Method)
+        || app.Environment.WebRootPath is null || Path.HasExtension(context.Request.Path))
+    { context.Response.StatusCode = 404; return; }
+    var index = Path.Combine(app.Environment.WebRootPath, "index.html");
+    if (!File.Exists(index)) { context.Response.StatusCode = 404; return; }
+    context.Response.ContentType = "text/html; charset=utf-8";
+    context.Response.Headers.CacheControl = "no-store";
+    await context.Response.SendFileAsync(index);
+});
 app.MapHub<Findie.Api.Hubs.ChatHub>("/hubs/chat").RequireAuthorization();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "ok", stage = "scaffold" }));

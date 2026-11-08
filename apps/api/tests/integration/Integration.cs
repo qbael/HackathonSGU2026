@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Routing;
 using System.Text.RegularExpressions;
 
 PaginationChecks.Run();
+await AiJobChecks.RunAsync();
 await MaintenanceChecks.RunAsync();
 if (args.Contains("--maintenance-only")) return;
 

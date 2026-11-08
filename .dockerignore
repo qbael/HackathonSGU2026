@@ -1,0 +1,14 @@
+**/.env
+**/.env*
+**/env.before
+**/node_modules
+**/bin
+**/obj
+**/.venv
+**/__pycache__
+.git
+.cache
+docs
+notebooks
+**/test-results
+**/playwright-report

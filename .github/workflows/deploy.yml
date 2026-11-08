@@ -1,0 +1,86 @@
+name: Deploy AWS
+
+on:
+  workflow_run:
+    workflows: [CI Pipeline]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: findie-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ap-southeast-1
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          persist-credentials: false
+      - name: Skip superseded commits
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$RELEASE_SHA&event=push&status=success&per_page=1" --jq '.workflow_runs | length')
+          if [ "$head" = "$RELEASE_SHA" ] && [ "$passed" -gt 0 ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Configure temporary AWS credentials
+        if: steps.current.outputs.deploy == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Sign in to ECR
+        if: steps.current.outputs.deploy == 'true'
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+        if: steps.current.outputs.deploy == 'true'
+      - name: Check images for release retries
+        if: steps.current.outputs.deploy == 'true'
+        id: images
+        run: |
+          for role in app worker; do
+            if aws ecr describe-images --repository-name "findie-$role" --image-ids "imageTag=$RELEASE_SHA" >/dev/null 2>&1; then
+              echo "$role=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
+      - name: Build and push application
+        if: steps.current.outputs.deploy == 'true' && steps.images.outputs.app != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/findie-app:${{ env.RELEASE_SHA }}
+      - name: Build and push worker
+        if: steps.current.outputs.deploy == 'true' && steps.images.outputs.worker != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/ai/Dockerfile
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/findie-worker:${{ env.RELEASE_SHA }}
+      - name: Migrate once, deploy, check and roll back on failure
+        if: steps.current.outputs.deploy == 'true'
+        run: python3 infra/aws/release.py "$RELEASE_SHA"

@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Findie.Api.Controllers;
 
 [Route("api/items/{itemId:guid}/images")]
-public sealed class ImagesController(IImageService images) : RecoveryController
+public sealed class ImagesController(IImageService images, AiJobs jobs, IConfiguration configuration) : RecoveryController
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ImageResponse>>> List(Guid itemId, CancellationToken ct) =>
@@ -19,6 +19,12 @@ public sealed class ImagesController(IImageService images) : RecoveryController
     // Legacy slots remain bindable for idempotent replay; the service rejects new uploads outside 1..3.
     public async Task<ActionResult<ImageResponse>> Upload(Guid itemId, [FromQuery, Range(1, 5)] short position = 1, CancellationToken ct = default)
     {
+        if (jobs.Enabled(configuration))
+        {
+            var actor = Actor; var key = RequestKey; var mime = Request.ContentType; var length = Request.ContentLength;
+            return await jobs.UploadAsync(actor, Request, async (services, stream, token) =>
+                await services.GetRequiredService<IImageService>().UploadAsync(actor, key, itemId, position, mime, stream, length, token), ct);
+        }
         var result = await images.UploadAsync(Actor, RequestKey, itemId, position, Request.ContentType,
             Request.Body, Request.ContentLength, ct);
         return Created($"/api/items/{itemId}/images/{result.Id}/content", result);

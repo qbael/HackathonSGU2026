@@ -12,6 +12,22 @@ import {
 
 afterEach(() => mock.restoreAll());
 
+test("AI jobs poll only the same-origin job URL and return the final result", async () => {
+  const location = "/api/jobs/00000000-0000-0000-0000-000000000001";
+  let polls = 0;
+  mock.method(globalThis, "setTimeout", (callback: () => void) => { queueMicrotask(callback); return 0; });
+  mock.method(globalThis, "fetch", async (path: string, options?: RequestInit) => {
+    if (path === "/api/search") return Response.json({ status: "processing" }, { status: 202, headers: { Location: location } });
+    assert.equal(path, location);
+    assert.equal(options?.credentials, "same-origin");
+    return ++polls === 1 ? Response.json({}, { status: 202 }) : Response.json({ items: [] });
+  });
+  assert.deepEqual(await api("/api/search", { method: "POST" }), { items: [] });
+  assert.equal(polls, 2);
+  mock.method(globalThis, "fetch", async () => Response.json({}, { status: 202, headers: { Location: "https://evil.test/job" } }));
+  await assert.rejects(api("/api/search"), /không hợp lệ/);
+});
+
 test("return URLs and image sources stay on trusted local routes", () => {
   for (const value of [
     null,
