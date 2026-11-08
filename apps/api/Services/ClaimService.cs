@@ -1,6 +1,8 @@
 using Findie.Api.Contracts;
+using Findie.Api.Hubs;
 using Findie.Api.Models;
 using Findie.Api.Repositories;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Findie.Api.Services;
 
@@ -12,7 +14,7 @@ public interface IClaimService
     Task<ClaimResponse> DecideAsync(Guid actor, Guid key, Guid id, DecisionRequest request, CancellationToken ct);
 }
 
-public sealed class ClaimService(IRecoveryRepository repository, RecoveryWorkflow workflow) : IClaimService
+public sealed class ClaimService(IRecoveryRepository repository, RecoveryWorkflow workflow, IHubContext<ChatHub> hubContext) : IClaimService
 {
     public async Task<ClaimResponse> CreateAsync(Guid actor, Guid key, Guid itemId, CreateClaimRequest request, CancellationToken ct)
     {
@@ -39,7 +41,21 @@ public sealed class ClaimService(IRecoveryRepository repository, RecoveryWorkflo
             repository.Add(claim);
             return claim.Id;
         }, ct);
-        return await GetAsync(actor, id, ct);
+        var result = await GetAsync(actor, id, ct);
+        try
+        {
+            var notification = new
+            {
+                Type = "claim_created",
+                ClaimId = id,
+                ItemId = itemId,
+                ClaimantUserId = actor
+            };
+            await hubContext.Clients.User(result.ReviewerUserId.ToString()).SendAsync("NotificationReceived", notification, ct);
+            await hubContext.Clients.Group($"user_{result.ReviewerUserId}").SendAsync("NotificationReceived", notification, ct);
+        }
+        catch { }
+        return result;
     }
     public async Task<ClaimResponse> GetAsync(Guid actor, Guid id, CancellationToken ct)
     {
@@ -68,7 +84,22 @@ public sealed class ClaimService(IRecoveryRepository repository, RecoveryWorkflo
             if (request.Decision == "approved") repository.Add(new Conversation { ClaimId = id });
             return id;
         }, ct);
-        return await GetAsync(actor, id, ct);
+        var result = await GetAsync(actor, id, ct);
+        try
+        {
+            var notification = new
+            {
+                Type = "claim_decided",
+                ClaimId = id,
+                ItemId = result.ItemId,
+                Decision = request.Decision,
+                ConversationId = result.ConversationId
+            };
+            await hubContext.Clients.User(result.ClaimantUserId.ToString()).SendAsync("NotificationReceived", notification, ct);
+            await hubContext.Clients.Group($"user_{result.ClaimantUserId}").SendAsync("NotificationReceived", notification, ct);
+        }
+        catch { }
+        return result;
     }
     private static ClaimResponse Response(Claim claim) => new(claim.Id, claim.ItemId, claim.ClaimantUserId, claim.ReviewerUserId,
         claim.Status, claim.Item.CustodyVersion != claim.SourceCustodyVersion || claim.Item.Lifecycle != "active",

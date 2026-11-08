@@ -488,7 +488,15 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
               </span>
             )}
           </div>
-          {(request || hasBasicFilters) && <a className="text-button search-edit-link" href="#search-query"><Icon name="search" size={15} /> Sửa tìm kiếm</a>}
+          {(request || hasBasicFilters) && (
+            <a
+              className="text-button search-edit-link"
+              href="#search-query"
+              onClick={() => document.getElementById("search-query")?.focus()}
+            >
+              <Icon name="search" size={15} /> Sửa tìm kiếm
+            </a>
+          )}
           {activeFilters && (activeFilters.area || activeFilters.from || activeFilters.until) && (
             <div className="search-filter-chips" aria-label="Điều kiện đã tìm">
               {activeFilters.area && <span><Icon name="pin" size={14} />{activeFilters.area}</span>}
@@ -522,7 +530,14 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
               </strong>
               <p>Hãy thử lại hoặc điều chỉnh mô tả, ảnh và bộ lọc tìm kiếm.</p>
               {fallback && (
-                <a className="text-button" href={fallback}>
+                <a
+                  className="text-button"
+                  href={fallback}
+                  onClick={() => {
+                    setRequest(null);
+                    setSuggestions(null);
+                  }}
+                >
                   Dùng bộ lọc cơ bản <Icon name="arrow" size={15} />
                 </a>
               )}
@@ -545,7 +560,14 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
                 <p>Chưa có tin đủ phù hợp trong khu vực nên đã tìm thêm ở nơi khác. Tin cùng khu vực vẫn xếp trước; bộ lọc ngày được giữ nguyên.</p>
               )}
               {suggestions.items.length > 0 && fallback && (
-                <a className="text-button" href={fallback}>
+                <a
+                  className="text-button"
+                  href={fallback}
+                  onClick={() => {
+                    setRequest(null);
+                    setSuggestions(null);
+                  }}
+                >
                   Lọc cơ bản theo khu vực và ngày
                 </a>
               )}

@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { loadUser, logout, type UserProfile } from "./lib/auth";
-import { useAction } from "./hooks/hooks";
+import { useAction, useResource } from "./hooks/hooks";
 import { Breadcrumb, EmptyState, ErrorNotice, Icon, Loading, useToast } from "./components/ui";
 import SignIn from "./pages/SignIn";
 import Profile from "./pages/Profile";
+import SavedSearches from "./pages/SavedSearches";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -25,6 +26,8 @@ import {
   TransferItem,
   Messages,
 } from "./pages/Recovery";
+import { useNotifications } from "./hooks/useNotifications";
+import type { SavedSearch } from "./lib/search";
 
 export default function App() {
   const [path, setPath] = useState(() => window.location.pathname.replace(/\/$/, "") || "/");
@@ -37,6 +40,32 @@ export default function App() {
   const [navKey, setNavKey] = useState(0);
   const action = useAction();
   const toast = useToast();
+
+  const currentParams = new URLSearchParams(window.location.search);
+  const activeConversationId =
+    path === "/messages" ? currentParams.get("conversation") : null;
+  const notifications = useNotifications(user, activeConversationId);
+  const savedSearches = useResource<SavedSearch[]>(
+    user ? "/api/saved-searches" : null,
+  );
+  const unreadSavedMatchesCount = (savedSearches.data ?? []).reduce(
+    (sum, search) =>
+      sum + search.matches.filter((match) => !match.readAt).length,
+    0,
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible") savedSearches.reload();
+    };
+    const interval = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [user, savedSearches.reload]);
 
   useEffect(() => {
     if (action.error) {
@@ -82,14 +111,13 @@ export default function App() {
       if (target.hasAttribute("download")) return;
 
       const href = target.getAttribute("href");
-      if (!href) return;
+      if (!href || href.startsWith("#")) return;
 
       if (
         href.startsWith("http://") ||
         href.startsWith("https://") ||
         href.startsWith("mailto:") ||
-        href.startsWith("tel:") ||
-        href.startsWith("#")
+        href.startsWith("tel:")
       ) {
         try {
           const url = new URL(href, window.location.origin);
@@ -99,7 +127,7 @@ export default function App() {
         }
       }
 
-      const nextUrl = new URL(href, window.location.origin);
+      const nextUrl = new URL(href, window.location.href);
       if (nextUrl.origin !== window.location.origin) return;
 
       if (
@@ -117,11 +145,11 @@ export default function App() {
 
       if (nextFullPath !== currentFullPath) {
         window.history.pushState(null, "", nextFullPath);
-        setImageSearch(null);
-        setPath(nextPath);
-        setNavKey((k) => k + 1);
-        window.scrollTo(0, 0);
       }
+      setImageSearch(null);
+      setPath(nextPath);
+      setNavKey((k) => k + 1);
+      window.scrollTo(0, 0);
     };
 
     document.addEventListener("click", handleLinkClick);
@@ -166,6 +194,7 @@ export default function App() {
   const titles: Record<string, string> = {
     "/": "Kết nối để tìm lại",
     "/search": "Tìm đồ thất lạc",
+    "/saved-searches": "Tin tìm đang theo dõi",
     "/post": "Đăng tin nhặt được",
     "/requests": "Yêu cầu trao trả",
     "/messages": "Tin nhắn",
@@ -226,13 +255,22 @@ export default function App() {
     setLoading(true);
     setPath("/search");
   }} />;
-  else if (path === "/search") content = protect(() => <Search key={window.location.search} initialRequest={imageSearch} />);
+  else if (path === "/search") content = protect(() => <Search key={`${window.location.search}-${navKey}`} initialRequest={imageSearch} />);
+  else if (path === "/saved-searches") content = protect(() => <SavedSearches searches={savedSearches} />);
   else if (path === "/post") content = protect(() => <PostItem />);
   else if (path === "/posts") content = protect(() => <MyPosts />);
   else if (path === "/requests")
-    content = protect(() => <Requests user={user!} />);
+    content = protect(() => (
+      <Requests user={user!} onSeen={notifications.markRequestsSeen} />
+    ));
   else if (path === "/messages")
-    content = protect(() => <Messages user={user!} />);
+    content = protect(() => (
+      <Messages
+        user={user!}
+        unreadByConversation={notifications.unreadByConversation}
+        onReadConversation={notifications.markConversationRead}
+      />
+    ));
   else if (path === "/hubs") content = protect(() => <Points />);
   else if (path === "/profile") content = protect(() => <Profile user={user!} onUpdate={setUser} />);
   else if (path === "/intakes") content = protect(() => <Intakes user={user!} />);
@@ -368,7 +406,10 @@ export default function App() {
       ? "admin"
       : isHubMode
         ? "hub"
-        : path === "/search" || path === "/" || (itemRoute && !itemRoute[2])
+        : path === "/search" ||
+            path === "/saved-searches" ||
+            path === "/" ||
+            (itemRoute && !itemRoute[2])
         ? "search"
         : path === "/post" ||
             path === "/posts" ||
@@ -519,17 +560,35 @@ export default function App() {
             </a>
             <nav className="main-nav" aria-label="Điều hướng chính">
               {[
-                ["search", "/", "Tìm đồ"],
-                ["posts", "/posts", "Bài đăng của tôi"],
-                ["requests", "/requests", "Yêu cầu trao trả"],
-                ["messages", "/messages", "Tin nhắn"],
-              ].map(([key, href, label]) => (
+                { key: "search", href: "/", label: "Tìm đồ", count: 0 },
+                { key: "posts", href: "/posts", label: "Bài đăng của tôi", count: 0 },
+                {
+                  key: "requests",
+                  href: "/requests",
+                  label: "Yêu cầu trao trả",
+                  count: notifications.pendingRequestsCount,
+                },
+                {
+                  key: "messages",
+                  href: "/messages",
+                  label: "Tin nhắn",
+                  count: notifications.unreadMessagesCount,
+                },
+              ].map(({ key, href, label, count }) => (
                 <a
                   key={key}
                   href={href}
                   aria-current={active === key ? "page" : undefined}
                 >
-                  {label}
+                  <span>{label}</span>
+                  {count > 0 && (
+                    <span
+                      className="nav-badge"
+                      aria-label={`${count} thông báo mới`}
+                    >
+                      {count > 99 ? "99+" : count}
+                    </span>
+                  )}
                 </a>
               ))}
             </nav>
@@ -572,6 +631,9 @@ export default function App() {
                   <summary aria-label={`Tài khoản ${user.displayName}`}>
                     <span className="avatar">
                       {user.displayName.charAt(0).toLocaleUpperCase("vi")}
+                      {notifications.pendingRequestsCount +
+                        notifications.unreadMessagesCount >
+                        0 && <span className="avatar-dot" />}
                     </span>
                   </summary>
                   <div>
@@ -590,7 +652,42 @@ export default function App() {
                       </a>
                     )}
                     <a href="/profile">Hồ sơ cá nhân</a>
+                    <a href="/saved-searches">
+                      {unreadSavedMatchesCount > 0
+                        ? `Tin tìm đang theo dõi (${unreadSavedMatchesCount} mới)`
+                        : "Tin tìm đang theo dõi"}
+                    </a>
                     <a href="/posts">Bài đăng của tôi</a>
+                    <a
+                      href="/requests"
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span>Yêu cầu trao trả</span>
+                      {notifications.pendingRequestsCount > 0 && (
+                        <span className="unread-badge">
+                          {notifications.pendingRequestsCount}
+                        </span>
+                      )}
+                    </a>
+                    <a
+                      href="/messages"
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span>Tin nhắn</span>
+                      {notifications.unreadMessagesCount > 0 && (
+                        <span className="unread-badge">
+                          {notifications.unreadMessagesCount}
+                        </span>
+                      )}
+                    </a>
                     <a href="/posts?scope=managed">Đồ đang quản lý</a>
                     <a href="/intakes">Theo dõi tiếp nhận</a>
                     <button

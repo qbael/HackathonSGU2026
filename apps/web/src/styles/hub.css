@@ -275,12 +275,12 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: blur(8px);
+  /* unblurred for staff clarity */
   transition: filter 0.2s;
 }
 
 .hub-item-thumb:hover img {
-  filter: blur(3px);
+  
 }
 
 .hub-thumb-overlay {

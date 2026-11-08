@@ -83,6 +83,19 @@ export type MessagePage = {
   nextAfter: number;
   hasMore: boolean;
 };
+export type ConversationSummary = {
+  id: string;
+  itemId: string;
+  latestSequence: number;
+  latestSenderUserId: string;
+  latestBody: string;
+  latestCreatedAt: string;
+};
+export type NotificationSummary = {
+  pendingRequestsCount: number;
+  decidedRequestsCount: number;
+  conversations: ConversationSummary[];
+};
 export type ItemImage = {
   id: string;
   itemId: string;

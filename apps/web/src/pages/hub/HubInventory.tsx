@@ -440,7 +440,7 @@ export default function HubInventory({
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.75rem" }}>
                   {inspectItem.images.map((img) => (
                     <div key={img.id} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e2e8f0", background: "#f1f5f9" }}>
-                      <img src={img.url} alt="" style={{ width: "100%", height: 110, objectFit: "cover", filter: "blur(4px)" }} />
+                      <img src={img.url} alt="" style={{ width: "100%", height: 110, objectFit: "cover" }} />
                     </div>
                   ))}
                 </div>

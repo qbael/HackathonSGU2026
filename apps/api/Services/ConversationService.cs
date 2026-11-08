@@ -1,5 +1,7 @@
 using Findie.Api.Contracts;
+using Findie.Api.Hubs;
 using Findie.Api.Models;
+using Microsoft.AspNetCore.SignalR;
 using Findie.Api.Repositories;
 
 namespace Findie.Api.Services;
@@ -12,7 +14,7 @@ public interface IConversationService
     Task<MessageResponse> SendAsync(Guid actor, Guid id, SendMessageRequest request, CancellationToken ct);
 }
 
-public sealed class ConversationService(IRecoveryRepository repository, RecoveryWorkflow workflow) : IConversationService
+public sealed class ConversationService(IRecoveryRepository repository, RecoveryWorkflow workflow, IHubContext<ChatHub> hubContext) : IConversationService
 {
     public async Task<PageResponse<ConversationResponse>> ListAsync(Guid actor, int page, int size, CancellationToken ct)
     {
@@ -55,7 +57,24 @@ public sealed class ConversationService(IRecoveryRepository repository, Recovery
         repository.Add(message);
         await repository.SaveAsync(ct);
         await transaction.CommitAsync(ct);
-        return MessageResponse(message);
+        var response = MessageResponse(message);
+        try
+        {
+            await hubContext.Clients.Group($"conversation_{id}").SendAsync("ReceiveMessage", response, ct);
+            var recipientId = chat.Claim.ClaimantUserId == actor ? chat.Claim.ReviewerUserId : chat.Claim.ClaimantUserId;
+            var notification = new
+            {
+                Type = "message",
+                ConversationId = id,
+                ItemId = chat.Claim.ItemId,
+                SenderUserId = actor,
+                Message = response
+            };
+            await hubContext.Clients.User(recipientId.ToString()).SendAsync("NotificationReceived", notification, ct);
+            await hubContext.Clients.Group($"user_{recipientId}").SendAsync("NotificationReceived", notification, ct);
+        }
+        catch { }
+        return response;
     }
     private static bool CanSend(Conversation chat) => chat.Claim.Status == "approved" && chat.Claim.Item.Lifecycle == "active"
         && chat.Claim.Item.CustodyKind == "person" && chat.Claim.Item.HolderUserId == chat.Claim.ReviewerUserId

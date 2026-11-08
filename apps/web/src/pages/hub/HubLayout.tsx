@@ -82,12 +82,6 @@ export default function HubLayout({
           ) : (
             <div className="hub-selector-name">{currentStationName}</div>
           )}
-
-          {pointDetails?.publicAddress && (
-            <div className="hub-selector-address">
-              📍 {pointDetails.publicAddress}
-            </div>
-          )}
         </div>
 
         {/* Menu nghiệp vụ */}
