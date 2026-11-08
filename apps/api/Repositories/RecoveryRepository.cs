@@ -125,6 +125,48 @@ public sealed class RecoveryRepository(FindieDbContext db) : IRecoveryRepository
         db.Messages.AsNoTracking().Where(message => message.ConversationId == id && message.MessageSequence > after)
             .OrderBy(message => message.MessageSequence).Take(limit + 1).ToListAsync(ct);
 
+    public async Task<NotificationSummaryResponse> NotificationSummaryAsync(Guid actor, CancellationToken ct)
+    {
+        var pendingClaims = await db.Claims.AsNoTracking()
+            .Where(claim => claim.ReviewerUserId == actor
+                && claim.Status == "pending"
+                && claim.Item.HolderUserId == actor
+                && claim.Item.CustodyVersion == claim.SourceCustodyVersion
+                && claim.Item.Lifecycle == "active")
+            .CountAsync(ct);
+
+        var decidedClaims = await db.Claims.AsNoTracking()
+            .Where(claim => claim.ClaimantUserId == actor
+                && (claim.Status == "approved" || claim.Status == "rejected"))
+            .CountAsync(ct);
+
+        var conversations = await db.Conversations.AsNoTracking()
+            .Include(chat => chat.Claim)
+            .Where(chat => chat.Claim.ClaimantUserId == actor || chat.Claim.ReviewerUserId == actor)
+            .Select(chat => new
+            {
+                chat.ClaimId,
+                chat.Claim.ItemId,
+                LatestMessage = db.Messages.AsNoTracking()
+                    .Where(m => m.ConversationId == chat.ClaimId)
+                    .OrderByDescending(m => m.MessageSequence)
+                    .Select(m => new { m.MessageSequence, m.SenderUserId, m.Body, m.CreatedAt })
+                    .FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        var summaries = conversations.Select(c => new ConversationSummary(
+            c.ClaimId,
+            c.ItemId,
+            c.LatestMessage?.MessageSequence ?? 0,
+            c.LatestMessage?.SenderUserId ?? Guid.Empty,
+            c.LatestMessage?.Body ?? string.Empty,
+            c.LatestMessage?.CreatedAt ?? DateTimeOffset.MinValue
+        )).ToList();
+
+        return new NotificationSummaryResponse(pendingClaims, decidedClaims, summaries);
+    }
+
     public Task<IntakeRequest?> IntakeAsync(Guid id, CancellationToken ct) =>
         db.IntakeRequests.AsNoTracking().Include(request => request.Item).SingleOrDefaultAsync(request => request.Id == id, ct);
     public async Task DecideIntakeAsync(Guid id, Guid actor, string decision, string? note, CancellationToken ct) =>

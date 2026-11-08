@@ -178,6 +178,7 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", timeout: TimeSpan.FromSeconds(5));
 builder.Services.AddHttpClient("ai", client =>
@@ -268,6 +269,7 @@ app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated == true
+        && !context.Request.Path.StartsWithSegments("/hubs")
         && !HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method)
         && !HttpMethods.IsOptions(context.Request.Method))
     {
@@ -291,6 +293,7 @@ app.MapPost("/api/auth/logout", async (SignInManager<ApplicationUser> signInMana
     return Results.NoContent();
 }).RequireAuthorization();
 app.MapControllers();
+app.MapHub<Findie.Api.Hubs.ChatHub>("/hubs/chat").RequireAuthorization();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "ok", stage = "scaffold" }));
 

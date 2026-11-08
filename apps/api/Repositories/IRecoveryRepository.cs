@@ -37,6 +37,7 @@ public interface IRecoveryRepository
     Task AddSavedSearchAsync(SavedSearch search, CancellationToken ct);
     Task DeleteSavedSearchAsync(Guid actor, Guid id, CancellationToken ct);
     Task<bool> ReadSavedMatchAsync(Guid actor, Guid id, Guid itemId, CancellationToken ct);
+    Task<NotificationSummaryResponse> NotificationSummaryAsync(Guid actor, CancellationToken ct);
     void ReplaceQuestions(Item item, IReadOnlyList<string> questions);
     void Add<T>(T entity) where T : class;
     Task SaveAsync(CancellationToken ct);

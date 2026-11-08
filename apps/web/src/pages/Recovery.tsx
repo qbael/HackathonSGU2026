@@ -16,6 +16,11 @@ import {
   type QuestionSet,
 } from "../lib/api";
 import type { UserProfile } from "../lib/auth";
+import {
+  getChatHubConnection,
+  joinConversation,
+  leaveConversation,
+} from "../lib/realtime";
 import { useAction, useResource } from "../hooks/hooks";
 import {
   Badge,
@@ -174,7 +179,16 @@ export function ClaimItem({ id }: { id: string }) {
   );
 }
 
-export function Requests({ user }: { user: UserProfile }) {
+export function Requests({
+  user,
+  onSeen,
+}: {
+  user: UserProfile;
+  onSeen?: () => void;
+}) {
+  useEffect(() => {
+    onSeen?.();
+  }, [onSeen]);
   const query = new URLSearchParams(window.location.search);
   const page = pageNumber(query.get("page"));
   const filter = new URLSearchParams({ page: String(page), pageSize: "10" });
@@ -206,7 +220,12 @@ export function Requests({ user }: { user: UserProfile }) {
                         : "Yêu cầu của bạn"}{" "}
                       · {formatDate(claim.createdAt, true)}
                     </span>
-                    <Badge value={claim.status} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {claim.reviewerUserId === user.id && claim.status === "pending" && !claim.stale && (
+                        <span className="badge-action-required">Cần xử lý</span>
+                      )}
+                      <Badge value={claim.status} />
+                    </div>
                   </div>
                   <LinkedItem id={claim.itemId} />
                   {claim.stale ? (
@@ -854,7 +873,15 @@ export function TransferItem({ id }: { id: string }) {
   );
 }
 
-export function Messages({ user }: { user: UserProfile }) {
+export function Messages({
+  user,
+  unreadByConversation = {},
+  onReadConversation,
+}: {
+  user: UserProfile;
+  unreadByConversation?: Record<string, number>;
+  onReadConversation?: (id: string, seq?: number) => void;
+}) {
   const query = new URLSearchParams(window.location.search);
   const page = pageNumber(query.get("page"));
   const conversations = useResource<Page<Conversation>>(
@@ -881,25 +908,34 @@ export function Messages({ user }: { user: UserProfile }) {
             retry={conversations.reload}
           />
           {conversations.loading && <Loading />}
-          {conversations.data?.items.map((chat) => (
-            <a
-              key={chat.id}
-              className={`conversation-link${chat.id === selectedId ? " selected" : ""}`}
-              href={`/messages?conversation=${chat.id}&page=${page}`}
-              aria-current={chat.id === selectedId ? "page" : undefined}
-            >
-              <span className="avatar">
-                <Icon name="chat" size={19} />
-              </span>
-              <div>
-                <strong>Món đồ #{chat.itemId.slice(0, 8)}</strong>
-                <small>
-                  {chat.canSend ? "Đang hẹn trao trả" : "Hội thoại chỉ đọc"}
-                </small>
-              </div>
-              <Icon name="arrow" size={15} />
-            </a>
-          ))}
+          {conversations.data?.items.map((chat) => {
+            const unread = unreadByConversation[chat.id] ?? 0;
+            return (
+              <a
+                key={chat.id}
+                className={`conversation-link${chat.id === selectedId ? " selected" : ""}`}
+                href={`/messages?conversation=${chat.id}&page=${page}`}
+                aria-current={chat.id === selectedId ? "page" : undefined}
+                onClick={() => onReadConversation?.(chat.id)}
+              >
+                <span className="avatar">
+                  <Icon name="chat" size={19} />
+                </span>
+                <div>
+                  <strong>Món đồ #{chat.itemId.slice(0, 8)}</strong>
+                  <small>
+                    {chat.canSend ? "Đang hẹn trao trả" : "Hội thoại chỉ đọc"}
+                  </small>
+                </div>
+                {unread > 0 && (
+                  <span className="unread-badge" aria-label={`${unread} tin nhắn chưa đọc`}>
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
+                <Icon name="arrow" size={15} />
+              </a>
+            );
+          })}
           {conversations.data && !conversations.data.items.length && (
             <p className="conversation-empty">
               Chat sẽ xuất hiện khi yêu cầu nhận đồ được chấp thuận.
@@ -917,6 +953,7 @@ export function Messages({ user }: { user: UserProfile }) {
               chat={conversation.data}
               user={user}
               onRefresh={conversation.reload}
+              onReadConversation={onReadConversation}
             />
           ) : conversation.loading ? (
             <Loading />
@@ -943,14 +980,15 @@ function MessageThread({
   chat,
   user,
   onRefresh,
+  onReadConversation,
 }: {
   chat: Conversation;
   user: UserProfile;
   onRefresh: () => void;
+  onReadConversation?: (id: string, seq?: number) => void;
 }) {
   const item = useResource<Item>(`/api/items/${chat.itemId}`);
   const [after, setAfter] = useState(0);
-  // shortcut: refresh messages on demand; add polling or push when live updates are needed.
   const incoming = useResource<MessagePage>(
     `/api/conversations/${chat.id}/messages?after=${after}&limit=50`,
   );
@@ -958,11 +996,44 @@ function MessageThread({
   reloadRef.current = incoming.reload;
 
   useEffect(() => {
+    let active = true;
+    let removeListener: (() => void) | null = null;
+
+    void joinConversation(chat.id);
+
+    getChatHubConnection()
+      .then((conn) => {
+        if (!active) return;
+        const handleReceive = (incomingMsg: Message) => {
+          if (!active || incomingMsg.conversationId !== chat.id) return;
+          setMessages((previous) =>
+            [
+              ...new Map(
+                [...previous, incomingMsg].map((message) => [message.id, message]),
+              ).values(),
+            ].sort((a, b) => a.sequence - b.sequence),
+          );
+          onReadConversation?.(chat.id, incomingMsg.sequence);
+        };
+
+        conn.on("ReceiveMessage", handleReceive);
+        removeListener = () => conn.off("ReceiveMessage", handleReceive);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+      void leaveConversation(chat.id);
+      if (removeListener) removeListener();
+    };
+  }, [chat.id, onReadConversation]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
         reloadRef.current();
       }
-    }, 4000);
+    }, 6000);
     return () => clearInterval(interval);
   }, []);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -974,7 +1045,7 @@ function MessageThread({
     history.current?.scrollTo(0, history.current.scrollHeight);
   }, [messages.length]);
   useEffect(() => {
-    if (incoming.data)
+    if (incoming.data) {
       setMessages((previous) =>
         [
           ...new Map(
@@ -985,7 +1056,12 @@ function MessageThread({
           ).values(),
         ].sort((a, b) => a.sequence - b.sequence),
       );
-  }, [incoming.data]);
+      const latest = incoming.data.items[incoming.data.items.length - 1];
+      if (latest) {
+        onReadConversation?.(chat.id, latest.sequence);
+      }
+    }
+  }, [incoming.data, chat.id, onReadConversation]);
   async function send(event: FormEvent) {
     event.preventDefault();
     const body = draft.trim();

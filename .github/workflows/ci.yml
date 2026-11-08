@@ -205,6 +205,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Restore .NET dependencies
+        run: dotnet restore apps/api/Findie.Api.csproj
+
       - name: .NET Dependency Vulnerability Scan (dotnet list --vulnerable)
         run: dotnet list apps/api/Findie.Api.csproj package --vulnerable --include-transitive
 

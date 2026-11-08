@@ -11,6 +11,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': { target: 'http://127.0.0.1:5080', changeOrigin: false },
+      '/hubs': { target: 'http://127.0.0.1:5080', changeOrigin: false, ws: true },
     },
   },
 });

@@ -187,6 +187,65 @@ svg {
   background: var(--color-primary);
   border-radius: 2px;
 }
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e11d48;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  line-height: 1;
+  position: absolute;
+  top: 10px;
+  right: -12px;
+  box-shadow: 0 1px 3px rgba(225, 29, 72, 0.4);
+  pointer-events: none;
+  border: 1.5px solid #ffffff;
+}
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e11d48;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  line-height: 1;
+  margin-left: auto;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(225, 29, 72, 0.3);
+}
+.badge-action-required {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #fca5a5;
+}
+.avatar-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  background-color: #e11d48;
+  border-radius: 9999px;
+  border: 1.5px solid #ffffff;
+}
+
 .header-actions {
   margin-left: auto;
   display: flex;
@@ -279,6 +338,7 @@ svg {
   background: #fff;
 }
 .avatar {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2369,6 +2429,14 @@ input::file-selector-button {
     text-align: center;
     white-space: normal;
   }
+  .nav-badge {
+    top: 2px;
+    right: 2px;
+    font-size: 9px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 2px;
+  }
   .signin-link {
     display: inline-flex;
     align-items: center;
@@ -2633,6 +2701,14 @@ input::file-selector-button {
   .results-heading .muted {
     font-size: 13px;
     white-space: normal;
+  }
+  .nav-badge {
+    top: 2px;
+    right: 2px;
+    font-size: 9px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 2px;
   }
   .item-card .photo-placeholder span {
     display: block;

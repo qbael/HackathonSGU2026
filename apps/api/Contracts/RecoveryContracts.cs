@@ -98,3 +98,6 @@ public sealed class ImageSearchFilter
 public sealed record SearchHit(int Rank, ItemResponse Item);
 public sealed record SearchResponse(IReadOnlyList<SearchHit> Items, string Mode, string SearchProfileId,
     int SearchProfileVersion, bool Partial, bool FiltersRelaxed, string FallbackUrl, string RankingMethod = "similarity_fallback");
+
+public sealed record ConversationSummary(Guid Id, Guid ItemId, long LatestSequence, Guid LatestSenderUserId, string LatestBody, DateTimeOffset LatestCreatedAt);
+public sealed record NotificationSummaryResponse(int PendingRequestsCount, int DecidedRequestsCount, IReadOnlyList<ConversationSummary> Conversations);

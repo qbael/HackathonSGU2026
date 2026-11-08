@@ -78,6 +78,18 @@ function PostEditor({
   const points = useResource<Point[]>(
     draft.kind === "point" && !item ? "/api/reception-points" : null,
   );
+  const selectedPoint = points.data?.find((point) => point.id === draft.pointId);
+  const custodySummary = item
+    ? `Nơi giữ hiện tại: ${custodyLabels[item.custody.kind]}`
+    : draft.kind === "person"
+      ? "Tôi đang tự giữ món đồ"
+      : draft.kind === "point"
+        ? selectedPoint
+          ? `Đề nghị gửi vào Findie Hub: ${selectedPoint.name}`
+          : "Đề nghị gửi vào Findie Hub"
+        : draft.externalName.trim()
+          ? `Đã gửi tại nơi ngoài hệ thống: ${draft.externalName.trim()}${draft.address.trim() ? ` (${draft.address.trim()})` : ""}`
+          : "Đã gửi tại nơi ngoài hệ thống";
   function update<K extends keyof ItemDraft>(key: K, value: ItemDraft[K]) {
     setDraft((previous) => ({ ...previous, [key]: value }));
   }
@@ -124,7 +136,7 @@ function PostEditor({
     });
   }
   return (
-    <>
+    <div className="posting-page">
       <PageHeader
         eyebrow="Một hành động nhỏ, một niềm vui lớn"
         title={item ? "Chỉnh sửa tin nhặt được" : "Đăng tin đồ nhặt được"}
@@ -156,9 +168,10 @@ function PostEditor({
         <>
           <ol className="stepper" aria-label="Các bước đăng tin">
             {[
-              "Ảnh & thông tin món đồ",
-              "Nơi lưu giữ hiện tại",
+              "Ảnh & thông tin",
+              "Nơi lưu giữ",
               draft.kind === "person" ? "Câu hỏi xác minh" : "Kiểm tra tin đăng",
+              "Duyệt ảnh & công khai",
             ].map((label, index) => (
               <li
                 key={label}
@@ -509,6 +522,32 @@ function PostEditor({
               )}
               {step === 3 && (
                 <div className="form-stack">
+                  <section className="post-recap" aria-label="Thông tin trước khi lưu">
+                    <div className="post-section-heading">
+                      <h3>Thông tin trước khi lưu</h3>
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => setStep(1)}
+                      >
+                        Chỉnh sửa
+                      </button>
+                    </div>
+                    <div className="post-summary">
+                      <h3>{draft.title.trim() || "Chưa nhập tên món đồ"}</h3>
+                      <p>{draft.description.trim() || "Chưa nhập mô tả công khai."}</p>
+                      <ul>
+                        <li>
+                          <Icon name="pin" size={15} />
+                          <span>Khu vực: {draft.area.trim() || "Chưa nhập"}</span>
+                        </li>
+                        <li>
+                          <Icon name="building" size={15} />
+                          <span>{custodySummary}</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </section>
                   {draft.kind === "person" ? (
                     <>
                       <Notice>
@@ -557,7 +596,7 @@ function PostEditor({
                       ))}
                       {draft.questions.length < 3 && (
                         <button
-                          className="button button-secondary"
+                          className="button button-secondary post-add-question"
                           type="button"
                           onClick={() =>
                             update("questions", [...draft.questions, ""])
@@ -578,7 +617,7 @@ function PostEditor({
                       xác minh trực tiếp khi nhận đồ.
                     </Notice>
                   )}
-                  <label className="checkbox-field">
+                  <label className="checkbox-field post-confirmation">
                     <input type="checkbox" required />
                     Tôi đã kiểm tra mô tả công khai và không để lộ thông tin cá
                     nhân nhạy cảm.
@@ -613,6 +652,40 @@ function PostEditor({
               </div>
             </form>
             <aside className="post-aside">
+              <section className="panel post-preview" aria-label="Tóm tắt tin đăng">
+                <div className="post-section-heading">
+                  <h3>Tóm tắt tin đăng</h3>
+                  <span className="post-preview-label">Xem trước</span>
+                </div>
+                <div className="post-summary">
+                  <h3>{draft.title.trim() || "Tên món đồ sẽ hiển thị tại đây"}</h3>
+                  <p>{draft.description.trim() || "Mô tả công khai giúp người mất nhận diện món đồ."}</p>
+                  <ul>
+                    <li>
+                      <Icon name="pin" size={15} />
+                      <span>{draft.area.trim() || "Chưa nhập khu vực nhặt được"}</span>
+                    </li>
+                    <li>
+                      <Icon name="building" size={15} />
+                      <span>{custodySummary}</span>
+                    </li>
+                    {!item && (
+                      <li>
+                        <Icon name="upload" size={15} />
+                        <span>
+                          {files.length
+                            ? `${files.length} ảnh chờ xử lý & duyệt`
+                            : "Chưa chọn ảnh món đồ"}
+                        </span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+                <p className="post-preview-note">
+                  Câu hỏi xác minh (nếu có) luôn được giữ kín và chỉ hiện khi
+                  người mất gửi yêu cầu nhận lại đồ.
+                </p>
+              </section>
               <section className="panel">
                 <span className="empty-icon">
                   <Icon name="shield" size={28} />
@@ -632,7 +705,7 @@ function PostEditor({
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -681,7 +754,7 @@ export function ReviewImages({ id }: { id: string }) {
         )
       : undefined;
   return (
-    <>
+    <div className="posting-page review-page">
       <PageHeader
         eyebrow="Kiểm tra trước khi công khai"
         title="Duyệt bản ảnh của món đồ"
@@ -689,6 +762,30 @@ export function ReviewImages({ id }: { id: string }) {
         Chỉ xem bản ảnh đã qua xử lý. Hãy kiểm tra thông tin nhạy cảm trước khi
         duyệt.
       </PageHeader>
+      <ol className="stepper" aria-label="Các bước đăng tin">
+        {[
+          "Ảnh & thông tin",
+          "Nơi lưu giữ",
+          item.data.custody.kind === "person"
+            ? "Câu hỏi xác minh"
+            : "Kiểm tra tin đăng",
+          "Duyệt ảnh & công khai",
+        ].map((label, index) => (
+          <li
+            key={label}
+            className={index === 3 ? "current" : "complete"}
+            aria-current={index === 3 ? "step" : undefined}
+          >
+            <span>
+              {index < 3 ? <Icon name="check" size={16} /> : index + 1}
+            </span>
+            <div>
+              <small>Bước {index + 1}</small>
+              <strong>{label}</strong>
+            </div>
+          </li>
+        ))}
+      </ol>
       <ItemSummary item={item.data} />
       <ErrorNotice error={action.error} />
       <div className="review-layout">
@@ -698,20 +795,22 @@ export function ReviewImages({ id }: { id: string }) {
             {selected && <Badge value={selected.processingState} />}
           </div>
           {selected && imageUrl(selected.previewUrl) ? (
-            <img
-              className="processed-image"
-              src={imageUrl(selected.previewUrl)}
-              alt="Bản ảnh đã xử lý để kiểm tra trước khi công khai"
-              onLoad={() => setPreviewReady(true)}
-              onError={() => {
-                setPreviewReady(false);
-                action.setError(
-                  new Error(
-                    "Chưa tải được bản ảnh đã xử lý. Vui lòng tải lại để kiểm tra.",
-                  ),
-                );
-              }}
-            />
+            <div className="review-image-stage">
+              <img
+                className="processed-image"
+                src={imageUrl(selected.previewUrl)}
+                alt="Bản ảnh đã xử lý để kiểm tra trước khi công khai"
+                onLoad={() => setPreviewReady(true)}
+                onError={() => {
+                  setPreviewReady(false);
+                  action.setError(
+                    new Error(
+                      "Chưa tải được bản ảnh đã xử lý. Vui lòng tải lại để kiểm tra.",
+                    ),
+                  );
+                }}
+              />
+            </div>
           ) : (
             <EmptyState title="Chưa có bản ảnh để duyệt">
               <p>Thêm ít nhất 1 ảnh, kiểm tra và duyệt ảnh để công khai tin.</p>
@@ -725,9 +824,11 @@ export function ReviewImages({ id }: { id: string }) {
                   <button
                     type="button"
                     key={image.id}
+                    aria-label={`Xem ảnh ${image.position}`}
                     aria-pressed={selected?.id === image.id}
                     onClick={() => setSelectedId(image.id)}
                   >
+                    <span>Ảnh {image.position}</span>
                     <img
                       src={imageUrl(image.previewUrl)}
                       alt={`Ảnh ${image.position}`}
@@ -767,6 +868,9 @@ export function ReviewImages({ id }: { id: string }) {
           <p className="muted">
             Nếu ảnh còn để lộ dữ liệu cá nhân, từ chối ảnh và tải lại ảnh phù
             hợp.
+          </p>
+          <p className="review-check-progress">
+            Đã kiểm tra {checks.filter(Boolean).length}/3 mục an toàn
           </p>
           {[
             "Số hộ chiếu đã che toàn bộ; số CCCD/CMND, điện thoại và mã định danh khác đã che phần đầu, chỉ giữ tối đa khoảng 40% phần cuối để đối chiếu.",
@@ -897,6 +1001,6 @@ export function ReviewImages({ id }: { id: string }) {
         }}
         onCancel={() => setRetireConfirmOpen(false)}
       />
-    </>
+    </div>
   );
 }
