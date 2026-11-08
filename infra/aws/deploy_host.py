@@ -33,7 +33,8 @@ def configuration(role, region, domain, worker, redis):
     if role == "app":
         config.update(Ai__BaseUrl="http://" + worker + ":8000", Ai__ServiceToken=token, Ai__TimeoutSeconds="15",
                       Ai__PrivateHttpImages="true", Ai__AsyncJobs="true", AllowedHosts=domain + ";localhost;127.0.0.1",
-                      ForwardedHosts=domain, DataProtection__KeyPath="/keys", Logging__LogLevel__Default="Warning")
+                      ForwardedHosts=domain, ForwardedProtoHeaderName="X-Findie-Forwarded-Proto",
+                      DataProtection__KeyPath="/keys", Logging__LogLevel__Default="Warning")
     else:
         config.update(AI_SERVICE_TOKEN=token, AI_REDIS_URL="rediss://" + redis + ":6379/0")
     if any(not isinstance(v, str) or "\x00" in v or not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", k) for k, v in config.items()):

@@ -31,6 +31,7 @@ Environment.SetEnvironmentVariable("Ai__ServiceToken", "integration-token");
 Environment.SetEnvironmentVariable("AdminEmails", "admin@example.test");
 Environment.SetEnvironmentVariable("Authentication__Google__ClientId", "integration-client");
 Environment.SetEnvironmentVariable("Authentication__Google__ClientSecret", "integration-secret");
+Environment.SetEnvironmentVariable("ForwardedProtoHeaderName", "X-Findie-Forwarded-Proto");
 if (!args.Contains("--cross-service-only"))
 {
     Environment.SetEnvironmentVariable("Ai__RedactionRevision", "integration-redaction-revision");
@@ -78,6 +79,15 @@ using (var scope = factory.Services.CreateScope())
 }
 
 using var anonymous = NewClient();
+using (var proxyRequest = new HttpRequestMessage(HttpMethod.Get, "http://localhost/api/auth/google"))
+{
+    proxyRequest.Headers.Add("X-Forwarded-Proto", "http");
+    proxyRequest.Headers.Add("X-Findie-Forwarded-Proto", "https");
+    using var proxyChallenge = await anonymous.SendAsync(proxyRequest);
+    Check(proxyChallenge.StatusCode == HttpStatusCode.Redirect
+        && QueryHelpers.ParseQuery(proxyChallenge.Headers.Location!.Query)["redirect_uri"] == "https://localhost/api/auth/google/signin",
+        "private origin HTTP cannot overwrite the configured HTTPS viewer protocol for Google OAuth");
+}
 await Expect(anonymous.GetAsync("/api/users/me"), HttpStatusCode.Unauthorized, "profile requires authentication");
 await Expect(anonymous.GetAsync("/api/reception-points"), HttpStatusCode.Unauthorized, "points require authentication");
 await Expect(anonymous.GetAsync("/api/auth/google?returnUrl=https://evil.example"), HttpStatusCode.BadRequest, "reject external redirects");

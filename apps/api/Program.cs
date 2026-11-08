@@ -254,6 +254,7 @@ if (importPublicSamples)
 var forwardedOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto,
+    ForwardedProtoHeaderName = builder.Configuration["ForwardedProtoHeaderName"] ?? "X-Forwarded-Proto",
 };
 forwardedOptions.KnownNetworks.Clear();
 forwardedOptions.KnownProxies.Clear();

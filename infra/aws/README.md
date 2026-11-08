@@ -8,7 +8,7 @@ Kiến trúc lấy từ `docs/architecture/findie-aws-architecture.docx`: CloudF
 
 Stack tạo NAT Gateway có public IPv4; hai EC2 private không có public IP hoặc cổng SSH. Cổng ứng dụng 8080 chỉ nhận CloudFront prefix list; worker 8000 chỉ nhận application security group; MQ 5671 chỉ nhận hai máy; Redis TLS 6379 chỉ nhận worker. IMDSv2 bắt buộc, hop limit 1 ngăn container lấy instance credentials. RDS chỉ được thêm rule nguồn là hai security group; stack không sửa các rule/public accessibility cũ.
 
-Distribution mặc định tắt. Chỉ đặt `EnableDistribution=true` sau khi hoàn thành secrets, migration, kiểm tra container và callback Google. CloudFront không cache các request, chuyển tiếp cookie, CSRF, query và headers, ghi đè `X-Forwarded-Proto=https`; không bật access log chứa thông tin request. Có thể tối ưu cache riêng tài nguyên build sau khi đo tải.
+Distribution mặc định tắt. Chỉ đặt `EnableDistribution=true` sau khi hoàn thành secrets, migration, kiểm tra container và callback Google. CloudFront không cache các request, chuyển tiếp cookie, CSRF, query và headers, ghi đè `X-Findie-Forwarded-Proto=https`; API đọc header này qua `ForwardedProtoHeaderName`. Header riêng tránh scheme HTTP của kết nối private/VPC Origin ghi đè scheme HTTPS của viewer và làm sai callback Google. Không bật access log chứa thông tin request. Có thể tối ưu cache riêng tài nguyên build sau khi đo tải.
 
 NAT, EC2, MQ, Redis, EBS và Secrets Manager tính phí kể cả khi distribution đang tắt. Snapshot trước mỗi SHA được giữ lại; quản trị viên cần áp dụng chính sách giữ backup phù hợp.
 

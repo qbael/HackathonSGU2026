@@ -89,7 +89,7 @@ echo '* hard core 0' >> /etc/security/limits.conf
         "Comment": "Findie private application", "HttpVersion": "http2and3", "PriceClass": "PriceClass_200",
         "Origins": [{"Id": "app", "DomainName": att("AppInstance", "PrivateDnsName"),
             "VpcOriginConfig": {"VpcOriginId": att("Origin", "Id"), "OriginReadTimeout": 60},
-            "OriginCustomHeaders": [{"HeaderName": "X-Forwarded-Proto", "HeaderValue": "https"}]}],
+            "OriginCustomHeaders": [{"HeaderName": "X-Findie-Forwarded-Proto", "HeaderValue": "https"}]}],
         "DefaultCacheBehavior": {"TargetOriginId": "app", "ViewerProtocolPolicy": "redirect-to-https", "AllowedMethods": ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"],
             "CachedMethods": ["GET", "HEAD"], "Compress": True, "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad", "OriginRequestPolicyId": "216adef6-5c7f-47e4-b989-5492eafa07d3"},
         "ViewerCertificate": {"CloudFrontDefaultCertificate": True}})
