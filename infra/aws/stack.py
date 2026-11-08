@@ -19,7 +19,7 @@ def template():
     parameters = {name: {"Type": kind} for name, kind in {
         "Vpc": "AWS::EC2::VPC::Id", "PublicSubnet": "AWS::EC2::Subnet::Id", "AvailabilityZone": "AWS::EC2::AvailabilityZone::Name",
         "RdsSecurityGroup": "AWS::EC2::SecurityGroup::Id", "CloudFrontPrefixList": "String", "Ami": "AWS::EC2::Image::Id"}.items()}
-    parameters["GitHubSubject"] = {"Type": "String", "Default": "repo:qbael/HackathonSGU2026:ref:refs/heads/main"}
+    parameters["GitHubSubject"] = {"Type": "String", "Default": "repo:qbael@197704624/HackathonSGU2026@1449042338:ref:refs/heads/main"}
     parameters["EnableDistribution"] = {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]}
     subnet = add("PrivateSubnet", "EC2::Subnet", VpcId=ref("Vpc"), AvailabilityZone=ref("AvailabilityZone"), CidrBlock="172.31.64.0/24",
                  MapPublicIpOnLaunch=False, Tags=[{"Key": "Name", "Value": "findie-private"}])

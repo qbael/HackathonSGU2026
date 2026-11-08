@@ -42,6 +42,8 @@ https://<CloudFront domain>/api/auth/google/signin
 
 Giữ nguyên `.github/workflows/ci.yml`. Sau CI thành công của push `main`, `.github/workflows/deploy.yml` lấy quyền OIDC theo subject đúng repo/main, build và đẩy hai image ECR có tag full commit SHA, rồi gọi `release.py`. PR không có quyền deploy. Đặt GitHub repository variable `AWS_DEPLOY_ROLE_ARN` bằng output `DeployRoleArn`; không lưu AWS access key.
 
+Repository này dùng immutable OIDC subject: `repo:qbael@197704624/HackathonSGU2026@1449042338:ref:refs/heads/main` (đã xác minh qua GitHub API). Không thay bằng subject chỉ chứa tên repo; nếu tái sử dụng cho repository khác, lấy `sub_claim_prefix` tại `/actions/oidc/customization/sub` rồi nối `:ref:refs/heads/main` và truyền tham số `GitHubSubject` phù hợp.
+
 Migration theo thứ tự: snapshot RDS theo SHA và chờ available, .NET `--migrate` có advisory lock, Python search migration. Không reset/seed database. Chỉ đưa lên main các migration tương thích với bản đang chạy và bản local. Sau đó deploy worker và app, kiểm tra app database readiness và liveness. Worker có thể live nhưng inference unavailable nếu notebook GPU ngắt; trạng thái này không được coi là AI ready.
 
 `deploy_host.py` lấy secrets vào bộ nhớ, truyền cho Docker qua môi trường tiến trình, không đưa giá trị vào argv hay SSM output. Container read-only, non-root, bỏ capabilities, không có swap/core dump, `/tmp` tmpfs; tắt container log để tránh lưu request riêng tư. Cookie/Data Protection keyring được giữ trên EBS mã hóa giữa các release. Không dùng `docker inspect` với output cấu hình môi trường trong log.
