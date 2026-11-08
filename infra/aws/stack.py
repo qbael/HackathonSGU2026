@@ -64,7 +64,6 @@ def template():
         add(name + "Repository", "ECR::Repository", RepositoryName="findie-" + name.lower(), ImageTagMutability="IMMUTABLE", ImageScanningConfiguration={"ScanOnPush": True})
         statements = [allow(["secretsmanager:GetSecretValue"], [ref("ApiSecret" if name == "App" else "WorkerSecret"), shared]),
             allow(["ecr:GetAuthorizationToken"], "*"), allow(["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:BatchCheckLayerAvailability"], att(name + "Repository", "Arn"))]
-        if name == "App": statements += [allow(["secretsmanager:GetSecretValue"], admin)]
         add(name + "Role", "IAM::Role", AssumeRolePolicyDocument=policy([{"Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"}]),
             ManagedPolicyArns=["arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"], Policies=[{"PolicyName": "runtime", "PolicyDocument": policy(statements)}])
         add(name + "Profile", "IAM::InstanceProfile", Roles=[ref(name + "Role")])
