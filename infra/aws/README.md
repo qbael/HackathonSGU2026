@@ -26,6 +26,8 @@ NAT, EC2, MQ, Redis, EBS và Secrets Manager tính phí kể cả khi distributi
 
 DSN xác minh TLS/hostname (`SSL Mode=VerifyFull` hoặc `sslmode=verify-full`); CA trong cả hai image là `/usr/local/share/rds-ca.pem`. Không dùng đường dẫn CA trên máy local. Khi RDS xoay mật khẩu quản trị, cập nhật migration secret tương ứng trước release. Role runtime không nhận credential migration; host chỉ assume migration role cho tác vụ một lần. Không đưa migration credentials vào container runtime.
 
+Role API cần `SELECT` trên `public."__EFMigrationsHistory"` để kiểm tra schema trước khi đổi container. Lần triển khai đầu đã được chủ project cho phép cấp đúng quyền này cho `findie_app` trong `findie_frontend`; khi khôi phục database hoặc tạo role mới cần kiểm tra lại quyền metadata, không cấp quyền migration cho runtime.
+
 `provision_broker.py` chạy một lần trên app host qua SSM, dùng credential admin từ Secrets Manager để tạo `findie_api`, `findie_worker`, ACL từ cấu hình local và import `docs/api/rabbitmq-definitions.json`. Cần cấp tạm quyền Get/Put đúng hai runtime secrets và Get broker-admin, có điều kiện hết hạn; gỡ policy trong `finally` và xác minh đã gỡ. Role runtime không giữ quyền đọc broker-admin sau bootstrap. Script không nhận hoặc xuất mật khẩu qua SSM.
 
 ## Google Cloud
