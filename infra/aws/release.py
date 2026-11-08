@@ -13,7 +13,7 @@ def aws(region, *args):
     return json.loads(result.stdout)
 
 
-def release(region, stack_name, sha, migrate=True):
+def release(region, stack_name, sha, migrate=False):
     if not re.fullmatch("[a-f0-9]{40}", sha):
         raise ValueError("Release requires a full commit SHA.")
     stack = aws(region, "cloudformation", "describe-stacks", "--stack-name", stack_name)["Stacks"][0]
@@ -58,6 +58,6 @@ if __name__ == "__main__":
     parser.add_argument("sha")
     parser.add_argument("--region", default="ap-southeast-1")
     parser.add_argument("--stack", default="findie-production")
-    parser.add_argument("--skip-migrations", action="store_true", help="Use only when the schema is already verified at this release.")
+    parser.add_argument("--migrate", action="store_true", help="Requires separate authorization for a production backup and schema migration.")
     args = parser.parse_args()
-    release(args.region, args.stack, args.sha, not args.skip_migrations)
+    release(args.region, args.stack, args.sha, args.migrate)

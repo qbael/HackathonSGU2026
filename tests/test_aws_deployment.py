@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,27 @@ spec.loader.exec_module(module)
 
 
 class AwsDeploymentTests(unittest.TestCase):
+    def test_automatic_release_never_migrates_and_rolls_worker_back_if_app_fails(self):
+        release_spec = importlib.util.spec_from_file_location('aws_release', ROOT / 'infra/aws/release.py')
+        release_module = importlib.util.module_from_spec(release_spec)
+        release_spec.loader.exec_module(release_module)
+        outputs = {'DeployRoleArn': 'arn:aws:iam::123456789012:role/deploy', 'Domain': 'example.cloudfront.net',
+                   'AppInstance': 'app', 'WorkerInstance': 'worker', 'WorkerHost': '10.0.0.1',
+                   'RedisHost': 'redis.internal', 'MigrationRoleArn': 'migration', 'DeployDocument': 'document'}
+        commands = []
+        def aws(_region, *args):
+            if args[:2] == ('cloudformation', 'describe-stacks'):
+                return {'Stacks': [{'Outputs': [{'OutputKey': key, 'OutputValue': value} for key, value in outputs.items()]}]}
+            if args[:2] == ('ssm', 'send-command'):
+                parameters = json.loads(args[args.index('--parameters') + 1])
+                commands.append((parameters['Role'][0], parameters['Action'][0]))
+                return {'Command': {'CommandId': 'command'}}
+            return {'Status': 'Failed' if commands[-1] == ('app', 'deploy') else 'Success'}
+        with patch.object(release_module, 'aws', side_effect=aws), patch.object(release_module.time, 'sleep'):
+            with self.assertRaises(RuntimeError):
+                release_module.release('region', 'stack', 'a' * 40)
+        self.assertEqual(commands, [('worker', 'deploy'), ('app', 'deploy'), ('worker', 'rollback')])
+
     def test_private_network_and_oidc_scope(self):
         template = module.template()
         resources = template['Resources']

@@ -20,15 +20,20 @@ var seedLocal = args.Contains("--seed-local", StringComparer.Ordinal);
 var importPublicSamples = args.Contains("--import-public-samples", StringComparer.Ordinal);
 var builder = WebApplication.CreateBuilder(seedLocal || importPublicSamples ? [] : args);
 
-if (args.Contains("--migrate", StringComparer.Ordinal))
+if (args.Contains("--migrate", StringComparer.Ordinal) || args.Contains("--check-schema", StringComparer.Ordinal))
 {
     var dsn = builder.Configuration.GetConnectionString("Database")
         ?? throw new InvalidOperationException("Migration database is required.");
+    await using var db = new FindieDbContext(new DbContextOptionsBuilder<FindieDbContext>().UseNpgsql(dsn).Options);
+    if (args.Contains("--check-schema", StringComparer.Ordinal))
+    {
+        Environment.ExitCode = (await db.Database.GetPendingMigrationsAsync()).Any() ? 1 : 0;
+        return;
+    }
     await using var migrationLock = new NpgsqlConnection(dsn);
     await migrationLock.OpenAsync();
     await using var gate = new NpgsqlCommand("SELECT pg_advisory_lock(643182015)", migrationLock);
     await gate.ExecuteNonQueryAsync();
-    await using var db = new FindieDbContext(new DbContextOptionsBuilder<FindieDbContext>().UseNpgsql(dsn).Options);
     await db.Database.MigrateAsync();
     return;
 }

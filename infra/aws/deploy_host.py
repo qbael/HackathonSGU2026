@@ -95,6 +95,10 @@ def main():
         run(args + ["--env", key, image] + command, env=os.environ | {key: config[key]})
         print("Migration complete: " + role)
         return
+    if role == "app":
+        # Automatic code releases cannot apply an unapproved migration or create another backup.
+        run(["docker", "run", "--rm", "--read-only", "--log-driver", "none", "--cap-drop", "ALL", "--ulimit", "core=0",
+             "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=128m", "--env", "ConnectionStrings__Database", image, "--check-schema"], env=os.environ | config)
     existing = run(["docker", "ps", "-a", "--format", "{{.Names}}"], text=True).splitlines()
     if previous in existing:
         run(["docker", "rm", "-f", previous])

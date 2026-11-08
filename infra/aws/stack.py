@@ -97,6 +97,7 @@ echo '* hard core 0' >> /etc/security/limits.conf
         Policies=[{"PolicyName": "migration", "PolicyDocument": policy([
             allow(["secretsmanager:GetSecretValue"], ref("MigrationSecret")),
             allow(["rds:CreateDBSnapshot"], [sub("arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:findie-postgres"), sub("arn:aws:rds:${AWS::Region}:${AWS::AccountId}:snapshot:findie-predeploy-*")]),
+            allow(["rds:AddTagsToResource"], sub("arn:aws:rds:${AWS::Region}:${AWS::AccountId}:snapshot:findie-predeploy-*")),
             allow(["rds:DescribeDBSnapshots"], "*")])}])
     add("AssumeMigration", "IAM::Policy", PolicyName="assume-migration", Roles=[ref("AppRole"), ref("WorkerRole")],
         PolicyDocument=policy([allow(["sts:AssumeRole"], att("MigrationRole", "Arn"))]))

@@ -36,7 +36,7 @@ Project hiện có: `findie-512603`, OAuth client tên `Findie`. Giữ callback 
 https://<CloudFront domain>/api/auth/google/signin
 ```
 
-Đây là callback middleware, khác với route nội bộ `/api/auth/google/callback`. Ứng dụng dùng OAuth phía server, không cần đưa client ID/secret vào React. Với audience đang Testing, chỉ tài khoản test được phép đăng nhập; kiểm tra Audience và thêm người dùng hoặc chuyển Production phù hợp. Kiểm tra thật bằng trình duyệt: chuyển sang Google đúng callback HTTPS, cookie Secure/HttpOnly, quay về ứng dụng, `/api/users/me` và POST có CSRF.
+Đây là callback middleware, khác với route nội bộ `/api/auth/google/callback`. Ứng dụng dùng OAuth phía server, không cần đưa client ID/secret vào React. Audience hiện ở Testing; luồng chỉ yêu cầu email/profile thuộc ngoại lệ không cần thêm test user ([quy định Google](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)). Nếu thêm scope khác, phải xét lại Audience và quy trình công bố. Kiểm tra thật bằng trình duyệt: chuyển sang Google đúng callback HTTPS, cookie Secure/HttpOnly, quay về ứng dụng, `/api/users/me` và POST có CSRF.
 
 ## CI/CD
 
@@ -44,7 +44,7 @@ Giữ nguyên `.github/workflows/ci.yml`. Sau CI thành công của push `main`,
 
 Repository này dùng immutable OIDC subject: `repo:qbael@197704624/HackathonSGU2026@1449042338:ref:refs/heads/main` (đã xác minh qua GitHub API). Không thay bằng subject chỉ chứa tên repo; nếu tái sử dụng cho repository khác, lấy `sub_claim_prefix` tại `/actions/oidc/customization/sub` rồi nối `:ref:refs/heads/main` và truyền tham số `GitHubSubject` phù hợp.
 
-Migration theo thứ tự: snapshot RDS theo SHA và chờ available, .NET `--migrate` có advisory lock, Python search migration. Không reset/seed database. Chỉ đưa lên main các migration tương thích với bản đang chạy và bản local. Sau đó deploy worker và app, kiểm tra app database readiness và liveness. Worker có thể live nhưng inference unavailable nếu notebook GPU ngắt; trạng thái này không được coi là AI ready.
+Chủ project chỉ cho phép một snapshot cho lần triển khai đầu. Các release tự động sau đó không tạo snapshot hay chạy migration: API `--check-schema` kiểm tra migration chưa áp dụng và dừng nếu schema chưa khớp. Khi có thay đổi schema, cần phê duyệt backup/migration riêng trước khi chạy `release.py <SHA> --migrate`: snapshot RDS theo SHA và chờ available, .NET `--migrate` có advisory lock, Python search migration. Không reset/seed database. Chỉ áp dụng migration tương thích với bản đang chạy và bản local. Worker có thể live nhưng inference unavailable nếu notebook GPU ngắt; trạng thái này không được coi là AI ready.
 
 `deploy_host.py` lấy secrets vào bộ nhớ, truyền cho Docker qua môi trường tiến trình, không đưa giá trị vào argv hay SSM output. Container read-only, non-root, bỏ capabilities, không có swap/core dump, `/tmp` tmpfs; tắt container log để tránh lưu request riêng tư. Cookie/Data Protection keyring được giữ trên EBS mã hóa giữa các release. Không dùng `docker inspect` với output cấu hình môi trường trong log.
 

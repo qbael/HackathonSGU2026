@@ -81,6 +81,6 @@ jobs:
           file: services/ai/Dockerfile
           push: true
           tags: ${{ steps.ecr.outputs.registry }}/findie-worker:${{ env.RELEASE_SHA }}
-      - name: Migrate once, deploy, check and roll back on failure
+      - name: Deploy with schema check and rollback on failure
         if: steps.current.outputs.deploy == 'true'
         run: python3 infra/aws/release.py "$RELEASE_SHA"
