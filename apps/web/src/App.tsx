@@ -111,14 +111,13 @@ export default function App() {
       if (target.hasAttribute("download")) return;
 
       const href = target.getAttribute("href");
-      if (!href) return;
+      if (!href || href.startsWith("#")) return;
 
       if (
         href.startsWith("http://") ||
         href.startsWith("https://") ||
         href.startsWith("mailto:") ||
-        href.startsWith("tel:") ||
-        href.startsWith("#")
+        href.startsWith("tel:")
       ) {
         try {
           const url = new URL(href, window.location.origin);
@@ -128,7 +127,7 @@ export default function App() {
         }
       }
 
-      const nextUrl = new URL(href, window.location.origin);
+      const nextUrl = new URL(href, window.location.href);
       if (nextUrl.origin !== window.location.origin) return;
 
       if (
@@ -146,11 +145,11 @@ export default function App() {
 
       if (nextFullPath !== currentFullPath) {
         window.history.pushState(null, "", nextFullPath);
-        setImageSearch(null);
-        setPath(nextPath);
-        setNavKey((k) => k + 1);
-        window.scrollTo(0, 0);
       }
+      setImageSearch(null);
+      setPath(nextPath);
+      setNavKey((k) => k + 1);
+      window.scrollTo(0, 0);
     };
 
     document.addEventListener("click", handleLinkClick);
@@ -256,7 +255,7 @@ export default function App() {
     setLoading(true);
     setPath("/search");
   }} />;
-  else if (path === "/search") content = protect(() => <Search key={window.location.search} initialRequest={imageSearch} />);
+  else if (path === "/search") content = protect(() => <Search key={`${window.location.search}-${navKey}`} initialRequest={imageSearch} />);
   else if (path === "/saved-searches") content = protect(() => <SavedSearches searches={savedSearches} />);
   else if (path === "/post") content = protect(() => <PostItem />);
   else if (path === "/posts") content = protect(() => <MyPosts />);

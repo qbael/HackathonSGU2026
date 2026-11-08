@@ -26,6 +26,7 @@ demo/           Ảnh, video và tóm tắt demo
 
 ## Phát triển và kiểm thử
 
+- [Báo cáo Toàn diện về Hệ thống Kiểm thử (Testing Report)](TESTING_REPORT.md): Tổng hợp danh sách toàn bộ các test cases, ma trận bao phủ (Unit, Integration, E2E, Security) và hướng dẫn chi tiết cách chạy kiểm thử cho dự án.
 - [Báo cáo Chức năng Bảo mật](security/SECURITY_REPORT.md): Tổng hợp toàn bộ cơ chế bảo vệ (Privacy, Auth, Network, SAST/SCA) và bảng lệnh thực thi kiểm tra an ninh.
 - [Kế hoạch An ninh & Review Code](security/SECURITY_PLAN.md): Tích hợp Semgrep, Gitleaks, quy tắc bảo vệ PII, Zero Raw Image và quy trình kiểm duyệt code.
 - [Cài đặt và chạy local](guides/development.md), gồm cấu hình OAuth Google; ứng dụng hiện chỉ hỗ trợ đăng nhập Google.

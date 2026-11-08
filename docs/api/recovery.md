@@ -302,6 +302,10 @@ DTO `id,itemId,eventKind,custodyVersion,occurredAt`. Chỉ tác giả hoặc ng�
 điểm hiện có quyền nhận/trả; người khác **403**. Không có API sửa/xóa sự kiện.
 Không trả verification note, recipient, câu trả lời hoặc bản chụp custody riêng tư.
 
+## GET /api/notifications/summary — tổng hợp thông báo chưa đọc
+
+Response **200** NotificationSummaryResponse gồm pendingRequestsCount, decidedRequestsCount, và danh sách conversations (conversationId, lastMessageAt, lastMessageSenderId) để đồng bộ huy hiệu thông báo thời gian thực cho người dùng đang đăng nhập.
+
 ## Kiểm thử
 
 Chạy `make api-integration`. [RecoveryChecks.cs](../../apps/api/tests/integration/RecoveryChecks.cs)

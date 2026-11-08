@@ -488,7 +488,15 @@ export function Search({ initialRequest }: { initialRequest?: SearchInput | null
               </span>
             )}
           </div>
-          {(request || hasBasicFilters) && <a className="text-button search-edit-link" href="#search-query"><Icon name="search" size={15} /> Sửa tìm kiếm</a>}
+          {(request || hasBasicFilters) && (
+            <a
+              className="text-button search-edit-link"
+              href="#search-query"
+              onClick={() => document.getElementById("search-query")?.focus()}
+            >
+              <Icon name="search" size={15} /> Sửa tìm kiếm
+            </a>
+          )}
           {activeFilters && (activeFilters.area || activeFilters.from || activeFilters.until) && (
             <div className="search-filter-chips" aria-label="Điều kiện đã tìm">
               {activeFilters.area && <span><Icon name="pin" size={14} />{activeFilters.area}</span>}
